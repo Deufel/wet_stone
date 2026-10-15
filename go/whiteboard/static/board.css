@@ -238,9 +238,11 @@
   :where(#board) .extents { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-dasharray: 0 6; stroke-linecap: round; }
   :where(#board) .port { fill: Canvas; stroke: currentColor; stroke-width: 2; }
   :where(#board) .port[data-ui-linked] { fill: currentColor; }
-  /* the laser fades by its ink: --fg is a registered number, so it animates, and 0 is the surface */
-  @keyframes laser-fade { from { --fg: 1; } to { --fg: 0; } }
-  :where(#board) .laser { animation: laser-fade 1.2s ease-in forwards; }
+  /* the laser fades by opacity: the browser hands that to the compositor, so a
+     busy scribble costs next to nothing per frame (it once animated --fg, the
+     engine's ink, which re-ran the colour maths for every segment, every frame) */
+  @keyframes laser-fade { from { opacity: 1; } to { opacity: 0; } }
+  :where(#board) .laser { --fg: 1; animation: laser-fade 1.2s ease-in forwards; will-change: opacity; }
   :where(#board) .laser path { fill: none; stroke: currentColor; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
   :where(#board) .cursor path { fill: currentColor; stroke: none; }
   /* names and labels are sized in board units (the SVG scales them with the
