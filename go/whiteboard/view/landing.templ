@@ -63,7 +63,7 @@ templ Landing(d LandingData) {
 // to one of theirs.
 templ Home(u *db.User, tabs []db.Tab) {
 	@Doc("draw · your boards", nil) {
-		<div class="page home" data-signals={ "{" + savedSignal + "}" } data-init={ streamGet("/stream") }>
+		<div class="page home" data-signals={ "{" + savedSignal + ", _rm: {name: '', title: ''}}" } data-init={ streamGet("/stream") }>
 			@appHeader(u)
 			<main class="pg-main scroll-y">
 				<div class="home-body">
@@ -89,6 +89,7 @@ templ Home(u *db.User, tabs []db.Tab) {
 				</div>
 			</main>
 		</div>
+		@removeDialog()
 		@ThemeMenu()
 		@MeMenu(u)
 	}
@@ -204,8 +205,8 @@ templ HomeBoards(tabs []db.Tab) {
 							@visIcon(t.Visibility)
 							<a href={ templ.SafeURL("/b/" + t.Name) }>{ t.Title }</a>
 							<span class="meta">{ boardRole(t) }</span>
-							<button class="icon" data-on:click={ "@post('/tabs/close/" + t.Name + "')" } aria-label={ "Remove " + t.Title + " from your boards" } title="Remove from your boards">
-								@Icon("x")
+							<button class="icon dgr sec" data-on:click={ "$_rm = {name: " + jsString(t.Name) + ", title: " + jsString(t.Title) + "}; document.getElementById('remove-confirm').showModal()" } aria-label={ "Remove " + t.Title + " from your boards" } title="Remove from your boards">
+								@Icon("trash")
 							</button>
 						</li>
 					}
@@ -213,6 +214,21 @@ templ HomeBoards(tabs []db.Tab) {
 			</ul>
 		}
 	</section>
+}
+
+// removeDialog asks before a board leaves your list ($_rm names it).
+templ removeDialog() {
+	<dialog id="remove-confirm" class="modal content-1 confirm" closedby="any" aria-label="Remove from your boards">
+		<h2>Remove from your boards?</h2>
+		<p><strong data-text="$_rm.title"></strong> leaves your list. The board itself is kept: open its link again to bring it back.</p>
+		<div class="row end">
+			<button data-on:click="document.getElementById('remove-confirm').close()" autofocus>Cancel</button>
+			<button class="dgr" data-on:click="@post('/tabs/close/' + $_rm.name); document.getElementById('remove-confirm').close()">
+				@Icon("trash")
+				Remove
+			</button>
+		</div>
+	</dialog>
 }
 
 func googleURL(next string) string {

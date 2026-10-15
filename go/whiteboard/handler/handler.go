@@ -15,6 +15,10 @@
 //	                           view never comes back on a command; it arrives
 //	                           on the stream.
 //	POST /b/{name}/share/{op}  the owner's title / invite / uninvite
+//	POST /b/{name}/todo/add    a checklist item (payload {text})
+//	POST /b/{name}/todo/{id}/{op}  check or uncheck it (toggle), or delete it
+//	POST /b/{name}/notes       your private notes on the board (payload {text, lang})
+//	GET  /b/{name}/print       the board, its checklist and your notes, for paper
 //
 // There are no forms. Inputs are signals; a command that stores what an input
 // holds answers with ack.Saved, which the input's .saved line shows.
@@ -23,11 +27,13 @@ package handler
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"net/mail"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -51,6 +57,25 @@ type Handler struct {
 	// Compress is the stream's encoding: "br" (default), "gzip" or "none".
 	// Some proxies (ngrok) hold a compressed stream back instead of passing it on.
 	Compress string
+	// Instance names this server process. A deploy starts a new one while the
+	// old still runs for a while (Coolify's rolling update), and a page could
+	// then send its commands to the new process while its stream still hung on
+	// the old: the view froze. A page carries the instance it landed on ($inst)
+	// and reloads when it reaches another.
+	Instance string
+}
+
+// reloadJS reloads the page, at most once in 10 s (two processes answering
+// side by side during a deploy must not bounce it).
+const reloadJS = `try { const t = +sessionStorage.getItem('wb-reload') || 0; if (Date.now() - t > 10000) { sessionStorage.setItem('wb-reload', Date.now()); location.reload() } } catch { location.reload() }`
+
+// moved answers a page that landed on another server process by reloading it.
+func (h *Handler) moved(w http.ResponseWriter, r *http.Request, inst string) bool {
+	if inst == "" || inst == h.Instance {
+		return false
+	}
+	_ = datastar.NewSSE(w, r).ExecuteScript(reloadJS)
+	return true
 }
 
 func (h *Handler) sseOptions() []datastar.SSEOption {
@@ -90,6 +115,7 @@ type signals struct {
 	Hbr    int64  `json:"hbranch"`
 	Invite string `json:"invite"`
 	Who    string `json:"who"`
+	Inst   string `json:"inst"`
 	Title  string `json:"title"`
 }
 
@@ -114,6 +140,10 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/b/{name}", h.page)
 	r.Get("/b/{name}/stream", h.stream)
 	r.Post("/b/{name}/share/{op}", h.share)
+	r.Post("/b/{name}/todo/add", h.todoAdd)
+	r.Post("/b/{name}/todo/{id}/{op}", h.todoOp)
+	r.Post("/b/{name}/notes", h.notes)
+	r.Get("/b/{name}/print", h.print)
 	r.Post("/b/{name}/{op}", h.command)
 }
 
@@ -338,7 +368,7 @@ func (h *Handler) page(w http.ResponseWriter, r *http.Request) {
 		slog.Error("tabs", "err", err)
 	}
 	html(w)
-	if err := view.Board(view.BoardData{Name: n, Link: h.Auth.BaseURL + "/b/" + n, User: u, Meta: meta, Hist: hist, Tabs: tabs}).Render(r.Context(), w); err != nil {
+	if err := view.Board(view.BoardData{Inst: h.Instance, Name: n, Link: h.Auth.BaseURL + "/b/" + n, User: u, Meta: meta, Hist: hist, Tabs: tabs}).Render(r.Context(), w); err != nil {
 		slog.Error("page", "err", err)
 	}
 }
@@ -347,13 +377,16 @@ func (h *Handler) page(w http.ResponseWriter, r *http.Request) {
 // once (a reconnect lands on truth), then pushes again on every board event.
 // One goroutine does every write, so frames and keepalives never interleave.
 func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
-	n, u, _, ok := h.open(w, r, false)
+	n, u, meta0, ok := h.open(w, r, false)
 	if !ok {
 		return
 	}
 	var s signals
 	if err := datastar.ReadSignals(r, &s); err != nil {
 		http.Error(w, "bad signals", http.StatusBadRequest)
+		return
+	}
+	if h.moved(w, r, s.Inst) {
 		return
 	}
 	b, _, err := h.Hub.Board(r.Context(), n)
@@ -396,8 +429,18 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 	defer histLater.Stop()
 	histArmed := false
 	var buf bytes.Buffer
+	// what is the viewer's own: the tab strip, and their notes on this board
+	// (pushed as a signal: the editor is never morphed under their caret)
+	var sentNote int64 = -1
 	tabs := func() bool {
 		ctx := r.Context()
+		if note, err := h.DB.Note(ctx, u.ID, meta0.ID); err == nil && note.Updated != sentNote {
+			b, _ := json.Marshal(map[string]db.Note{"_notes": note})
+			if sse.PatchSignals(b) != nil {
+				return false
+			}
+			sentNote = note.Updated
+		}
 		meta, err := h.Hub.Meta(ctx, n)
 		if err != nil {
 			return true
@@ -434,8 +477,23 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 		sentHist, histAt = hist.Version, time.Now()
 		return true
 	}
+	var sentTodo int64
 	push := func() bool {
 		ctx := r.Context()
+		if v := h.Hub.TodoVersion(ctx, n); v != sentTodo {
+			list, err := h.DB.Todos(ctx, meta0.ID)
+			if err != nil {
+				slog.Error("todos", "board", n, "err", err)
+			} else {
+				buf.Reset()
+				if err := view.Todos(n, list).Render(ctx, &buf); err == nil {
+					if sse.PatchElements(buf.String()) != nil {
+						return false
+					}
+				}
+				sentTodo = v
+			}
+		}
 		// the share panel only when it changed: another morph target on the
 		// same stream, never a second channel
 		if meta, err := h.Hub.Meta(ctx, n); err == nil && meta.Version != sentMeta {
@@ -511,6 +569,9 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad signals", http.StatusBadRequest)
 		return
 	}
+	if h.moved(w, r, s.Inst) {
+		return
+	}
 	if histOps[op] {
 		id := s.Hbr
 		if op == "checkout" {
@@ -561,6 +622,9 @@ func (h *Handler) share(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad signals", http.StatusBadRequest)
 		return
 	}
+	if h.moved(w, r, s.Inst) {
+		return
+	}
 	op, arg := chi.URLParam(r, "op"), ""
 	switch op {
 	case "title":
@@ -600,6 +664,120 @@ func (h *Handler) share(w http.ResponseWriter, r *http.Request) {
 	case "uninvite":
 		ack.Saved(sse, "invite", "Removed "+arg)
 	}
+}
+
+// payload is what the checklist and the notes post: their text, not signals.
+type payload struct {
+	Text string `json:"text"`
+	Lang string `json:"lang"`
+	Inst string `json:"inst"`
+}
+
+func (h *Handler) todoAdd(w http.ResponseWriter, r *http.Request) {
+	n, u, meta, ok := h.open(w, r, false)
+	if !ok {
+		return
+	}
+	var p payload
+	if err := datastar.ReadSignals(r, &p); err != nil {
+		http.Error(w, "bad payload", http.StatusBadRequest)
+		return
+	}
+	if h.moved(w, r, p.Inst) {
+		return
+	}
+	sse := datastar.NewSSE(w, r)
+	text := cleanText(p.Text, 200)
+	if text == "" {
+		return
+	}
+	if err := h.DB.AddTodo(r.Context(), meta.ID, u.ID, text); err != nil {
+		slog.Error("todo", "board", n, "err", err)
+		ack.Bad(sse, "todo", "Not saved")
+		return
+	}
+	h.Hub.TodoChanged(r.Context(), n)
+}
+
+func (h *Handler) todoOp(w http.ResponseWriter, r *http.Request) {
+	n, u, meta, ok := h.open(w, r, false)
+	if !ok {
+		return
+	}
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	var s signals
+	if err := datastar.ReadSignals(r, &s); err == nil && h.moved(w, r, s.Inst) {
+		return
+	}
+	switch chi.URLParam(r, "op") {
+	case "toggle":
+		err = h.DB.ToggleTodo(r.Context(), meta.ID, id, u.ID)
+	case "delete":
+		err = h.DB.DeleteTodo(r.Context(), meta.ID, id)
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		slog.Error("todo", "board", n, "err", err)
+		http.Error(w, "could not save", http.StatusInternalServerError)
+		return
+	}
+	h.Hub.TodoChanged(r.Context(), n)
+	datastar.NewSSE(w, r)
+}
+
+// notes saves the viewer's private notes; their other devices get them from
+// the user subject.
+func (h *Handler) notes(w http.ResponseWriter, r *http.Request) {
+	_, u, meta, ok := h.open(w, r, false)
+	if !ok {
+		return
+	}
+	var p payload
+	if err := datastar.ReadSignals(r, &p); err != nil {
+		http.Error(w, "bad payload", http.StatusBadRequest)
+		return
+	}
+	if h.moved(w, r, p.Inst) {
+		return
+	}
+	if len(p.Text) > 64<<10 {
+		ack.Bad(datastar.NewSSE(w, r), "notes", "Too long to save")
+		return
+	}
+	if !view.NoteLang(p.Lang) {
+		p.Lang = ""
+	}
+	if err := h.DB.SaveNote(r.Context(), u.ID, meta.ID, p.Text, p.Lang); err != nil {
+		slog.Error("notes", "err", err)
+		ack.Bad(datastar.NewSSE(w, r), "notes", "Not saved")
+		return
+	}
+	h.Hub.PublishUser(u.ID)
+	ack.Saved(datastar.NewSSE(w, r), "notes", "Saved")
+}
+
+// print is the board for paper: US Letter, the drawing on the first page,
+// the checklist and the viewer's notes after.
+func (h *Handler) print(w http.ResponseWriter, r *http.Request) {
+	n, u, meta, ok := h.open(w, r, true)
+	if !ok {
+		return
+	}
+	b, _, err := h.Hub.Board(r.Context(), n)
+	if err != nil {
+		http.Error(w, "board unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	todos, _ := h.DB.Todos(r.Context(), meta.ID)
+	note, _ := h.DB.Note(r.Context(), u.ID, meta.ID)
+	html(w)
+	_ = view.Print(view.PrintData{Name: n, Meta: meta, Drawing: b.Print(), Todos: todos, Note: note, Printed: h.DB.Now(r.Context())}).Render(r.Context(), w)
 }
 
 // Control characters dropped, capped at max bytes on a rune boundary.

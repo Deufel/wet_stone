@@ -12,6 +12,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"context"
 	"errors"
 	"flag"
@@ -78,7 +80,11 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(a.Middleware)
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServerFS(static.FS)))
-	(&handler.Handler{Hub: h, Bus: b, DB: d, Auth: a, Compress: *compress}).Routes(r)
+	// this process's id: a page carries it, and a page from another process
+	// (a deploy happened) reloads instead of talking past the server
+	var inst [6]byte
+	_, _ = rand.Read(inst[:])
+	(&handler.Handler{Hub: h, Bus: b, DB: d, Auth: a, Compress: *compress, Instance: hex.EncodeToString(inst[:])}).Routes(r)
 
 	// Streams are lifelong, so shutdown cancels every request context (which
 	// ends each stream's loop) instead of waiting for them to finish.

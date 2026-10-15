@@ -6,6 +6,7 @@ import (
 )
 
 type BoardData struct {
+	Inst string // the server process this page landed on
 	Name string
 	Link string // the board's full URL, for sharing
 	User *db.User
@@ -24,11 +25,11 @@ templ Board(d BoardData) {
 		<!-- the board's wiring sits on .page, in a fixed order: the signals are
 		     declared before data-init reads them (a map of body attributes has no
 		     order, and $uid once lost that race) -->
-		<div class="page board-page" data-signals={ signals } data-init={ onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
+		<div class="page board-page" data-signals={ pageSignals(d.Inst) } data-init={ onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
 			<header class="pg-header app-header">
-				<a class="brand" href="/" aria-label="draw: your boards">
+				<button class="brand" popovertarget="nav-drawer" aria-label="Menu" title="Your boards">
 					@Mark()
-				</a>
+				</button>
 				@boardTitle(d.Name, d.User, d.Meta)
 				<div class="row end">
 					<span class="presence tablet desktop" title="People on this board"><span data-text="$users"></span> here</span>
@@ -46,70 +47,18 @@ templ Board(d BoardData) {
 				</div>
 			</header>
 			@BoardTabs(d.Name, d.User, d.Meta, d.Tabs)
-			<nav class="pg-toolbar tool-rail tablet desktop" aria-label="Tools">
-				@railTool(0, "select", "Select", "Esc")
-				@railTool(1, "box", "Box", "R")
-				@railTool(2, "line", "Line", "L")
-				@railTool(3, "arrow", "Arrow", "A")
-				@railTool(4, "laser", "Laser", "5")
-			</nav>
-			<div class="pg-main-header context-bar">
-				<input
-					id="label"
-					type="text"
-					placeholder="Label the selected shape"
-					maxlength="48"
-					aria-label="Label of the selected shape"
-					data-bind:label
-					data-attr:disabled="$sel < 0"
-					data-on:input__debounce.200ms={ post(d.Name, "label") }
-					data-effect={ editFocus }
-				/>
-				@Saved("label")
-				<div class="row acts">
-					<button class="icon" data-on:click={ post(d.Name, "group") } data-attr:disabled="$nsel < 2" aria-label="Group" title="Group (G)">
-						@Icon("group")
-					</button>
-					<button class="icon" data-on:click={ post(d.Name, "ungroup") } data-attr:disabled="!$grouped" aria-label="Ungroup" title="Ungroup (⇧G)">
-						@Icon("ungroup")
-					</button>
-					<button class="icon" data-on:click={ post(d.Name, "delete") } data-attr:disabled="$nsel < 1" aria-label="Delete" title="Delete (Del)">
-						@Icon("trash")
-					</button>
-					<button class="icon dgr" data-on:click={ post(d.Name, "clear") } aria-label="Clear the board" title="Clear the board (the history keeps it)">
-						@Icon("eraser")
-					</button>
+			<!-- the workspace: the board, its checklist and your notes, laid out
+			     by container queries on the space they get -->
+			<main class="pg-main scroll-y workspace-wrap">
+				<div class="workspace">
+					@boardCard(d.Name)
+					@TodoCard(d.Name)
+					@NotesCard(d.Name)
 				</div>
-				<span class="note" data-text="$note" aria-live="polite"></span>
-				<span class="count num tablet desktop"><span data-text="$shapes"></span> shapes</span>
-				<button class="hist-toggle" popovertarget="history-drawer" title="History (⇧H)">
-					@Icon("history")
-					<span class="tablet desktop">History</span>
-				</button>
-			</div>
-			<main class="pg-main">
-				<section>
-					<div
-						id="stage"
-						data-on:pointerdown={ onDown(d.Name) }
-						data-on:pointermove__window={ onMove(d.Name) }
-						data-on:pointerup__window={ onUp(d.Name) }
-						data-on:dblclick={ onDblclick(d.Name) }
-						data-on:contextmenu={ onContext(d.Name) }
-					>
-						@grid()
-						<svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"></svg>
-					</div>
-				</section>
 			</main>
-			<footer class="pg-footer mobile mobile-tools" aria-label="Tools">
-				@railTool(0, "select", "Select", "")
-				@railTool(1, "box", "Box", "")
-				@railTool(2, "line", "Line", "")
-				@railTool(3, "arrow", "Arrow", "")
-				@railTool(4, "laser", "Laser", "")
-			</footer>
 		</div>
+		@navDrawer(d)
+		@clearDialog(d.Name)
 		<aside id="history-drawer" class="drawer right history-drawer" popover="manual" aria-label="History">
 			<header class="drawer-head">
 				<h2>History</h2>
@@ -132,7 +81,143 @@ templ Board(d BoardData) {
 		@ThemeMenu()
 		@MeMenu(d.User)
 		@newMenu()
+		<script src="/static/highlight.js"></script>
 	}
+}
+
+// boardCard is the whiteboard with its controls on its own frame: the tools,
+// what to do with the selection, its label, the history and full screen.
+templ boardCard(name string) {
+	<section class="card board-card" data-class:full="$_full" data-init={ fullSync } aria-label="Whiteboard">
+		<div class="board-panel">
+			<div class="row oneline tools" role="toolbar" aria-label="Tools">
+				@railTool(0, "select", "Select", "Esc")
+				@railTool(1, "box", "Box", "R")
+				@railTool(2, "line", "Line", "L")
+				@railTool(3, "arrow", "Arrow", "A")
+				@railTool(4, "laser", "Laser", "5")
+			</div>
+			<div class="row oneline acts">
+				<button class="icon" data-on:click={ post(name, "group") } data-attr:disabled="$nsel < 2" aria-label="Group" title="Group (G)">
+					@Icon("group")
+				</button>
+				<button class="icon" data-on:click={ post(name, "ungroup") } data-attr:disabled="!$grouped" aria-label="Ungroup" title="Ungroup (⇧G)">
+					@Icon("ungroup")
+				</button>
+				<button class="icon" data-on:click={ post(name, "delete") } data-attr:disabled="$nsel < 1" aria-label="Delete" title="Delete (Del)">
+					@Icon("trash")
+				</button>
+				<button class="icon dgr" data-on:click="document.getElementById('clear-confirm').showModal()" aria-label="Clear the board" title="Clear the board">
+					@Icon("eraser")
+				</button>
+			</div>
+			<div class="row oneline ends">
+				<span class="count num"><span data-text="$shapes"></span> shapes</span>
+				<button class="icon" popovertarget="history-drawer" aria-label="History" title="History (⇧H)">
+					@Icon("history")
+				</button>
+				<button class="icon" data-on:click={ fullToggle } aria-label="Full screen" title="Full screen (F)">
+					<span data-show="!$_full">
+						@Icon("maximize")
+					</span>
+					<span data-show="$_full">
+						@Icon("minimize")
+					</span>
+				</button>
+			</div>
+		</div>
+		<div class="row oneline label-row">
+			<input
+				id="label"
+				type="text"
+				placeholder="Label the selected shape"
+				maxlength="48"
+				aria-label="Label of the selected shape"
+				data-bind:label
+				data-attr:disabled="$sel < 0"
+				data-on:input__debounce.200ms={ post(name, "label") }
+				data-effect={ editFocus }
+			/>
+			@Saved("label")
+			<span class="note" data-text="$note" aria-live="polite"></span>
+		</div>
+		<!-- the paper sits a few pixels in from the frame, and the grid runs on
+		     under that margin, so its edge marks show whole -->
+		<div class="stage-frame">
+			<div
+				id="stage"
+				data-on:pointerdown={ onDown(name) }
+				data-on:pointermove__window={ onMove(name) }
+				data-on:pointerup__window={ onUp(name) }
+				data-on:dblclick={ onDblclick(name) }
+				data-on:contextmenu={ onContext(name) }
+			>
+				@grid()
+				<svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"></svg>
+			</div>
+		</div>
+	</section>
+}
+
+// clearDialog: clearing the board asks first (the history still keeps it).
+templ clearDialog(name string) {
+	<dialog id="clear-confirm" class="modal content-1 confirm" closedby="any" aria-label="Clear the board">
+		<h2>Clear the board?</h2>
+		<p>Everything drawn goes. The history keeps it: you can step back to it from there.</p>
+		<div class="row end">
+			<button data-on:click="document.getElementById('clear-confirm').close()" autofocus>Cancel</button>
+			<button class="dgr" data-on:click={ post(name, "clear") + "; document.getElementById('clear-confirm').close()" }>
+				@Icon("eraser")
+				Clear
+			</button>
+		</div>
+	</dialog>
+}
+
+// navDrawer opens from the logo: your boards, a new one, this board on paper.
+templ navDrawer(d BoardData) {
+	<aside id="nav-drawer" class="drawer left nav-drawer" popover aria-label="Menu">
+		<header class="drawer-head">
+			<a class="brand" href="/">
+				@Mark()
+				<span>draw</span>
+			</a>
+			<button class="icon" popovertarget="nav-drawer" popovertargetaction="hide" aria-label="Close menu">
+				@Icon("x")
+			</button>
+		</header>
+		<nav class="nav-list" aria-label="Boards">
+			<a href="/">
+				@Icon("home")
+				Your boards
+			</a>
+			<h3>Boards</h3>
+			for _, t := range withCurrent(d.Name, d.Meta, d.Tabs) {
+				<a href={ templ.SafeURL("/b/" + t.Name) } aria-current?={ t.Name == d.Name }>
+					@visIcon(t.Visibility)
+					{ t.Title }
+				</a>
+			}
+			<button class="oneline" data-on:click={ newBoard(db.Public) }>
+				@Icon("plus")
+				New public board
+			</button>
+			<button class="oneline" data-on:click={ newBoard(db.Private) }>
+				@Icon("plus")
+				New private board
+			</button>
+			<hr/>
+			<a href={ templ.SafeURL("/b/" + d.Name + "/print") }>
+				@Icon("printer")
+				Print this board
+			</a>
+			<button data-on:click="document.getElementById('keys').showModal()">
+				@Icon("keys")
+				Keyboard shortcuts
+			</button>
+		</nav>
+		<p class="fine"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
+	</aside>
 }
 
 templ railTool(n int, icon, label, key string) {
@@ -223,6 +308,8 @@ templ keysDialog() {
 			<dd>delete the selection</dd>
 			<dt><kbd>⇧</kbd> <kbd>H</kbd></dt>
 			<dd>show or hide the history</dd>
+			<dt><kbd>F</kbd></dt>
+			<dd>the whiteboard full screen, or back</dd>
 			<dt><kbd>?</kbd></dt>
 			<dd>these shortcuts</dd>
 			<dt>drag on empty paper</dt>
@@ -243,8 +330,8 @@ templ grid() {
 			<pattern id="minor" width="20" height="20" x="-10" y="-10" patternUnits="userSpaceOnUse"><path class="plus" d="M7 10h6M10 7v6"></path></pattern>
 			<pattern id="major" width="100" height="100" x="-50" y="-50" patternUnits="userSpaceOnUse"><path class="major" d="M50 0v100M0 50h100"></path></pattern>
 		</defs>
-		<rect width="1000" height="1000" fill="url(#major)"></rect>
-		<rect width="1000" height="1000" fill="url(#minor)"></rect>
+		<rect x="-30" y="-30" width="1060" height="1060" fill="url(#major)"></rect>
+		<rect x="-30" y="-30" width="1060" height="1060" fill="url(#minor)"></rect>
 	</svg>
 }
 

@@ -42,6 +42,7 @@ type live struct {
 	b    *board.Board
 	hist atomic.Pointer[History]
 	meta atomic.Pointer[Meta]
+	todo atomic.Int64 // the checklist's version: a stream re-reads it when this moves
 	wake chan struct{} // cap 1
 
 	mu      sync.Mutex
@@ -213,6 +214,24 @@ func (h *Hub) Publish(name string) {
 	if err := h.bus.Publish(bus.BoardSubject(name), nil); err != nil {
 		slog.Error("publish", "board", name, "err", err)
 	}
+}
+
+// TodoChanged marks the board's checklist changed and wakes its streams.
+func (h *Hub) TodoChanged(ctx context.Context, name string) {
+	if l, err := h.live(ctx, name); err == nil {
+		l.todo.Add(1)
+		h.Publish(name)
+	}
+}
+
+// TodoVersion is the checklist's version (1 from the start, so a new stream
+// always sends it once).
+func (h *Hub) TodoVersion(ctx context.Context, name string) int64 {
+	l, err := h.live(ctx, name)
+	if err != nil {
+		return 0
+	}
+	return l.todo.Load() + 1
 }
 
 // PublishUser wakes every stream that person has open, on every device.

@@ -50,6 +50,31 @@ var migrations = []string{
 		PRIMARY KEY (user_id, board_id)
 	);
 	`,
+
+	// 3: a board's checklist (shared, no history: each item keeps when it was
+	// done and by whom) and each user's private notes on a board. SQLite keeps
+	// the time: unixepoch() on write, strftime() on read.
+	`
+	CREATE TABLE IF NOT EXISTS todos (
+		id         INTEGER PRIMARY KEY,
+		board_id   INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+		text       TEXT NOT NULL,
+		created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+		created_by INTEGER REFERENCES users(id),
+		done_at    INTEGER,             -- NULL while open
+		done_by    INTEGER REFERENCES users(id)
+	);
+	CREATE INDEX IF NOT EXISTS todos_board ON todos (board_id, id);
+
+	CREATE TABLE IF NOT EXISTS notes (
+		user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		board_id   INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+		text       TEXT NOT NULL DEFAULT '',
+		lang       TEXT NOT NULL DEFAULT '', -- the highlighter's language, '' = plain
+		updated_at INTEGER NOT NULL DEFAULT (unixepoch('subsec') * 1000),
+		PRIMARY KEY (user_id, board_id)
+	);
+	`,
 }
 
 func migrate(db *sql.DB) error {

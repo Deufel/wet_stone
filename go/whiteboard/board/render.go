@@ -96,80 +96,7 @@ func (b *Board) render(v *User, uid uint32) string {
 
 	w.s(`<svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">`)
 
-	// shapes
-	w.s(`<g class="shapes">`)
-	for i := range b.Shapes {
-		s := &b.Shapes[i]
-		if s.Kind == None {
-			continue
-		}
-		w.s("<g")
-		w.hue(b.shapeHue(s))
-		if v != nil && v.Sel[i] {
-			w.s(" data-ui-selected")
-		}
-		w.s(">")
-		switch s.Kind {
-		case Box:
-			x1, x2 := min(s.X1, s.X2), max(s.X1, s.X2)
-			y1, y2 := min(s.Y1, s.Y2), max(s.Y1, s.Y2)
-			w.s("<rect")
-			w.attr("x", x1)
-			w.attr("y", y1)
-			w.attr("width", x2-x1)
-			w.attr("height", y2-y1)
-			w.s(` rx="6"/>`)
-			for k := 0; k < 4; k++ {
-				if s.Corner[k] >= 0 {
-					cx, cy := cornerPos(s, k)
-					w.circle(cx, cy, 4, ` class="node" data-ui-linked`)
-				}
-			}
-			w.label(s, x1, y1, x2-x1, y2-y1)
-		case Line, Arrow:
-			ax, ay := b.endPoint(s, 0)
-			bx, by := b.endPoint(s, 1)
-			lx, ly := bx, by // where the stroke ends (short of an arrow head)
-			if s.Kind == Arrow {
-				dx, dy := float64(bx-ax), float64(by-ay)
-				if length := math.Hypot(dx, dy); length > 1 {
-					ux, uy := dx/length, dy/length
-					baseX, baseY := float64(bx)-ux*ArrowLen, float64(by)-uy*ArrowLen
-					lx, ly = int32(baseX), int32(baseY)
-					w.s(`<path class="head" d="M`)
-					w.i(bx)
-					w.s(" ")
-					w.i(by)
-					w.s(" L")
-					w.i(int32(baseX - uy*ArrowHalf))
-					w.s(" ")
-					w.i(int32(baseY + ux*ArrowHalf))
-					w.s(" L")
-					w.i(int32(baseX + uy*ArrowHalf))
-					w.s(" ")
-					w.i(int32(baseY - ux*ArrowHalf))
-					w.s(` Z"/>`)
-				}
-			}
-			w.s("<line")
-			w.attr("x1", ax)
-			w.attr("y1", ay)
-			w.attr("x2", lx)
-			w.attr("y2", ly)
-			w.s("/>")
-			// end dots: hollow when free, filled when linked
-			for end, p := range [2][2]int32{{ax, ay}, {bx, by}} {
-				extra := ` class="node"`
-				if s.Joint[end] >= 0 {
-					extra = ` class="node" data-ui-linked`
-				}
-				w.circle(p[0], p[1], 4, extra)
-			}
-			w.label(s, (ax+bx)/2-90, (ay+by)/2-16, 180, 32)
-		}
-		w.s("</g>")
-	}
-	w.s("</g>")
+	b.drawShapes(w, v)
 
 	// ports: the selected box's, and the box a dragged connector end is near
 	if count == 1 && selected >= 0 && b.Shapes[selected].Kind == Box {
@@ -364,4 +291,94 @@ func b2i(v bool) int {
 		return 1
 	}
 	return 0
+}
+
+// drawShapes writes the shapes, with their labels and link dots, as the
+// viewer v sees them (v nil: nothing selected, as on paper).
+func (b *Board) drawShapes(w *writer, v *User) {
+	w.s(`<g class="shapes">`)
+	for i := range b.Shapes {
+		s := &b.Shapes[i]
+		if s.Kind == None {
+			continue
+		}
+		w.s("<g")
+		w.hue(b.shapeHue(s))
+		if v != nil && v.Sel[i] {
+			w.s(" data-ui-selected")
+		}
+		w.s(">")
+		switch s.Kind {
+		case Box:
+			x1, x2 := min(s.X1, s.X2), max(s.X1, s.X2)
+			y1, y2 := min(s.Y1, s.Y2), max(s.Y1, s.Y2)
+			w.s("<rect")
+			w.attr("x", x1)
+			w.attr("y", y1)
+			w.attr("width", x2-x1)
+			w.attr("height", y2-y1)
+			w.s(` rx="6"/>`)
+			for k := 0; k < 4; k++ {
+				if s.Corner[k] >= 0 {
+					cx, cy := cornerPos(s, k)
+					w.circle(cx, cy, 4, ` class="node" data-ui-linked`)
+				}
+			}
+			w.label(s, x1, y1, x2-x1, y2-y1)
+		case Line, Arrow:
+			ax, ay := b.endPoint(s, 0)
+			bx, by := b.endPoint(s, 1)
+			lx, ly := bx, by // where the stroke ends (short of an arrow head)
+			if s.Kind == Arrow {
+				dx, dy := float64(bx-ax), float64(by-ay)
+				if length := math.Hypot(dx, dy); length > 1 {
+					ux, uy := dx/length, dy/length
+					baseX, baseY := float64(bx)-ux*ArrowLen, float64(by)-uy*ArrowLen
+					lx, ly = int32(baseX), int32(baseY)
+					w.s(`<path class="head" d="M`)
+					w.i(bx)
+					w.s(" ")
+					w.i(by)
+					w.s(" L")
+					w.i(int32(baseX - uy*ArrowHalf))
+					w.s(" ")
+					w.i(int32(baseY + ux*ArrowHalf))
+					w.s(" L")
+					w.i(int32(baseX + uy*ArrowHalf))
+					w.s(" ")
+					w.i(int32(baseY - ux*ArrowHalf))
+					w.s(` Z"/>`)
+				}
+			}
+			w.s("<line")
+			w.attr("x1", ax)
+			w.attr("y1", ay)
+			w.attr("x2", lx)
+			w.attr("y2", ly)
+			w.s("/>")
+			// end dots: hollow when free, filled when linked
+			for end, p := range [2][2]int32{{ax, ay}, {bx, by}} {
+				extra := ` class="node"`
+				if s.Joint[end] >= 0 {
+					extra = ` class="node" data-ui-linked`
+				}
+				w.circle(p[0], p[1], 4, extra)
+			}
+			w.label(s, (ax+bx)/2-90, (ay+by)/2-16, 180, 32)
+		}
+		w.s("</g>")
+	}
+	w.s("</g>")
+}
+
+// Print is the drawing alone for the print page: the shapes and their labels,
+// no cursors, handles, guides or lasers.
+func (b *Board) Print() string {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	w := &writer{buf: make([]byte, 0, 16<<10)}
+	w.s(`<svg class="print-board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">`)
+	b.drawShapes(w, nil)
+	w.s(`</svg>`)
+	return string(w.buf)
 }

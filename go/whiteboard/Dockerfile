@@ -9,6 +9,8 @@ COPY . .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /whiteboard .
 
 FROM alpine:3.22
+# time zones: set TZ (e.g. America/Chicago) and SQLite's localtime and Go's clock follow it
+RUN apk add --no-cache tzdata
 RUN adduser -D -H -u 10001 board && mkdir /data && chown board /data
 COPY --from=build /whiteboard /usr/local/bin/whiteboard
 USER board

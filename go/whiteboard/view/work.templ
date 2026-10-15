@@ -1,0 +1,207 @@
+package view
+
+import (
+	"strconv"
+	"whiteboard/db"
+	"whiteboard/hub"
+)
+
+// ─── The checklist ──────────────────────────────────────────────────────────
+
+// TodoCard is the board's checklist, shared by everyone on it. No history:
+// each item keeps only when it was done and by whom (SQLite stamps it).
+templ TodoCard(name string) {
+	<section class="card todo-card" aria-label="Checklist">
+		<header class="card-head">
+			@Icon("list")
+			<h2>Checklist</h2>
+			@Saved("todo")
+		</header>
+		@Todos(name, nil)
+		<div class="row oneline todo-add">
+			<input type="text" placeholder="Add an item" maxlength="200" aria-label="New checklist item" data-bind:_todo data-on:keydown={ "if (evt.key === 'Enter') { " + todoAdd(name) + " }" }/>
+			<button class="icon" data-on:click={ todoAdd(name) } aria-label="Add" title="Add">
+				@Icon("plus")
+			</button>
+		</div>
+	</section>
+}
+
+// Todos is the list: a morph target on the board's stream, sent when it changes.
+templ Todos(name string, list []db.Todo) {
+	<div id="todo" class="todo">
+		if len(list) > 0 {
+			<p class="todo-sum num">{ todoSum(list) }</p>
+		}
+		<ul class="todo-list">
+			for _, t := range list {
+				<li id={ "todo-" + strconv.FormatInt(t.ID, 10) } data-ui-done?={ t.Done }>
+					<button class="check" data-on:click={ postKept(name, "todo/"+strconv.FormatInt(t.ID, 10)+"/toggle") } aria-pressed={ strconv.FormatBool(t.Done) } aria-label={ "Done: " + t.Text }>
+						if t.Done {
+							@Icon("checked")
+						} else {
+							@Icon("square")
+						}
+					</button>
+					<span class="text">{ t.Text }</span>
+					if t.Done {
+						<time class="when num" datetime={ t.DoneISO }>{ doneLine(t) }</time>
+					}
+					<button class="icon del" data-on:click={ postKept(name, "todo/"+strconv.FormatInt(t.ID, 10)+"/delete") } aria-label={ "Delete " + t.Text } title="Delete">
+						@Icon("x")
+					</button>
+				</li>
+			}
+		</ul>
+		if len(list) == 0 {
+			<p class="hint">Nothing on the list yet.</p>
+		}
+	</div>
+}
+
+func todoAdd(name string) string {
+	return "const t = $_todo.trim(); if (t) { $_todo = ''; @post('/b/" + name + "/todo/add', {payload: {text: t, inst: $inst}, requestCancellation: 'disabled'}) }"
+}
+
+func todoSum(list []db.Todo) string {
+	done := 0
+	for _, t := range list {
+		if t.Done {
+			done++
+		}
+	}
+	return strconv.Itoa(done) + " of " + strconv.Itoa(len(list)) + " done"
+}
+
+func doneLine(t db.Todo) string {
+	if t.DoneBy == "" {
+		return t.DoneAt
+	}
+	return t.DoneAt + " · " + t.DoneBy
+}
+
+// ─── Notes ──────────────────────────────────────────────────────────────────
+
+// noteLangs are the highlighter's languages (static/highlight.js).
+var noteLangs = []string{"css", "html", "python", "javascript", "go", "sqlite"}
+
+// NoteLang reports whether l is a language the notes can be highlighted as.
+func NoteLang(l string) bool {
+	for _, x := range noteLangs {
+		if x == l {
+			return true
+		}
+	}
+	return l == ""
+}
+
+// NotesCard is your private notebook on this board: monospace, highlighted as
+// the language you pick, saved as you type, and the same on all your devices.
+// The text arrives as a signal ($_notes), never a morph, so another device's
+// save never lands under your caret: the editor takes it only when it is not
+// the one being typed in.
+templ NotesCard(name string) {
+	<section class="card notes-card" aria-label="Notes">
+		<header class="card-head">
+			@Icon("notebook")
+			<h2>Notes</h2>
+			<span class="meta">only you</span>
+			@Saved("notes")
+			<select id="notes-lang" class="lang" aria-label="Highlight as" data-effect="el.value = $_notes.lang" data-on:change={ notesSave(name) }>
+				<option value="">plain</option>
+				for _, l := range noteLangs {
+					<option value={ l }>{ l }</option>
+				}
+			</select>
+		</header>
+		<pre class="notes-pre"><code
+	id="notes"
+	contenteditable="plaintext-only"
+	spellcheck="false"
+	data-placeholder="Your notes on this board. Only you see them."
+	data-attr:class="$_notes.lang"
+	data-effect={ notesApply }
+	data-on:keydown={ notesKeys }
+	data-on:input="el.normalize(); window.highlightAll && window.highlightAll()"
+	data-on:input__debounce.600ms={ notesSave(name) }
+></code></pre>
+	</section>
+}
+
+func notesSave(name string) string {
+	return "@post('/b/" + name + "/notes', {payload: {text: document.getElementById('notes').textContent, lang: document.getElementById('notes-lang').value, inst: $inst}, requestCancellation: 'disabled'})"
+}
+
+// notesApply takes the server's notes into the editor unless it is being typed in.
+const notesApply = "const t = $_notes.text, l = $_notes.lang; " +
+	"if (document.activeElement !== el && el.textContent !== t) { el.textContent = t } " +
+	"requestAnimationFrame(() => window.highlightAll && window.highlightAll())"
+
+// Tab indents (a notebook for code); the board's shortcuts never see these keys.
+const notesKeys = "evt.stopPropagation(); if (evt.key === 'Tab') { evt.preventDefault(); document.execCommand('insertText', false, '\\t') }"
+
+// ─── Paper ──────────────────────────────────────────────────────────────────
+
+type PrintData struct {
+	Name    string
+	Meta    *hub.Meta
+	Drawing string // the board's SVG, shapes and labels only
+	Todos   []db.Todo
+	Note    db.Note
+	Printed string // SQLite's now
+}
+
+// Print lays the board out for US Letter: the drawing fills the first page
+// under its title; the checklist and your notes follow on the next.
+templ Print(d PrintData) {
+	@Doc(d.Meta.Title+" · print", nil) {
+		<div class="print-page">
+			<nav class="print-bar row">
+				<a href={ templ.SafeURL("/b/" + d.Name) }>Back to the board</a>
+				<button data-on:click="window.print()">
+					@Icon("printer")
+					Print
+				</button>
+			</nav>
+			<article class="sheet sheet-board">
+				<header class="sheet-head">
+					<h1>{ d.Meta.Title }</h1>
+					<p>{ visWord(d.Meta.Visibility) + " · printed " + d.Printed }</p>
+				</header>
+				<figure>
+					@Raw(d.Drawing)
+				</figure>
+			</article>
+			<article class="sheet sheet-rest">
+				<section>
+					<h2>Checklist</h2>
+					if len(d.Todos) == 0 {
+						<p class="hint">Nothing on the list.</p>
+					}
+					<ul class="sheet-todo">
+						for _, t := range d.Todos {
+							<li data-ui-done?={ t.Done }>
+								<span class="box">
+									if t.Done {
+										✓
+									}
+								</span>
+								<span class="text">{ t.Text }</span>
+								if t.Done {
+									<span class="when num">{ doneLine(t) }</span>
+								}
+							</li>
+						}
+					</ul>
+				</section>
+				if d.Note.Text != "" {
+					<section>
+						<h2>Notes</h2>
+						<pre class="sheet-notes"><code class={ d.Note.Lang }>{ d.Note.Text }</code></pre>
+					</section>
+				}
+			</article>
+		</div>
+		<script src="/static/highlight.js"></script>
+	}
+}
