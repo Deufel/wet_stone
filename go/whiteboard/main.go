@@ -37,18 +37,6 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// noHTTP3 tells browsers to forget the proxy's HTTP/3 offer (Traefik
-// advertises h3 for a month). Chrome's one HTTP/3 connection here jammed
-// under the board's many short pointer posts, and every request from every
-// tab of the site then waited on it: the "freeze". HTTP/2 over TCP carries
-// the same streams and posts without it.
-func noHTTP3(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Alt-Svc", "clear")
-		next.ServeHTTP(w, r)
-	})
-}
-
 // slowLog names any request (not a stream) that took longer than it should:
 // the trail to follow if the board ever freezes again.
 func slowLog(next http.Handler) http.Handler {
@@ -106,7 +94,6 @@ func main() {
 
 	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
 	r := chi.NewRouter()
-	r.Use(noHTTP3)
 	r.Use(slowLog)
 	r.Use(a.Middleware)
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServerFS(static.FS)))
