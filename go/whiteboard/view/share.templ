@@ -10,14 +10,9 @@ import (
 // the share panel, sent together whenever the board's metadata changes.
 templ MetaParts(name, link string, u *db.User, m *hub.Meta) {
 	@boardTitle(name, u, m)
-	@tabTitle(name, u, m)
 	@shareBody(name, link, u, m)
 }
 
-// tabTitle is the current tab's label, so a rename shows in the tab strip too.
-templ tabTitle(name string, u *db.User, m *hub.Meta) {
-	<span id="tab-title" { titleEdit(name, u, m)... }>{ m.Title }</span>
-}
 
 // shareBody is what the share dialog holds. The owner names the board and,
 // on a private board, invites people by their Google email; everyone else

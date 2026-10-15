@@ -71,6 +71,10 @@ func Doc(title string, body templ.Attributes) templ.Component {
 
 // ThemeMenu: light, dark or the system's, and the hue. A per-device choice
 // kept in this browser by static/theme.js, which applies it to <html>.
+// ThemeMenu is the theme on its own (a signed-out page has no profile menu
+// to hold it); signed in, ThemeControls sit in the profile menu instead. A
+// page renders one or the other, never both: two radio groups bound to the
+// same signal would fight.
 func ThemeMenu() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -92,7 +96,44 @@ func ThemeMenu() templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<div id=\"theme-menu\" class=\"menu theme-menu\" popover><fieldset class=\"seg\" role=\"radiogroup\" aria-label=\"Theme\"><label><input type=\"radio\" name=\"theme\" value=\"system\" data-bind:theme>auto</label> <label><input type=\"radio\" name=\"theme\" value=\"light\" data-bind:theme>light</label> <label><input type=\"radio\" name=\"theme\" value=\"dark\" data-bind:theme>dark</label></fieldset><label class=\"hue\">hue <input type=\"range\" min=\"0\" max=\"360\" data-bind:hue></label></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<div id=\"theme-menu\" class=\"menu theme-menu\" popover>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ThemeControls().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func ThemeControls() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var4 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var4 == nil {
+			templ_7745c5c3_Var4 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<fieldset class=\"seg\" role=\"radiogroup\" aria-label=\"Theme\"><label><input type=\"radio\" name=\"theme\" value=\"system\" data-bind:theme>auto</label> <label><input type=\"radio\" name=\"theme\" value=\"light\" data-bind:theme>light</label> <label><input type=\"radio\" name=\"theme\" value=\"dark\" data-bind:theme>dark</label></fieldset><label class=\"hue\">hue <input type=\"range\" min=\"0\" max=\"360\" data-bind:hue></label>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

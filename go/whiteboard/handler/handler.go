@@ -452,7 +452,7 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 			return true
 		}
 		buf.Reset()
-		if err := view.BoardTabs(n, u, meta, list).Render(ctx, &buf); err != nil {
+		if err := view.DrawerBoards(n, meta, list).Render(ctx, &buf); err != nil {
 			return true
 		}
 		return sse.PatchElements(buf.String()) == nil

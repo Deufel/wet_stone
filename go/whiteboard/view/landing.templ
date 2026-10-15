@@ -90,7 +90,6 @@ templ Home(u *db.User, tabs []db.Tab) {
 			</main>
 		</div>
 		@removeDialog()
-		@ThemeMenu()
 		@MeMenu(u)
 	}
 }
@@ -109,7 +108,6 @@ templ Private(u *db.User) {
 				</div>
 			</main>
 		</div>
-		@ThemeMenu()
 		@MeMenu(u)
 	}
 }
@@ -125,7 +123,9 @@ templ NotFound(u *db.User) {
 				</div>
 			</main>
 		</div>
-		@ThemeMenu()
+		if u == nil {
+			@ThemeMenu()
+		}
 		if u != nil {
 			@MeMenu(u)
 		}
@@ -149,11 +149,12 @@ templ appHeader(u *db.User) {
 			</a>
 		}
 		<div class="row end">
-			<button class="icon" popovertarget="theme-menu" aria-label="Theme" title="Theme">
-				@Icon("palette")
-			</button>
 			if u != nil {
 				@avatarButton(u)
+			} else {
+				<button class="icon" popovertarget="theme-menu" aria-label="Theme" title="Theme">
+					@Icon("palette")
+				</button>
 			}
 			{ children... }
 		</div>
@@ -176,6 +177,9 @@ templ MeMenu(u *db.User) {
 		<div class="who">
 			<strong>{ u.Name }</strong>
 			<span>{ u.Email }</span>
+		</div>
+		<div class="me-theme">
+			@ThemeControls()
 		</div>
 		<a href="/">Your boards</a>
 		<button data-on:click="@post('/auth/logout')">

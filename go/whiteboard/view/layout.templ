@@ -39,13 +39,21 @@ templ Doc(title string, body templ.Attributes) {
 
 // ThemeMenu: light, dark or the system's, and the hue. A per-device choice
 // kept in this browser by static/theme.js, which applies it to <html>.
+// ThemeMenu is the theme on its own (a signed-out page has no profile menu
+// to hold it); signed in, ThemeControls sit in the profile menu instead. A
+// page renders one or the other, never both: two radio groups bound to the
+// same signal would fight.
 templ ThemeMenu() {
 	<div id="theme-menu" class="menu theme-menu" popover>
-		<fieldset class="seg" role="radiogroup" aria-label="Theme">
-			<label><input type="radio" name="theme" value="system" data-bind:theme/>auto</label>
-			<label><input type="radio" name="theme" value="light" data-bind:theme/>light</label>
-			<label><input type="radio" name="theme" value="dark" data-bind:theme/>dark</label>
-		</fieldset>
-		<label class="hue">hue <input type="range" min="0" max="360" data-bind:hue/></label>
+		@ThemeControls()
 	</div>
+}
+
+templ ThemeControls() {
+	<fieldset class="seg" role="radiogroup" aria-label="Theme">
+		<label><input type="radio" name="theme" value="system" data-bind:theme/>auto</label>
+		<label><input type="radio" name="theme" value="light" data-bind:theme/>light</label>
+		<label><input type="radio" name="theme" value="dark" data-bind:theme/>dark</label>
+	</fieldset>
+	<label class="hue">hue <input type="range" min="0" max="360" data-bind:hue/></label>
 }

@@ -41,13 +41,9 @@ templ Board(d BoardData) {
 					<button class="icon desktop" data-on:click="document.getElementById('keys').showModal()" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
 						@Icon("keys")
 					</button>
-					<button class="icon" popovertarget="theme-menu" aria-label="Theme" title="Theme">
-						@Icon("palette")
-					</button>
 					@avatarButton(d.User)
 				</div>
 			</header>
-			@BoardTabs(d.Name, d.User, d.Meta, d.Tabs)
 			<!-- the workspace: the board, its checklist and your notes, laid out
 			     by container queries on the space they get -->
 			<main class="pg-main workspace-wrap">
@@ -81,7 +77,6 @@ templ Board(d BoardData) {
 			@shareBody(d.Name, d.Link, d.User, d.Meta)
 		</dialog>
 		@keysDialog()
-		@ThemeMenu()
 		@MeMenu(d.User)
 		@newMenu()
 		<script src="/static/highlight.js"></script>
@@ -259,12 +254,7 @@ templ navDrawer(d BoardData) {
 				Your boards
 			</a>
 			<h3>Boards</h3>
-			for _, t := range withCurrent(d.Name, d.Meta, d.Tabs) {
-				<a href={ templ.SafeURL("/b/" + t.Name) } aria-current?={ t.Name == d.Name }>
-					@visIcon(t.Visibility)
-					{ t.Title }
-				</a>
-			}
+			@DrawerBoards(d.Name, d.Meta, d.Tabs)
 			<button class="oneline" data-on:click={ newBoard(db.Public) }>
 				@Icon("plus")
 				New public board
@@ -316,29 +306,17 @@ templ boardTitle(name string, u *db.User, m *hub.Meta) {
 	</div>
 }
 
-// BoardTabs is the tab strip: a morph target on the board's stream, sent again
-// whenever the user's boards change on any of their devices.
-templ BoardTabs(name string, u *db.User, m *hub.Meta, tabs []db.Tab) {
-	<nav id="board-tabs" class="pg-subheader board-tabs" aria-label="Your boards">
-		<div class="tabs-underline">
-			for _, t := range withCurrent(name, m, tabs) {
-				if t.Name == name {
-					<a href={ templ.SafeURL("/b/" + t.Name) } aria-current="page">
-						@visIcon(t.Visibility)
-						@tabTitle(name, u, m)
-					</a>
-				} else {
-					<a href={ templ.SafeURL("/b/" + t.Name) }>
-						@visIcon(t.Visibility)
-						{ t.Title }
-					</a>
-				}
-			}
-			<button popovertarget="new-menu" aria-label="New board" title="New board">
-				@Icon("plus")
-			</button>
-		</div>
-	</nav>
+// DrawerBoards is the drawer's list of your boards: a morph target on the
+// board's stream, sent again whenever your boards change on any device.
+templ DrawerBoards(name string, m *hub.Meta, tabs []db.Tab) {
+	<div id="drawer-boards" class="drawer-boards">
+		for _, t := range withCurrent(name, m, tabs) {
+			<a href={ templ.SafeURL("/b/" + t.Name) } aria-current?={ t.Name == name }>
+				@visIcon(t.Visibility)
+				{ t.Title }
+			</a>
+		}
+	</div>
 }
 
 templ newMenu() {

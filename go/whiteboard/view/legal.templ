@@ -27,7 +27,9 @@ templ Privacy(u *db.User) {
 				</div>
 			</main>
 		</div>
-		@ThemeMenu()
+		if u == nil {
+			@ThemeMenu()
+		}
 		if u != nil {
 			@MeMenu(u)
 		}
@@ -51,7 +53,9 @@ templ Terms(u *db.User) {
 				</div>
 			</main>
 		</div>
-		@ThemeMenu()
+		if u == nil {
+			@ThemeMenu()
+		}
 		if u != nil {
 			@MeMenu(u)
 		}

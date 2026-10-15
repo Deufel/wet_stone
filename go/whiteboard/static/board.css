@@ -35,11 +35,6 @@
   :where(button) > :where(span) > :where(svg:only-child) { inline-size: 1.15em; block-size: 1.15em; }
   :where(button.share) { display: inline-flex; align-items: center; gap: 0.4em; }
 
-  /* the board tabs: underline tabs on their own band, scrolling sideways when many */
-  :where(.board-tabs) { padding-inline: max(1em, env(safe-area-inset-left)) max(1em, env(safe-area-inset-right)); --bg: 0.04; }
-  :where(.board-tabs) > :where(.tabs-underline) { overflow-x: auto; scrollbar-width: none; border-block-end: 0; }
-  :where(.board-tabs) > :where(.tabs-underline) > :where(a) { white-space: nowrap; }
-  :where(.board-tabs) > :where(.tabs-underline) svg { inline-size: 0.95em; block-size: 0.95em; opacity: 0.7; }
 
   /* ── the workspace: board, checklist, notes ───────────────────────── */
   /* The workspace fills exactly the space under the header and never
@@ -107,7 +102,10 @@
   :where(.board-body) > :where(.tools.button-group) > :where(button) { margin-inline-start: 0; margin-block-start: -1px; border-radius: 0; }
   :where(.board-body) > :where(.tools.button-group) > :where(button):first-child { margin-block-start: 0; border-radius: var(--cfg-radius) var(--cfg-radius) 0 0; }
   :where(.board-body) > :where(.tools.button-group) > :where(button):last-child { border-radius: 0 0 var(--cfg-radius) var(--cfg-radius); }
-  :where(.tool) { inline-size: 2.4em; block-size: 2.4em; aspect-ratio: 1; padding: 0; min-inline-size: 0; min-block-size: 0; place-items: center; overflow: visible; flex: none; }
+  /* (a button's own display, a later layer, overrode .stack's grid, so the
+     hidden key took room beside the icon and pushed it aside: the stack's
+     grid is restated here, where it wins) */
+  :where(.tool) { display: inline-grid; grid-template-areas: "stack"; inline-size: 2.4em; block-size: 2.4em; aspect-ratio: 1; padding: 0; min-inline-size: 0; min-block-size: 0; place-items: center; overflow: visible; flex: none; }
   :where(.tool) > :where(svg) { inline-size: 1.1em; block-size: 1.1em; }
   :where(.tool) > :where(kbd) {
     justify-self: end; align-self: start; translate: 40% -40%; z-index: 2;
@@ -202,10 +200,11 @@
   :where(.nav-drawer) { overflow-x: hidden; align-content: start; gap: 0.5lh; overflow-y: auto; padding-block-start: max(0.75lh, env(safe-area-inset-top)); }
   :where(.nav-list) { display: grid; gap: 0.05lh; }
   :where(.nav-list) > :where(h3) { --type: -1; --fg: -0.5; margin: 0.5lh 0.5em 0.1lh; text-transform: uppercase; letter-spacing: 0.06em; }
-  :where(.nav-list) > :where(a, button) { display: flex; align-items: center; gap: 0.6em; padding: 0.3lh 0.5em; border-radius: calc(var(--cfg-radius) * 0.7); color: inherit; text-decoration: none; justify-content: flex-start; inline-size: 100%; }
+  :where(.drawer-boards) { display: grid; gap: 0.05lh; }
+  :where(.nav-list) > :where(a, button), :where(.drawer-boards) > :where(a) { display: flex; align-items: center; gap: 0.6em; padding: 0.3lh 0.5em; border-radius: calc(var(--cfg-radius) * 0.7); color: inherit; text-decoration: none; justify-content: flex-start; inline-size: 100%; }
   :where(.nav-list) > :where(button) { appearance: none; border: 0; background: none; box-shadow: none; font: inherit; min-block-size: 0; cursor: pointer; }
-  :where(.nav-list) > :where(a, button):where(:hover) { --lift: 0.08; background-color: var(--_bg); }
-  :where(.nav-list) > :where(a[aria-current]) { --lift: 0.12; background-color: var(--_bg); font-weight: 600; }
+  :where(.nav-list) > :where(a, button):where(:hover), :where(.drawer-boards) > :where(a):where(:hover) { --lift: 0.08; background-color: var(--_bg); }
+  :where(.nav-list) > :where(a[aria-current]), :where(.drawer-boards) > :where(a[aria-current]) { --lift: 0.12; background-color: var(--_bg); font-weight: 600; }
   :where(.nav-list) svg { inline-size: 1.05em; block-size: 1.05em; flex: none; --fg: -0.6; }
   :where(.nav-list) > :where(hr) { margin-block: 0.4lh; }
   :where(.demo-entry) { flex-wrap: wrap; row-gap: 0; }
@@ -345,9 +344,10 @@
   :where(.seg) > :where(label) { flex: 1; display: grid; place-items: center; padding: 0.2lh 0.6em; border-radius: calc(var(--cfg-radius) * 0.7); cursor: pointer; --fg: -0.6; }
   :where(.seg) > :where(label:has(:checked)) { --lift: 0.14; background-color: var(--_bg); --fg: -1; font-weight: 600; }
   :where(.seg) input { position: absolute; opacity: 0; pointer-events: none; }
-  :where(.theme-menu) .hue { display: grid; gap: 0.15lh; --fg: -0.55; --type: -1; }
+  :where(.theme-menu, .me-theme) .hue { display: grid; gap: 0.15lh; --fg: -0.55; --type: -1; }
   :where(.me-menu) .who { display: grid; padding: 0.3lh 0.5em 0.4lh; border-block-end: 1px solid var(--border); margin-block-end: 0.2lh; }
   :where(.me-menu) .who > span { --fg: -0.5; --type: -1; }
+  :where(.me-theme) { display: grid; gap: 0.3lh; padding: 0.2lh 0.5em 0.45lh; border-block-end: 1px solid var(--border); margin-block-end: 0.2lh; }
   :where(.me-menu, .new-menu) :where(a, button) { display: flex; align-items: center; gap: 0.55em; inline-size: 100%; justify-content: flex-start; text-decoration: none; color: inherit; padding: 0.3lh 0.5em; }
   :where(.me-menu, .new-menu) :where(a, button) > :where(svg) { inline-size: 1.05em; block-size: 1.05em; }
 
