@@ -15,7 +15,16 @@ type LandingData struct {
 templ Landing(d LandingData) {
 	@Doc("draw · think on paper, together", nil) {
 		<div class="page landing">
-			@appHeader(nil)
+			@appHeader(nil) {
+				if d.Google {
+					<hr/>
+					<!-- a navigation to Google, not a command -->
+					<button class="google" data-on:click={ "window.location.href = " + jsString(googleURL(d.Next)) }>
+						@googleG()
+						Sign in
+					</button>
+				}
+			}
 			<main class="pg-main scroll-y">
 				<div class="intro">
 					<div class="intro-mark">
@@ -23,25 +32,20 @@ templ Landing(d LandingData) {
 					</div>
 					<h1>Think on paper, together.</h1>
 					<p class="lede">A live whiteboard for small teams: boxes, lines and arrows that link and follow each other, a laser pointer for showing, and a history you can step back through and branch from.</p>
-					<div class="signin">
-						if d.Google {
-							<!-- a navigation to Google, not a command -->
-							<button class="google" data-on:click={ "window.location.href = " + jsString(googleURL(d.Next)) }>
-								@googleG()
-								Sign in with Google
-							</button>
-						}
-						if d.Dev {
-							<div class="row dev" data-signals={ devSignals(d.Next) }>
-								<input type="email" placeholder="you@example.com" data-bind:email data-on:keydown="evt.key === 'Enter' && @post('/auth/dev')" aria-label="Email (local sign-in)"/>
-								<button data-on:click="@post('/auth/dev')">Sign in (local)</button>
-								@Saved("email")
-							</div>
-						}
-						if !d.Google && !d.Dev {
-							<p class="hint">Sign-in is not configured on this server yet.</p>
-						}
-					</div>
+					if d.Dev || !d.Google {
+						<div class="signin">
+							if d.Dev {
+								<div class="row dev" data-signals={ devSignals(d.Next) }>
+									<input type="email" placeholder="you@example.com" data-bind:email data-on:keydown="evt.key === 'Enter' && @post('/auth/dev')" aria-label="Email (local sign-in)"/>
+									<button data-on:click="@post('/auth/dev')">Sign in (local)</button>
+									@Saved("email")
+								</div>
+							}
+							if !d.Google && !d.Dev {
+								<p class="hint">Sign-in is not configured on this server yet.</p>
+							}
+						</div>
+					}
 					<ul class="features">
 						<li><strong>Live.</strong> Everyone on a board sees every stroke as it happens. The server draws the whole picture; your browser only shows it.</li>
 						<li><strong>Branching history.</strong> Every change is kept. Jump back to any moment, and draw a new branch from there.</li>
@@ -127,7 +131,8 @@ templ NotFound(u *db.User) {
 	}
 }
 
-// appHeader is the header of the front pages: the brand, the theme, you.
+// appHeader is the header of the front pages: the brand, the theme, you, and
+// whatever the page adds after them (the landing: a rule, then sign-in).
 templ appHeader(u *db.User) {
 	<header class="pg-header app-header">
 		<a class="brand" href="/">
@@ -141,6 +146,7 @@ templ appHeader(u *db.User) {
 			if u != nil {
 				@avatarButton(u)
 			}
+			{ children... }
 		</div>
 	</header>
 }

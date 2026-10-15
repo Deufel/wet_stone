@@ -15,6 +15,8 @@
     --bg: 0.04; border-block-end: 1px solid var(--border);
   }
   :where(.app-header) > :where(.end) { margin-inline-start: auto; gap: 0.35em; align-items: center; flex-wrap: nowrap; }
+  /* a rule between the header's controls: upright, the controls' height */
+  :where(.app-header) > :where(.end) > :where(hr) { inline-size: 1px; block-size: 1.6em; margin: 0 0.3em; align-self: center; }
   :where(.brand) { display: inline-flex; align-items: center; gap: 0.45em; color: inherit; text-decoration: none; font-weight: 650; --type: 1; letter-spacing: -0.01em; }
   :where(.mark) { inline-size: 1.55em; block-size: 1.55em; flex: none; }
   /* the board's name with who may open it right under it, tight */
@@ -208,6 +210,8 @@
   :where(.signin) { display: grid; gap: 0.5lh; justify-items: start; }
   :where(button.google) { display: inline-flex; align-items: center; gap: 0.6em; padding: 0.45lh 1.1em; --type: 0.5; }
   :where(.g) { inline-size: 1.2em; block-size: 1.2em; }
+  /* in the header it is a control like its neighbours */
+  :where(.app-header) :where(button.google) { --type: 0; padding: 0.25lh 0.8em; gap: 0.5em; }
   :where(.signin) > :where(.dev) > :where(input) { inline-size: 16em; }
   :where(.features) { list-style: none; margin: 1lh 0 0; padding: 1lh 0 0; display: grid; gap: 0.6lh; border-block-start: 1px solid var(--border); }
   :where(.features) > :where(li) { --fg: -0.65; }
