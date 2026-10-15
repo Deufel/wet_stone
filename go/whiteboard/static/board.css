@@ -17,15 +17,19 @@
   :where(.app-header) > :where(.end) { margin-inline-start: auto; gap: 0.35em; align-items: center; flex-wrap: nowrap; }
   :where(.brand) { display: inline-flex; align-items: center; gap: 0.45em; color: inherit; text-decoration: none; font-weight: 650; --type: 1; letter-spacing: -0.01em; }
   :where(.mark) { inline-size: 1.55em; block-size: 1.55em; flex: none; }
-  :where(.board-title) { display: flex; align-items: baseline; gap: 0.6em; min-inline-size: 0; }
-  :where(.board-title) > :where(h1) { --type: 0.5; margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  :where(.board-title) > :where(.vis) { display: inline-flex; align-items: center; gap: 0.3em; --fg: -0.5; --type: -1; white-space: nowrap; }
+  /* the board's name with who may open it right under it, tight */
+  :where(.board-title) { display: grid; gap: 0; min-inline-size: 0; }
+  :where(.board-title) > :where(.title-row) { gap: 0.6em; align-items: baseline; min-inline-size: 0; }
+  :where(.board-title) :where(h1) { --type: 0.5; margin: 0; padding: 0; line-height: 1.15; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-inline-size: 0; }
+  :where(.board-title) > :where(.vis) { display: inline-flex; align-items: center; gap: 0.3em; margin: 0; padding: 0; line-height: 1.1; --fg: -0.5; --type: -1; white-space: nowrap; }
+  /* a name the owner can rename in place */
+  :where(.editable) { cursor: text; border-radius: 0.2em; }
+  @media (pointer: fine) { :where(.editable:not([contenteditable]):hover) { text-decoration: underline dotted; text-underline-offset: 0.2em; } }
+  :where(.editable[contenteditable]) { text-overflow: clip; outline: 1px solid var(--border); outline-offset: 0.15em; cursor: text; }
   :where(.board-title) svg, :where(.vis-line) svg, :where(.boards) li > svg { inline-size: 1em; block-size: 1em; flex: none; }
   :where(.presence) { --fg: -0.5; --type: -1; white-space: nowrap; font-variant-numeric: tabular-nums; }
   :where(button) > :where(svg) { inline-size: 1.15em; block-size: 1.15em; flex: none; }
   :where(button.share) { display: inline-flex; align-items: center; gap: 0.4em; }
-  :where(.me) { appearance: none; border: 0; padding: 0; background: none; box-shadow: none; cursor: pointer; border-radius: 50%; }
-  :where(.avatar) { inline-size: 2em; block-size: 2em; border-radius: 50%; object-fit: cover; display: inline-grid; place-items: center; font-weight: 600; --lift: 0.18; background-color: var(--_bg); }
 
   /* the board tabs: underline tabs on their own band, scrolling sideways when many */
   :where(.board-tabs) { padding-inline: max(1em, env(safe-area-inset-left)) max(1em, env(safe-area-inset-right)); --bg: 0.04; }
@@ -242,4 +246,10 @@
     border: 1px solid var(--border); border-block-end-width: 2px; border-radius: calc(var(--cfg-radius, .5rem) * 0.6);
     --type: -1; line-height: 1; vertical-align: 0.05em;
   }
+}
+
+/* utility: mike.css's .oneline stops a row wrapping; here it also keeps the
+   row's text on one line (a menu item never breaks). */
+@layer utility {
+  :where(.oneline) { white-space: nowrap; }
 }

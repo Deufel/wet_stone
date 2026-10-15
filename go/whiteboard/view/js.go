@@ -4,7 +4,10 @@ import (
 	"strconv"
 	"strings"
 
+	"whiteboard/db"
 	"whiteboard/hub"
+
+	"github.com/a-h/templ"
 )
 
 // The page's Datastar expressions. They live in Go, not in templ attribute
@@ -20,7 +23,9 @@ func postKept(name, op string) string {
 }
 
 // pointer maps the event to board coordinates on the square stage, and counts
-// it ($seq), so the server can drop a pointer command that arrives late.
+// it ($seq); a down also marks its stroke ($dseq = its own seq), which every
+// move and up after it carries, so the server can put a stroke's commands back
+// in order when they arrive out of it.
 const pointer = "const r = stage.getBoundingClientRect(); $x = Math.round((evt.clientX - r.left) * 1000 / r.width); $y = Math.round((evt.clientY - r.top) * 1000 / r.height); $seq = $seq + 1; "
 
 // streamGet opens a page's view channel and keeps it open. Datastar's default
@@ -40,7 +45,7 @@ func onInit(name string) string {
 // Only the main button draws and drags; the right button is lock/unlock.
 func onDown(name string) string {
 	return "if (evt.button === 0) { evt.preventDefault(); " + pointer +
-		postKept(name, "down") + " }"
+		"$dseq = $seq; " + postKept(name, "down") + " }"
 }
 
 // Right-click: the shape there (selected if it was not) and the selection
@@ -88,7 +93,7 @@ func onKey(name string) string {
 		"const k = evt.key, t = evt.target;",
 		"const d = {ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], h: [-1, 0], j: [0, 1], k: [0, -1], l: [1, 0]}[k];",
 		"if (t.id === 'label') { if (k === 'Enter' || k === 'Escape') { evt.preventDefault(); " + post(name, "label") + "; t.blur() } }",
-		"else if (t.tagName === 'INPUT' || t.tagName === 'SELECT') {}",
+		"else if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.isContentEditable) {}",
 		"else if (evt.ctrlKey || evt.metaKey || evt.altKey) {}",
 		"else if (t.tagName === 'BUTTON' && k === 'Enter') {}",
 		"else if (k === '?') { evt.preventDefault(); document.getElementById('keys').showModal() }",
@@ -106,10 +111,33 @@ func onKey(name string) string {
 	}, " ")
 }
 
+// titleEdit wires a board name (the header's, the tab's) for in-place
+// renaming, for the board's owner only; anyone else gets plain text. A click
+// makes it editable with the caret at the end; Enter or leaving it saves (the
+// rename comes back down the stream to every view of it), Esc puts it back.
+// Its keys stop here, so the board's own shortcuts never see them.
+func titleEdit(name string, u *db.User, m *hub.Meta) templ.Attributes {
+	if u == nil || m.OwnerID != u.ID {
+		return nil
+	}
+	return templ.Attributes{
+		"class": "editable",
+		"title": "Click to rename",
+		"data-on:click": "evt.preventDefault(); if (!el.isContentEditable) { el.dataset.orig = el.textContent; " +
+			"try { el.contentEditable = 'plaintext-only' } catch { el.contentEditable = 'true' } " +
+			"el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); " +
+			"const s = window.getSelection(); s.removeAllRanges(); s.addRange(r) }",
+		"data-on:keydown": "evt.stopPropagation(); if (evt.key === 'Enter') { evt.preventDefault(); el.blur() } " +
+			"else if (evt.key === 'Escape') { evt.preventDefault(); el.textContent = el.dataset.orig; el.blur() }",
+		"data-on:blur": "if (el.isContentEditable) { el.removeAttribute('contenteditable'); const t = el.textContent.trim(); " +
+			"if (t && t !== el.dataset.orig) { $title = t; " + post(name, "share/title") + " } else { el.textContent = el.dataset.orig } }",
+	}
+}
+
 // newBoard makes a board; the answer sends the page to it.
 func newBoard(vis string) string { return "@post('/new/" + vis + "')" }
 
-const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _prev: 0}"
+const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, dseq: 0, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _prev: 0}"
 
 const editFocus = "$edit > 0 && setTimeout(() => { el.focus(); el.select() })"
 

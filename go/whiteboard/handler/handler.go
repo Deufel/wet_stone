@@ -85,6 +85,7 @@ type signals struct {
 	Ndx    int32  `json:"ndx"`
 	Ndy    int32  `json:"ndy"`
 	Seq    int64  `json:"seq"`
+	DSeq   int64  `json:"dseq"`
 	Hrev   int64  `json:"hrev"`
 	Hbr    int64  `json:"hbranch"`
 	Invite string `json:"invite"`
@@ -386,6 +387,14 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 
 	sent := board.NewSent()
 	sentHist, sentMeta := 0, 0
+	// the history panel goes at most once a second: it is the heaviest part
+	// (a thumbnail per revision), and a burst of drawing re-rendered it per
+	// shape. A change inside the second arms a trailing push.
+	var histAt time.Time
+	histLater := time.NewTimer(time.Hour)
+	histLater.Stop()
+	defer histLater.Stop()
+	histArmed := false
 	var buf bytes.Buffer
 	tabs := func() bool {
 		ctx := r.Context()
@@ -399,24 +408,36 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 			return true
 		}
 		buf.Reset()
-		if err := view.BoardTabs(n, meta, list).Render(ctx, &buf); err != nil {
+		if err := view.BoardTabs(n, u, meta, list).Render(ctx, &buf); err != nil {
 			return true
 		}
 		return sse.PatchElements(buf.String()) == nil
 	}
+	history := func() bool {
+		hist := h.Hub.History(n)
+		if hist == nil || hist.Version == sentHist {
+			return true
+		}
+		if wait := time.Second - time.Since(histAt); wait > 0 {
+			if !histArmed {
+				histArmed = true
+				histLater.Reset(wait)
+			}
+			return true
+		}
+		buf.Reset()
+		if err := view.History(n, hist).Render(r.Context(), &buf); err == nil {
+			if sse.PatchElements(buf.String()) != nil {
+				return false
+			}
+		}
+		sentHist, histAt = hist.Version, time.Now()
+		return true
+	}
 	push := func() bool {
 		ctx := r.Context()
-		// the history panel and the share panel only when they changed: more
-		// morph targets on the same stream, never a second channel
-		if hist := h.Hub.History(n); hist != nil && hist.Version != sentHist {
-			buf.Reset()
-			if err := view.History(n, hist).Render(ctx, &buf); err == nil {
-				if sse.PatchElements(buf.String()) != nil {
-					return false
-				}
-			}
-			sentHist = hist.Version
-		}
+		// the share panel only when it changed: another morph target on the
+		// same stream, never a second channel
 		if meta, err := h.Hub.Meta(ctx, n); err == nil && meta.Version != sentMeta {
 			if !meta.CanOpen(u) { // uninvited, or no longer theirs: sent home
 				_ = sse.Redirect("/")
@@ -434,7 +455,10 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 		if err := sse.PatchElements(frame); err != nil {
 			return false
 		}
-		return sse.PatchSignals(sig) == nil
+		if sse.PatchSignals(sig) != nil {
+			return false
+		}
+		return history() // after the drawing, never ahead of it
 	}
 
 	// A keepalive, as in eos-go: a data-less event every 15 s so nothing in the
@@ -457,6 +481,11 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 			}
 		case <-uwake:
 			if !tabs() {
+				return
+			}
+		case <-histLater.C:
+			histArmed = false
+			if !history() {
 				return
 			}
 		case <-keep.C:
@@ -496,7 +525,7 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := board.Cmd{
-		Op: op, UID: s.UID, Tool: s.Tool, Seq: s.Seq,
+		Op: op, UID: s.UID, Tool: s.Tool, Seq: s.Seq, DSeq: s.DSeq,
 		X: clamp(s.X, 0, board.W), Y: clamp(s.Y, 0, board.H),
 		NX: int8(clamp(s.Ndx, -1, 1)), NY: int8(clamp(s.Ndy, -1, 1)),
 	}

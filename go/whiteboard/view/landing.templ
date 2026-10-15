@@ -146,11 +146,11 @@ templ appHeader(u *db.User) {
 }
 
 templ avatarButton(u *db.User) {
-	<button class="me" popovertarget="me-menu" aria-label={ "Account: " + u.Email } title={ u.Email }>
+	<button class="avatar me" popovertarget="me-menu" aria-label={ "Account: " + u.Email } title={ u.Email }>
 		if u.Picture != "" {
-			<img class="avatar" src={ u.Picture } alt="" referrerpolicy="no-referrer"/>
+			<img src={ u.Picture } alt="" referrerpolicy="no-referrer"/>
 		} else {
-			<span class="avatar">{ initial(u) }</span>
+			{ initial(u) }
 		}
 	</button>
 }

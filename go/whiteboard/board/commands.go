@@ -12,7 +12,8 @@ type Cmd struct {
 	X, Y   int32
 	Tool   uint8 // 0 select, 1 box, 2 line, 3 arrow, 4 laser
 	NX, NY int8  // nudge: grid steps, -1..1
-	Seq    int64 // pointer commands: the page's running count, to drop a stale one
+	Seq    int64 // pointer commands: the page's running count
+	DSeq   int64 // pointer commands: the Seq of the down that began this stroke
 	Shape  int32 // label: the shape the text was typed for
 	Label  string
 }
@@ -24,17 +25,8 @@ type Cmd struct {
 func (b *Board) Apply(c Cmd) (change string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	// Pointer commands run on separate requests, so a later one can overtake an
-	// earlier one on a real network (HTTP/2 multiplexes them; each is its own
-	// goroutine here). A command older than the newest applied for this viewer
-	// is dropped: a late down or move never undoes an up.
-	if c.Op == "down" || c.Op == "move" || c.Op == "up" {
-		if u := b.userFor(c.UID); u != nil && c.Seq != 0 {
-			if c.Seq <= u.lastSeq {
-				return ""
-			}
-			u.lastSeq = c.Seq
-		}
+	if (c.Op == "down" || c.Op == "move" || c.Op == "up") && c.Seq != 0 {
+		return b.pointer(c)
 	}
 	switch c.Op {
 	case "down":
@@ -132,6 +124,68 @@ func (b *Board) Tick(now time.Time) (changed bool) {
 }
 
 // ─── Pointer commands ───────────────────────────────────────────────────────
+
+// pointer puts one viewer's pointer commands back in stroke order. They run on
+// separate requests, so a later one can overtake an earlier one (several
+// connections, or HTTP/2 streams each on its own goroutine). Dropping whatever
+// is older than the newest seen, as this once did, lost a down that its first
+// move overtook (the box never appeared) and an up that a hover move overtook
+// (the drag never ended: the box followed the cursor, the board "froze").
+// Now, by the stroke each command names (DSeq, its down's Seq):
+//
+//   - a down is never lost to a move; an older down than the current one is
+//     stale and goes;
+//   - an up that beats its down is held, and applied the moment the down lands;
+//   - a move applies only within the current stroke and in order; any other is
+//     stale (the up carries the final point, so a lost move costs nothing).
+func (b *Board) pointer(c Cmd) string {
+	u := b.userFor(c.UID)
+	if u == nil {
+		return ""
+	}
+	if c.DSeq == 0 && c.Op != "down" { // a page from before DSeq: its strokes are in order enough
+		c.DSeq = u.downSeq
+	}
+	switch c.Op {
+	case "down":
+		if c.Seq <= u.downSeq {
+			return ""
+		}
+		change := ""
+		if u.downSeq != 0 && u.upSeq == 0 && u.Drag.Kind != DragNone {
+			// the last stroke's up never came: end it where it was last seen
+			// rather than leave a half-made shape
+			change = b.up(Cmd{Op: "up", UID: c.UID, X: u.X, Y: u.Y})
+		}
+		u.downSeq, u.upSeq = c.Seq, 0
+		u.lastSeq = max(u.lastSeq, c.Seq)
+		b.down(c)
+		up := u.heldUp
+		u.heldUp = Cmd{}
+		if up.Seq != 0 && up.DSeq == c.Seq { // its up arrived first
+			u.upSeq, u.lastSeq = up.Seq, max(u.lastSeq, up.Seq)
+			change = b.up(up)
+		}
+		return change
+	case "up":
+		switch {
+		case c.DSeq > u.downSeq:
+			u.heldUp = c // its down is still on the way
+			return ""
+		case c.DSeq < u.downSeq || u.upSeq != 0:
+			return "" // an older stroke's, or a repeat
+		}
+		u.upSeq, u.lastSeq = c.Seq, max(u.lastSeq, c.Seq)
+		return b.up(c)
+	}
+	// (a fresh viewer, downSeq 0, takes any move in order: only its cursor)
+	if (c.DSeq != u.downSeq && u.downSeq != 0) || c.Seq <= u.lastSeq {
+		return "" // a move from another stroke, or one overtaken
+	}
+	u.lastSeq = c.Seq
+	b.move(c)
+	return ""
+}
 
 func (b *Board) down(c Cmd) {
 	u := b.userFor(c.UID)

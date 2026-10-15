@@ -128,6 +128,9 @@ type User struct {
 	laserSeg int   // segments emitted in this stroke
 	streams  int   // open streams for this user; present while > 0
 	lastSeq  int64 // the newest pointer command applied
+	downSeq  int64 // the Seq of the current stroke's down
+	upSeq    int64 // the Seq of its up, once applied (0 = the stroke is open)
+	heldUp   Cmd   // an up that arrived before its down
 }
 
 type Board struct {

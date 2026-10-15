@@ -29,7 +29,7 @@ templ Board(d BoardData) {
 				<a class="brand" href="/" aria-label="draw: your boards">
 					@Mark()
 				</a>
-				@boardTitle(d.Meta)
+				@boardTitle(d.Name, d.User, d.Meta)
 				<div class="row end">
 					<span class="presence tablet desktop" title="People on this board"><span data-text="$users"></span> here</span>
 					<button class="share" data-on:click="document.getElementById('share').showModal()">
@@ -45,7 +45,7 @@ templ Board(d BoardData) {
 					@avatarButton(d.User)
 				</div>
 			</header>
-			@BoardTabs(d.Name, d.Meta, d.Tabs)
+			@BoardTabs(d.Name, d.User, d.Meta, d.Tabs)
 			<nav class="pg-toolbar tool-rail tablet desktop" aria-label="Tools">
 				@railTool(0, "select", "Select", "Esc")
 				@railTool(1, "box", "Box", "R")
@@ -147,9 +147,14 @@ templ railTool(n int, icon, label, key string) {
 // boardTitle: the board's name and who may open it (a morph target, so a
 // rename shows everywhere at once). <title> is in the head, which the stream
 // never re-renders, so the name rides a re-merged signal to it.
-templ boardTitle(m *hub.Meta) {
+// The owner renames it in place: a click makes the name editable, Enter or
+// leaving saves, Esc puts it back.
+templ boardTitle(name string, u *db.User, m *hub.Meta) {
 	<div id="board-title" class="board-title" data-signals={ "{_doctitle: " + jsString(m.Title + " · draw") + "}" } data-effect="document.title = $_doctitle">
-		<h1>{ m.Title }</h1>
+		<div class="row oneline title-row">
+			<h1 { titleEdit(name, u, m)... }>{ m.Title }</h1>
+			@Saved("title")
+		</div>
 		<span class="vis">
 			@visIcon(m.Visibility)
 			{ visWord(m.Visibility) }
@@ -159,14 +164,14 @@ templ boardTitle(m *hub.Meta) {
 
 // BoardTabs is the tab strip: a morph target on the board's stream, sent again
 // whenever the user's boards change on any of their devices.
-templ BoardTabs(name string, m *hub.Meta, tabs []db.Tab) {
+templ BoardTabs(name string, u *db.User, m *hub.Meta, tabs []db.Tab) {
 	<nav id="board-tabs" class="pg-subheader board-tabs" aria-label="Your boards">
 		<div class="tabs-underline">
 			for _, t := range withCurrent(name, m, tabs) {
 				if t.Name == name {
 					<a href={ templ.SafeURL("/b/" + t.Name) } aria-current="page">
 						@visIcon(t.Visibility)
-						@tabTitle(m)
+						@tabTitle(name, u, m)
 					</a>
 				} else {
 					<a href={ templ.SafeURL("/b/" + t.Name) }>
@@ -184,18 +189,14 @@ templ BoardTabs(name string, m *hub.Meta, tabs []db.Tab) {
 
 templ newMenu() {
 	<div id="new-menu" class="menu new-menu" popover>
-		<button data-on:click={ newBoard(db.Public) }>
+		<button class="oneline" data-on:click={ newBoard(db.Public) }>
 			@Icon("link")
 			New public board
 		</button>
-		<button data-on:click={ newBoard(db.Private) }>
+		<button class="oneline" data-on:click={ newBoard(db.Private) }>
 			@Icon("lock")
 			New private board
 		</button>
-		<a href="/b/main">
-			@Icon("globe")
-			The global board
-		</a>
 	</div>
 }
 
