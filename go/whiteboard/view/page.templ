@@ -246,40 +246,29 @@ templ clearDialog(name string) {
 // navDrawer opens from the logo: your boards, a new one, this board on paper.
 templ navDrawer(d BoardData) {
 	<aside id="nav-drawer" class="drawer left nav-drawer" popover aria-label="Menu">
-		<header class="drawer-head">
-			<a class="brand" href="/">
-				@Mark()
-				<span>draw</span>
-			</a>
-			<button class="icon" popovertarget="nav-drawer" popovertargetaction="hide" aria-label="Close menu">
-				@Icon("x")
-			</button>
-		</header>
-		<nav class="nav-list" aria-label="Boards">
+		@drawerHead()
+		<nav class="nav-list" aria-label="Menu">
 			<a href="/">
 				@Icon("home")
-				Your boards
+				Home
 			</a>
-			<h3>Boards</h3>
-			@DrawerBoards(d.Name, d.Meta, d.Tabs)
-			<button class="oneline" data-on:click={ newBoard(db.Public) }>
-				@Icon("plus")
-				New public board
-			</button>
-			<button class="oneline" data-on:click={ newBoard(db.Private) }>
-				@Icon("plus")
-				New private board
-			</button>
-			@demoEntry()
-			<hr/>
-			<a href={ templ.SafeURL("/b/" + d.Name + "/print") }>
-				@Icon("printer")
-				Print this board
-			</a>
-			<button data-on:click="document.getElementById('keys').showModal()">
-				@Icon("keys")
-				Keyboard shortcuts
-			</button>
+			<section class="nav-sec" aria-label="Boards">
+				<h3>Boards</h3>
+				@DrawerBoards(d.Name, d.Meta, d.Tabs)
+				@newBoardRow()
+			</section>
+			@learnSection()
+			<section class="nav-sec" aria-label="This board">
+				<h3>This board</h3>
+				<a href={ templ.SafeURL("/b/" + d.Name + "/print") }>
+					@Icon("printer")
+					Print
+				</a>
+				<button data-on:click="document.getElementById('keys').showModal()">
+					@Icon("keys")
+					Keyboard shortcuts
+				</button>
+			</section>
 		</nav>
 		<p class="fine"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
 	</aside>

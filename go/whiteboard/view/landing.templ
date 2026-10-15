@@ -228,57 +228,79 @@ templ HomeBoards(tabs []db.Tab) {
 	</section>
 }
 
-// frontDrawer opens from the logo on the front pages: home, the demo, a new board.
+// frontDrawer opens from the logo on the front pages.
 templ frontDrawer() {
 	<aside id="nav-drawer" class="drawer left nav-drawer" popover aria-label="Menu">
-		<header class="drawer-head">
-			<a class="brand" href="/">
-				@Mark()
-				<span>draw</span>
-			</a>
-			<button class="icon" popovertarget="nav-drawer" popovertargetaction="hide" aria-label="Close menu">
-				@Icon("x")
-			</button>
-		</header>
+		@drawerHead()
 		<nav class="nav-list" aria-label="Menu">
 			<a href="/">
 				@Icon("home")
-				Your boards
+				Home
 			</a>
-			<a href="/b/main">
-				@Icon("globe")
-				The global board
-			</a>
-			@demoEntry()
-			<button class="oneline" data-on:click={ newBoard(db.Public) }>
-				@Icon("plus")
-				New public board
-			</button>
-			<button class="oneline" data-on:click={ newBoard(db.Private) }>
-				@Icon("plus")
-				New private board
-			</button>
+			<section class="nav-sec" aria-label="Boards">
+				<h3>Boards</h3>
+				<a href="/b/main">
+					@Icon("globe")
+					The global board
+				</a>
+				@newBoardRow()
+			</section>
+			@learnSection()
 		</nav>
 		<p class="fine"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
 	</aside>
 }
 
+// The drawer's pieces, shared by the board page and the front pages.
+
+templ drawerHead() {
+	<header class="drawer-head">
+		<a class="brand" href="/">
+			@Mark()
+			<span>draw</span>
+		</a>
+		<button class="icon" popovertarget="nav-drawer" popovertargetaction="hide" aria-label="Close menu">
+			@Icon("x")
+		</button>
+	</header>
+}
+
+// newBoardRow: a new board, public or private, in one row.
+templ newBoardRow() {
+	<div class="new-row">
+		<span class="label">
+			@Icon("plus")
+			New board
+		</span>
+		<div class="button-group">
+			<button data-on:click={ newBoard(db.Public) } title="Anyone with the link can draw">
+				@Icon("link")
+				Public
+			</button>
+			<button data-on:click={ newBoard(db.Private) } title="Only you and the people you invite">
+				@Icon("lock")
+				Private
+			</button>
+		</div>
+	</div>
+}
+
+// learnSection: the demos, each played on a new board.
+templ learnSection() {
+	<section class="nav-sec" aria-label="Learn">
+		<h3>Learn</h3>
+		@demoEntry("review", "Product review", "a session, played for watchers")
+		@demoEntry("tour", "Controls tour", "move, link, select, group, nudge")
+		@demoEntry("go", "Go slices", "a lesson, with highlighted notes")
+	</section>
+}
+
 // demoEntry starts a demo: a new board with a presenter on it.
-templ demoEntry() {
-	<button class="demo-entry" data-on:click="@post('/demo/review')" title="A short product review, played on a new board">
+templ demoEntry(kind, title, sub string) {
+	<button class="demo-entry" data-on:click={ "@post('/demo/" + kind + "')" } title={ title + ": played on a new board" }>
 		@Icon("play")
-		<span>Demo: product review</span>
-		<span class="meta">a session, played for watchers</span>
-	</button>
-	<button class="demo-entry" data-on:click="@post('/demo/tour')" title="Every drawing control, shown on a new board">
-		@Icon("play")
-		<span>Demo: controls tour</span>
-		<span class="meta">move, link, select, group, nudge</span>
-	</button>
-	<button class="demo-entry" data-on:click="@post('/demo/go')" title="A short Go lesson: the code in your notes, the picture on the board">
-		@Icon("play")
-		<span>Demo: Go slices</span>
-		<span class="meta">a lesson, with highlighted notes</span>
+		<span>{ title }</span>
+		<span class="meta">{ sub }</span>
 	</button>
 }
 
