@@ -106,13 +106,6 @@ templ boardCard(name string) {
 					@Icon("more")
 				</button>
 			</div>
-			<div class="button-group tools tablet desktop" role="toolbar" aria-label="Tools">
-				@railTool(0, "select", "Select", "Esc")
-				@railTool(1, "box", "Box", "R")
-				@railTool(2, "line", "Line", "L")
-				@railTool(3, "arrow", "Arrow", "A")
-				@railTool(4, "laser", "Laser", "5")
-			</div>
 			<div class="button-group acts tablet desktop">
 				<button class="icon" data-on:click={ post(name, "group") } data-attr:disabled="$nsel < 2" aria-label="Group" title="Group (G)">
 					@Icon("group")
@@ -161,8 +154,18 @@ templ boardCard(name string) {
 			@Saved("label")
 			<span class="note" data-text="$note" aria-live="polite"></span>
 		</div>
-		<!-- the paper sits a few pixels in from the frame, and the grid runs on
-		     under that margin, so its edge marks show whole -->
+		<!-- the body: the tools in a column at the paper's left (a phone has them
+		     in the panel's menu), then the paper. The paper sits a few pixels in
+		     from its frame, and the grid runs on under that margin, so its edge
+		     marks show whole -->
+		<div class="board-body">
+			<div class="button-group tools tablet desktop" role="toolbar" aria-label="Tools">
+				@railTool(0, "select", "Select", "Esc")
+				@railTool(1, "box", "Box", "R")
+				@railTool(2, "line", "Line", "L")
+				@railTool(3, "arrow", "Arrow", "A")
+				@railTool(4, "laser", "Laser", "5")
+			</div>
 		<div class="stage-box">
 			<div class="stage-frame">
 				<div
@@ -179,6 +182,7 @@ templ boardCard(name string) {
 					<svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"></svg>
 				</div>
 			</div>
+		</div>
 		</div>
 	</section>
 }

@@ -94,11 +94,24 @@
   /* the tools: a button group of small icons; each key waits under the
      icon (a .stack) and shows in the corner on hover or keyboard focus */
   :where(.board-panel) :where(.button-group) > :where(button) { padding: 0.25lh 0.55em; min-block-size: 0; }
-  :where(.tool) { place-items: center; inline-size: auto; min-inline-size: 0; flex: none; }
-  :where(.tool) > :where(svg) { inline-size: 1em; block-size: 1em; }
+  /* the body: the tool column, then the paper */
+  :where(.board-body) { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.6em; min-block-size: 0; align-items: start; }
+  /* the paper always takes the second column: on a phone the tools are gated
+     out (display: none) and the first collapses to nothing */
+  :where(.board-body) > :where(.stage-box) { block-size: 100%; grid-column: 2; grid-row: 1; }
+  /* the tools: a vertical button group of square buttons. Each is a .stack:
+     the icon, and over it its key (a kbd, knocked down in type), shown in the
+     corner on hover or keyboard focus. The square is a fixed size, so the key
+     never sizes the button; it may overflow the corner. */
+  :where(.board-body) > :where(.tools.button-group) { flex-direction: column; }
+  :where(.board-body) > :where(.tools.button-group) > :where(button) { margin-inline-start: 0; margin-block-start: -1px; border-radius: 0; }
+  :where(.board-body) > :where(.tools.button-group) > :where(button):first-child { margin-block-start: 0; border-radius: var(--cfg-radius) var(--cfg-radius) 0 0; }
+  :where(.board-body) > :where(.tools.button-group) > :where(button):last-child { border-radius: 0 0 var(--cfg-radius) var(--cfg-radius); }
+  :where(.tool) { inline-size: 2.4em; block-size: 2.4em; aspect-ratio: 1; padding: 0; min-inline-size: 0; min-block-size: 0; place-items: center; overflow: visible; flex: none; }
+  :where(.tool) > :where(svg) { inline-size: 1.1em; block-size: 1.1em; }
   :where(.tool) > :where(kbd) {
-    justify-self: end; align-self: start; translate: 45% -45%; z-index: 2;
-    --type: -3; min-block-size: 1.2em; min-inline-size: 1.2em; padding-inline: 0.2em; border-block-end-width: 1px;
+    justify-self: end; align-self: start; translate: 40% -40%; z-index: 2;
+    --type: -3; min-block-size: 1.3em; min-inline-size: 1.3em; padding-inline: 0.25em; margin: 0; border-block-end-width: 1px;
     --bg: 0.15; background-color: var(--_bg); opacity: 0; pointer-events: none; transition: opacity calc(var(--cfg-motion) * 0.12s);
   }
   :where(.tool):where(:hover, :focus-visible) > :where(kbd) { opacity: 1; }
