@@ -1,6 +1,9 @@
 package view
 
-import "whiteboard/db"
+import (
+	"net/url"
+	"whiteboard/db"
+)
 
 type LandingData struct {
 	Next   string // where to go after signing in
@@ -22,20 +25,18 @@ templ Landing(d LandingData) {
 					<p class="lede">A live whiteboard for small teams: boxes, lines and arrows that link and follow each other, a laser pointer for showing, and a history you can step back through and branch from.</p>
 					<div class="signin">
 						if d.Google {
-							<form method="get" action="/auth/google">
-								<input type="hidden" name="next" value={ d.Next }/>
-								<button type="submit" class="google">
-									@googleG()
-									Sign in with Google
-								</button>
-							</form>
+							<!-- a navigation to Google, not a command -->
+							<button class="google" data-on:click={ "window.location.href = " + jsString(googleURL(d.Next)) }>
+								@googleG()
+								Sign in with Google
+							</button>
 						}
 						if d.Dev {
-							<form method="post" action="/auth/dev" class="row dev">
-								<input type="hidden" name="next" value={ d.Next }/>
-								<input type="email" name="email" placeholder="you@example.com" required aria-label="Email (local sign-in)"/>
-								<button type="submit">Sign in (local)</button>
-							</form>
+							<div class="row dev" data-signals={ devSignals(d.Next) }>
+								<input type="email" placeholder="you@example.com" data-bind:email data-on:keydown="evt.key === 'Enter' && @post('/auth/dev')" aria-label="Email (local sign-in)"/>
+								<button data-on:click="@post('/auth/dev')">Sign in (local)</button>
+								@Saved("email")
+							</div>
 						}
 						if !d.Google && !d.Dev {
 							<p class="hint">Sign-in is not configured on this server yet.</p>
@@ -58,7 +59,7 @@ templ Landing(d LandingData) {
 // to one of theirs.
 templ Home(u *db.User, tabs []db.Tab) {
 	@Doc("draw · your boards", nil) {
-		<div class="page home">
+		<div class="page home" data-signals={ "{" + savedSignal + "}" } data-init={ streamGet("/stream") }>
 			@appHeader(u)
 			<main class="pg-main scroll-y">
 				<div class="home-body">
@@ -69,42 +70,18 @@ templ Home(u *db.User, tabs []db.Tab) {
 							<strong>Join the global board</strong>
 							<span>Everyone signed in draws here.</span>
 						</a>
-						<form method="post" action="/new">
-							<input type="hidden" name="visibility" value="public"/>
-							<button type="submit" class="card start-card">
-								@Icon("link")
-								<strong>New public board</strong>
-								<span>Anyone you send the link to can draw.</span>
-							</button>
-						</form>
-						<form method="post" action="/new">
-							<input type="hidden" name="visibility" value="private"/>
-							<button type="submit" class="card start-card">
-								@Icon("lock")
-								<strong>New private board</strong>
-								<span>Only you and the people you invite.</span>
-							</button>
-						</form>
+						<button class="card start-card" data-on:click={ newBoard(db.Public) }>
+							@Icon("link")
+							<strong>New public board</strong>
+							<span>Anyone you send the link to can draw.</span>
+						</button>
+						<button class="card start-card" data-on:click={ newBoard(db.Private) }>
+							@Icon("lock")
+							<strong>New private board</strong>
+							<span>Only you and the people you invite.</span>
+						</button>
 					</div>
-					if len(tabs) > 1 {
-						<h3>Your boards</h3>
-						<ul class="boards">
-							for _, t := range tabs {
-								if t.Name != db.GlobalName {
-									<li>
-										@visIcon(t.Visibility)
-										<a href={ templ.SafeURL("/b/" + t.Name) }>{ t.Title }</a>
-										<span class="meta">{ boardRole(t) }</span>
-										<form method="post" action={ templ.SafeURL("/tabs/close/" + t.Name) }>
-											<button type="submit" class="icon" aria-label={ "Remove " + t.Title + " from your boards" } title="Remove from your boards">
-												@Icon("x")
-											</button>
-										</form>
-									</li>
-								}
-							}
-						</ul>
-					}
+					@HomeBoards(tabs)
 				</div>
 			</main>
 		</div>
@@ -186,12 +163,10 @@ templ MeMenu(u *db.User) {
 			<span>{ u.Email }</span>
 		</div>
 		<a href="/">Your boards</a>
-		<form method="post" action="/auth/logout">
-			<button type="submit">
-				@Icon("logout")
-				Sign out
-			</button>
-		</form>
+		<button data-on:click="@post('/auth/logout')">
+			@Icon("logout")
+			Sign out
+		</button>
 	</div>
 }
 
@@ -208,6 +183,41 @@ templ visIcon(v string) {
 
 templ googleG() {
 	<svg class="g" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path></svg>
+}
+
+// HomeBoards is the front page's board list: a morph target on the front
+// page's stream, sent again whenever the user's boards change anywhere.
+templ HomeBoards(tabs []db.Tab) {
+	<section id="home-boards" class="home-boards">
+		if len(tabs) > 1 {
+			<h3>Your boards</h3>
+			<ul class="boards">
+				for _, t := range tabs {
+					if t.Name != db.GlobalName {
+						<li id={ "tab-" + t.Name }>
+							@visIcon(t.Visibility)
+							<a href={ templ.SafeURL("/b/" + t.Name) }>{ t.Title }</a>
+							<span class="meta">{ boardRole(t) }</span>
+							<button class="icon" data-on:click={ "@post('/tabs/close/" + t.Name + "')" } aria-label={ "Remove " + t.Title + " from your boards" } title="Remove from your boards">
+								@Icon("x")
+							</button>
+						</li>
+					}
+				}
+			</ul>
+		}
+	</section>
+}
+
+func googleURL(next string) string {
+	if next == "" {
+		return "/auth/google"
+	}
+	return "/auth/google?next=" + url.QueryEscape(next)
+}
+
+func devSignals(next string) string {
+	return "{" + savedSignal + ", email: '', next: " + jsString(next) + "}"
 }
 
 func initial(u *db.User) string {

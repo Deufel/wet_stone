@@ -31,6 +31,7 @@ templ shareBody(name, link string, u *db.User, m *hub.Meta) {
 					<input type="text" maxlength="60" data-bind:title data-on:keydown={ "evt.key === 'Enter' && " + post(name, "share/title") } aria-label="Board name"/>
 					<button data-on:click={ post(name, "share/title") }>Rename</button>
 				</span>
+				@Saved("title")
 			</label>
 		}
 		<p class="vis-line">
@@ -54,6 +55,7 @@ templ shareBody(name, link string, u *db.User, m *hub.Meta) {
 						Invite
 					</button>
 				</div>
+				@Saved("invite")
 			}
 			<ul class="people">
 				<li><span>{ ownerLine(u, m) }</span><span class="meta">owner</span></li>

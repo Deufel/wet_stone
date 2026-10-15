@@ -1,16 +1,23 @@
 // Package handler is the HTTP surface. Land-and-stream, pure CQRS:
 //
 //	GET  /                     the landing page, or your boards when signed in
-//	POST /new                  make a board (form + 303 to it: a navigation)
-//	POST /tabs/close/{name}    drop a board from your tabs (form + 303)
+//	GET  /stream               the front page's view channel: your board list,
+//	                           again whenever it changes on any of your devices
+//	POST /new/{visibility}     make a board; the answer sends the page to it
+//	POST /tabs/close/{name}    drop a board from your boards
 //	GET  /b/{name}             a board (land); signed in, and allowed to open it
 //	GET  /b/{name}/stream      the one view channel: the whole <svg id="board">
 //	                           as a morph plus this viewer's signals on every
-//	                           change; the history and share panels when they change
+//	                           change; the history, share panel and tab strip
+//	                           when they change
 //	POST /b/{name}/{op}        a drawing or history command: apply, publish,
-//	                           answer an empty SSE stream. The view never comes
-//	                           back on a command; it arrives on /stream.
+//	                           answer an SSE stream holding at most an ack. The
+//	                           view never comes back on a command; it arrives
+//	                           on the stream.
 //	POST /b/{name}/share/{op}  the owner's title / invite / uninvite
+//
+// There are no forms. Inputs are signals; a command that stores what an input
+// holds answers with ack.Saved, which the input's .saved line shows.
 package handler
 
 import (
@@ -24,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"whiteboard/ack"
 	"whiteboard/auth"
 	"whiteboard/board"
 	"whiteboard/bus"
@@ -99,7 +107,8 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/auth/google/callback", h.Auth.Callback)
 	r.Post("/auth/logout", h.Auth.Logout)
 	r.Post("/auth/dev", h.Auth.DevLogin)
-	r.Post("/new", h.newBoard)
+	r.Get("/stream", h.homeStream)
+	r.Post("/new/{visibility}", h.newBoard)
 	r.Post("/tabs/close/{name}", h.closeTab)
 	r.Get("/b/{name}", h.page)
 	r.Get("/b/{name}/stream", h.stream)
@@ -155,34 +164,106 @@ func (h *Handler) tabs(ctx context.Context, u *db.User) ([]db.Tab, error) {
 	return append([]db.Tab{global}, tabs...), nil
 }
 
+// newBoard makes a board and sends the page there. Every other device's tab
+// strip and board list gain it from the user subject.
 func (h *Handler) newBoard(w http.ResponseWriter, r *http.Request) {
 	u := auth.User(r.Context())
 	if u == nil {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		http.Error(w, "sign in first", http.StatusUnauthorized)
 		return
 	}
-	vis := r.FormValue("visibility")
+	vis := chi.URLParam(r, "visibility")
 	if vis != db.Private {
 		vis = db.Public
 	}
-	title := cleanText(r.FormValue("title"), 60)
-	if title == "" {
-		title = "Untitled board"
-	}
-	name, err := h.DB.CreateBoard(r.Context(), u, title, vis)
+	name, err := h.DB.CreateBoard(r.Context(), u, "Untitled board", vis)
 	if err != nil {
 		slog.Error("new board", "err", err)
 		http.Error(w, "could not make a board", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/b/"+name, http.StatusSeeOther)
+	h.Hub.PublishUser(u.ID)
+	_ = datastar.NewSSE(w, r).Redirect("/b/" + name)
 }
 
 func (h *Handler) closeTab(w http.ResponseWriter, r *http.Request) {
-	if u := auth.User(r.Context()); u != nil {
-		_ = h.DB.CloseTab(r.Context(), u.ID, chi.URLParam(r, "name"))
+	u := auth.User(r.Context())
+	if u == nil {
+		http.Error(w, "sign in first", http.StatusUnauthorized)
+		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	if err := h.DB.CloseTab(r.Context(), u.ID, chi.URLParam(r, "name")); err != nil {
+		slog.Error("close tab", "err", err)
+		http.Error(w, "could not save", http.StatusInternalServerError)
+		return
+	}
+	h.Hub.PublishUser(u.ID) // the list re-renders on every device, this one too
+	datastar.NewSSE(w, r)
+}
+
+// homeStream is the front page's view channel: the user's board list, pushed
+// on connect and whenever their boards change on any device.
+func (h *Handler) homeStream(w http.ResponseWriter, r *http.Request) {
+	u := auth.User(r.Context())
+	if u == nil {
+		http.Error(w, "sign in first", http.StatusUnauthorized)
+		return
+	}
+	wake, unsub, err := h.wakeOn(bus.UserSubject(u.ID))
+	if err != nil {
+		http.Error(w, "bus unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	defer unsub()
+	sse := datastar.NewSSE(w, r, h.sseOptions()...)
+	var buf bytes.Buffer
+	push := func() bool {
+		tabs, err := h.tabs(r.Context(), u)
+		if err != nil {
+			slog.Error("tabs", "err", err)
+			return true
+		}
+		buf.Reset()
+		if err := view.HomeBoards(tabs).Render(r.Context(), &buf); err != nil {
+			return true
+		}
+		return sse.PatchElements(buf.String()) == nil
+	}
+	keep := time.NewTicker(15 * time.Second)
+	defer keep.Stop()
+	if !push() {
+		return
+	}
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-wake:
+			if !push() {
+				return
+			}
+		case <-keep.C:
+			if err := sse.Send(datastar.EventType("keepalive"), nil); err != nil {
+				return
+			}
+		}
+	}
+}
+
+// wakeOn subscribes a latest-wins wake to a subject: events that land while a
+// frame renders collapse into one.
+func (h *Handler) wakeOn(subject string) (<-chan struct{}, func(), error) {
+	wake := make(chan struct{}, 1)
+	sub, err := h.Bus.Subscribe(subject, func(string, []byte) {
+		select {
+		case wake <- struct{}{}:
+		default:
+		}
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return wake, func() { _ = sub.Unsubscribe() }, nil
 }
 
 // open resolves a board for this request: the name is valid, the board
@@ -247,7 +328,9 @@ func (h *Handler) page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if n != db.GlobalName {
-		_ = h.DB.OpenTab(r.Context(), u.ID, meta.ID)
+		if added, _ := h.DB.OpenTab(r.Context(), u.ID, meta.ID); added {
+			h.Hub.PublishUser(u.ID) // your other devices gain the tab
+		}
 	}
 	tabs, err := h.tabs(r.Context(), u)
 	if err != nil {
@@ -279,19 +362,19 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// a latest-wins wake: events that land while a frame renders collapse into one
-	wake := make(chan struct{}, 1)
-	sub, err := h.Bus.Subscribe(bus.BoardSubject(n), func(string, []byte) {
-		select {
-		case wake <- struct{}{}:
-		default:
-		}
-	})
+	// the board's events wake the frame; the user's own wake the tab strip
+	wake, unsub, err := h.wakeOn(bus.BoardSubject(n))
 	if err != nil {
 		http.Error(w, "bus unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	defer sub.Unsubscribe()
+	defer unsub()
+	uwake, uunsub, err := h.wakeOn(bus.UserSubject(u.ID))
+	if err != nil {
+		http.Error(w, "bus unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	defer uunsub()
 
 	sse := datastar.NewSSE(w, r, h.sseOptions()...)
 	b.Join(s.UID, u.First())
@@ -304,6 +387,23 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 	sent := board.NewSent()
 	sentHist, sentMeta := 0, 0
 	var buf bytes.Buffer
+	tabs := func() bool {
+		ctx := r.Context()
+		meta, err := h.Hub.Meta(ctx, n)
+		if err != nil {
+			return true
+		}
+		list, err := h.tabs(ctx, u)
+		if err != nil {
+			slog.Error("tabs", "err", err)
+			return true
+		}
+		buf.Reset()
+		if err := view.BoardTabs(n, meta, list).Render(ctx, &buf); err != nil {
+			return true
+		}
+		return sse.PatchElements(buf.String()) == nil
+	}
 	push := func() bool {
 		ctx := r.Context()
 		// the history panel and the share panel only when they changed: more
@@ -318,6 +418,10 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 			sentHist = hist.Version
 		}
 		if meta, err := h.Hub.Meta(ctx, n); err == nil && meta.Version != sentMeta {
+			if !meta.CanOpen(u) { // uninvited, or no longer theirs: sent home
+				_ = sse.Redirect("/")
+				return false
+			}
 			buf.Reset()
 			if err := view.MetaParts(n, h.Auth.BaseURL+"/b/"+n, u, meta).Render(ctx, &buf); err == nil {
 				if sse.PatchElements(buf.String()) != nil {
@@ -338,7 +442,9 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 	keep := time.NewTicker(15 * time.Second)
 	defer keep.Stop()
 
-	if !push() {
+	// the tab strip once on connect, too: a page landed before a change on
+	// another device (or a reconnect) catches up
+	if !push() || !tabs() {
 		return
 	}
 	for {
@@ -347,6 +453,10 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-wake:
 			if !push() {
+				return
+			}
+		case <-uwake:
+			if !tabs() {
 				return
 			}
 		case <-keep.C:
@@ -401,7 +511,10 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "board unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	datastar.NewSSE(w, r) // an empty stream: what @post expects, and nothing more
+	sse := datastar.NewSSE(w, r) // what @post expects: empty, or just the ack
+	if op == "label" {
+		ack.Saved(sse, "label", "Saved")
+	}
 }
 
 // share: the owner renames the board or changes who may open it.
@@ -427,9 +540,13 @@ func (h *Handler) share(w http.ResponseWriter, r *http.Request) {
 			arg = "Untitled board"
 		}
 	case "invite":
+		if meta.Visibility != db.Private {
+			ack.Bad(datastar.NewSSE(w, r), "invite", "Only a private board takes invites")
+			return
+		}
 		addr, err := mail.ParseAddress(strings.TrimSpace(s.Invite))
-		if err != nil || meta.Visibility != db.Private {
-			datastar.NewSSE(w, r)
+		if err != nil {
+			ack.Bad(datastar.NewSSE(w, r), "invite", "That is not an email address")
 			return
 		}
 		arg = strings.ToLower(addr.Address)
@@ -445,8 +562,14 @@ func (h *Handler) share(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sse := datastar.NewSSE(w, r)
-	if op == "invite" { // the field empties itself for the next address
+	switch op {
+	case "title":
+		ack.Saved(sse, "title", "Saved")
+	case "invite": // the field empties itself for the next address
 		_ = sse.PatchSignals([]byte(`{"invite": ""}`))
+		ack.Saved(sse, "invite", "Invited "+arg)
+	case "uninvite":
+		ack.Saved(sse, "invite", "Removed "+arg)
 	}
 }
 

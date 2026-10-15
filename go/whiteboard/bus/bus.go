@@ -1,15 +1,20 @@
 // Package bus is an embedded, in-process NATS server and client: no TCP port,
 // the client talks to the server over an in-memory pipe. Subjects follow
-// entity.action and are scoped to one board:
+// entity.action and are scoped to one board or one person:
 //
 //	board.{name}.changed   anything on that board changed: the drawing, a
 //	                       cursor, a selection, a laser stroke. Every stream on
 //	                       that board re-renders its viewer's frame.
+//	user.{id}.changed      that person's boards changed: one made, opened,
+//	                       closed, renamed, shared with them or taken away.
+//	                       Every stream they have open, on every device,
+//	                       re-renders their tab strip or board list.
 //
 // Nothing is global: a board's streams never wake for another board.
 package bus
 
 import (
+	"strconv"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
@@ -73,3 +78,6 @@ func (b *Bus) Subscribe(subject string, handler func(subject string, data []byte
 // BoardSubject is the subject for any change on one board. Board names are
 // validated to [a-z0-9-], so they never contain a subject separator.
 func BoardSubject(name string) string { return "board." + name + ".changed" }
+
+// UserSubject is the subject for a change to one person's list of boards.
+func UserSubject(id int64) string { return "user." + strconv.FormatInt(id, 10) + ".changed" }

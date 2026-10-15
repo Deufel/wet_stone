@@ -170,6 +170,9 @@ func (b *Board) down(c Cmd) {
 		u.Selected = index
 		u.Drag = Drag{Kind: DragHandle, Shape: index, HX: 1, HY: 1, Fresh: true}
 	default:
+		if b.arrowFromPort(u, c.X, c.Y) {
+			return
+		}
 		index, drag, hit := b.hitTest(c.X, c.Y)
 		switch {
 		case !hit:
@@ -405,6 +408,34 @@ func (b *Board) up(c Cmd) (change string) {
 		}
 	}
 	return change
+}
+
+// arrowFromPort: with one box selected (its ports showing), a press on one of
+// its edge midpoints starts an arrow there, drawn out as the drag goes; the
+// release links its start to that port. Corners stay resize handles.
+func (b *Board) arrowFromPort(u *User, x, y int32) bool {
+	box := u.Selected
+	if box < 0 || b.Shapes[box].Kind != Box || b.selCount(u) != 1 {
+		return false
+	}
+	r2 := int64(HandleR * HandleR)
+	for a := uint8(4); a < PortCount; a++ {
+		px, py := anchorPoint(&b.Shapes[box], a)
+		if dist2(x, y, px, py) > r2 {
+			continue
+		}
+		index := b.shapeNew(Arrow, px, py)
+		if index < 0 {
+			u.note("board is full: delete something first")
+			return true
+		}
+		u.Sel = [ShapesMax]bool{}
+		u.Sel[index] = true
+		u.Selected = index
+		u.Drag = Drag{Kind: DragHandle, Shape: index, HX: 1, HY: 1, Fresh: true}
+		return true
+	}
+	return false
 }
 
 // ─── Snapping and hit testing ───────────────────────────────────────────────

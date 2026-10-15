@@ -215,10 +215,41 @@ func (d *DB) Uninvite(ctx context.Context, boardID int64, email string) error {
 }
 
 // OpenTab keeps a board in the user's tab strip (and moves it to the end).
-func (d *DB) OpenTab(ctx context.Context, userID, boardID int64) error {
-	_, err := d.sql.ExecContext(ctx, `INSERT INTO tabs (user_id, board_id, opened_ms) VALUES (?, ?, ?)
+// OpenTab adds the board to the user's tabs; it reports whether it was new.
+func (d *DB) OpenTab(ctx context.Context, userID, boardID int64) (bool, error) {
+	res, err := d.sql.ExecContext(ctx, `INSERT INTO tabs (user_id, board_id, opened_ms) VALUES (?, ?, ?)
 		ON CONFLICT (user_id, board_id) DO NOTHING`, userID, boardID, time.Now().UnixMilli())
-	return err
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+// UserID is the account with this email, or 0 when nobody has signed in with it.
+func (d *DB) UserID(ctx context.Context, email string) int64 {
+	var id int64
+	_ = d.sql.QueryRowContext(ctx, `SELECT id FROM users WHERE email = ?`, strings.ToLower(strings.TrimSpace(email))).Scan(&id)
+	return id
+}
+
+// TabHolders are the users who have the board in their tabs: the people a
+// rename has to reach.
+func (d *DB) TabHolders(ctx context.Context, boardID int64) ([]int64, error) {
+	rows, err := d.sql.QueryContext(ctx, `SELECT user_id FROM tabs WHERE board_id = ?`, boardID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 func (d *DB) CloseTab(ctx context.Context, userID int64, name string) error {

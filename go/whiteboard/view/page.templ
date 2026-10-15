@@ -45,26 +45,7 @@ templ Board(d BoardData) {
 					@avatarButton(d.User)
 				</div>
 			</header>
-			<nav class="pg-subheader board-tabs" aria-label="Your boards">
-				<div class="tabs-underline">
-					for _, t := range d.Tabs {
-						if t.Name == d.Name {
-							<a href={ templ.SafeURL("/b/" + t.Name) } aria-current="page">
-								@visIcon(t.Visibility)
-								@tabTitle(d.Meta)
-							</a>
-						} else {
-							<a href={ templ.SafeURL("/b/" + t.Name) }>
-								@visIcon(t.Visibility)
-								{ t.Title }
-							</a>
-						}
-					}
-					<button popovertarget="new-menu" aria-label="New board" title="New board">
-						@Icon("plus")
-					</button>
-				</div>
-			</nav>
+			@BoardTabs(d.Name, d.Meta, d.Tabs)
 			<nav class="pg-toolbar tool-rail tablet desktop" aria-label="Tools">
 				@railTool(0, "select", "Select", "Esc")
 				@railTool(1, "box", "Box", "R")
@@ -84,6 +65,7 @@ templ Board(d BoardData) {
 					data-on:input__debounce.200ms={ post(d.Name, "label") }
 					data-effect={ editFocus }
 				/>
+				@Saved("label")
 				<div class="row acts">
 					<button class="icon" data-on:click={ post(d.Name, "group") } data-attr:disabled="$nsel < 2" aria-label="Group" title="Group (G)">
 						@Icon("group")
@@ -163,9 +145,10 @@ templ railTool(n int, icon, label, key string) {
 }
 
 // boardTitle: the board's name and who may open it (a morph target, so a
-// rename shows everywhere at once).
+// rename shows everywhere at once). <title> is in the head, which the stream
+// never re-renders, so the name rides a re-merged signal to it.
 templ boardTitle(m *hub.Meta) {
-	<div id="board-title" class="board-title">
+	<div id="board-title" class="board-title" data-signals={ "{_doctitle: " + jsString(m.Title + " · draw") + "}" } data-effect="document.title = $_doctitle">
 		<h1>{ m.Title }</h1>
 		<span class="vis">
 			@visIcon(m.Visibility)
@@ -174,22 +157,41 @@ templ boardTitle(m *hub.Meta) {
 	</div>
 }
 
+// BoardTabs is the tab strip: a morph target on the board's stream, sent again
+// whenever the user's boards change on any of their devices.
+templ BoardTabs(name string, m *hub.Meta, tabs []db.Tab) {
+	<nav id="board-tabs" class="pg-subheader board-tabs" aria-label="Your boards">
+		<div class="tabs-underline">
+			for _, t := range withCurrent(name, m, tabs) {
+				if t.Name == name {
+					<a href={ templ.SafeURL("/b/" + t.Name) } aria-current="page">
+						@visIcon(t.Visibility)
+						@tabTitle(m)
+					</a>
+				} else {
+					<a href={ templ.SafeURL("/b/" + t.Name) }>
+						@visIcon(t.Visibility)
+						{ t.Title }
+					</a>
+				}
+			}
+			<button popovertarget="new-menu" aria-label="New board" title="New board">
+				@Icon("plus")
+			</button>
+		</div>
+	</nav>
+}
+
 templ newMenu() {
 	<div id="new-menu" class="menu new-menu" popover>
-		<form method="post" action="/new">
-			<input type="hidden" name="visibility" value="public"/>
-			<button type="submit">
-				@Icon("link")
-				New public board
-			</button>
-		</form>
-		<form method="post" action="/new">
-			<input type="hidden" name="visibility" value="private"/>
-			<button type="submit">
-				@Icon("lock")
-				New private board
-			</button>
-		</form>
+		<button data-on:click={ newBoard(db.Public) }>
+			@Icon("link")
+			New public board
+		</button>
+		<button data-on:click={ newBoard(db.Private) }>
+			@Icon("lock")
+			New private board
+		</button>
 		<a href="/b/main">
 			@Icon("globe")
 			The global board
@@ -243,6 +245,17 @@ templ grid() {
 		<rect width="1000" height="1000" fill="url(#major)"></rect>
 		<rect width="1000" height="1000" fill="url(#minor)"></rect>
 	</svg>
+}
+
+// withCurrent keeps the board on screen in the strip even when it was just
+// closed from another device: you are still looking at it.
+func withCurrent(name string, m *hub.Meta, tabs []db.Tab) []db.Tab {
+	for _, t := range tabs {
+		if t.Name == name {
+			return tabs
+		}
+	}
+	return append(tabs, db.Tab{Name: name, Title: m.Title, Visibility: m.Visibility})
 }
 
 func visWord(v string) string {

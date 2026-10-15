@@ -110,6 +110,19 @@ func (h *Hub) Share(ctx context.Context, name, op, arg string) error {
 	}
 	l.meta.Store(&Meta{Meta: fresh, Version: m.Version + 1})
 	h.Publish(name)
+	// whose tab strips changed: everyone holding the board for a rename (the
+	// owner included), the invited or uninvited person for a share change
+	switch op {
+	case "title":
+		ids, _ := h.db.TabHolders(ctx, m.ID)
+		for _, id := range ids {
+			h.PublishUser(id)
+		}
+	default:
+		if id := h.db.UserID(ctx, arg); id != 0 {
+			h.PublishUser(id)
+		}
+	}
 	return nil
 }
 
@@ -199,6 +212,13 @@ func (l *live) poke() {
 func (h *Hub) Publish(name string) {
 	if err := h.bus.Publish(bus.BoardSubject(name), nil); err != nil {
 		slog.Error("publish", "board", name, "err", err)
+	}
+}
+
+// PublishUser wakes every stream that person has open, on every device.
+func (h *Hub) PublishUser(id int64) {
+	if err := h.bus.Publish(bus.UserSubject(id), nil); err != nil {
+		slog.Error("publish", "user", id, "err", err)
 	}
 }
 

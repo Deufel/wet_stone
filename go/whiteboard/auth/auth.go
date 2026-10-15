@@ -10,6 +10,9 @@
 package auth
 
 import (
+	"whiteboard/ack"
+
+	"github.com/starfederation/datastar-go/datastar"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -142,7 +145,9 @@ func (a *Auth) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	next, _ := url.QueryUnescape(nextEnc)
-	a.begin(w, r, u.ID, safeNext(next))
+	if a.session(w, r, u.ID) { // Google navigated here: a real redirect on
+		http.Redirect(w, r, safeNext(next), http.StatusSeeOther)
+	}
 }
 
 type userinfo struct {
@@ -195,40 +200,50 @@ func (a *Auth) exchange(ctx context.Context, code string) (userinfo, error) {
 	return info, json.NewDecoder(res2.Body).Decode(&info)
 }
 
-// begin starts a session and sends the browser on.
-func (a *Auth) begin(w http.ResponseWriter, r *http.Request, userID int64, next string) {
+// session starts a session and sets its cookie; on false it has answered.
+func (a *Auth) session(w http.ResponseWriter, r *http.Request, userID int64) bool {
 	token, expires, err := a.DB.NewSession(r.Context(), userID)
 	if err != nil {
 		slog.Error("session", "err", err)
 		http.Error(w, "sign-in failed", http.StatusInternalServerError)
-		return
+		return false
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name: sessionCookie, Value: token, Path: "/", Expires: expires,
 		HttpOnly: true, Secure: a.secure(r), SameSite: http.SameSiteLaxMode,
 	})
-	http.Redirect(w, r, next, http.StatusSeeOther)
+	return true
 }
 
-// Logout ends the session.
+// Logout ends this device's session (the others stay signed in). A Datastar
+// post: the cookie goes in the headers, then the stream sends the page home.
 func (a *Auth) Logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(sessionCookie); err == nil {
 		_ = a.DB.EndSession(r.Context(), c.Value)
 	}
 	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Path: "/", MaxAge: -1, HttpOnly: true, Secure: a.secure(r), SameSite: http.SameSiteLaxMode})
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	_ = datastar.NewSSE(w, r).Redirect("/")
 }
 
 // Dev signs in by email alone. It exists only with -dev-login, for testing
-// accounts and invites locally without Google.
+// accounts and invites locally without Google. A Datastar post of $email and
+// $next.
 func (a *Auth) DevLogin(w http.ResponseWriter, r *http.Request) {
 	if !a.Dev {
 		http.NotFound(w, r)
 		return
 	}
-	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
+	var s struct {
+		Email string `json:"email"`
+		Next  string `json:"next"`
+	}
+	if err := datastar.ReadSignals(r, &s); err != nil {
+		http.Error(w, "bad signals", http.StatusBadRequest)
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(s.Email))
 	if email == "" || !strings.Contains(email, "@") {
-		http.Error(w, "an email, please", http.StatusBadRequest)
+		ack.Bad(datastar.NewSSE(w, r), "email", "An email, please")
 		return
 	}
 	name, _, _ := strings.Cut(email, "@")
@@ -237,5 +252,7 @@ func (a *Auth) DevLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "sign-in failed", http.StatusInternalServerError)
 		return
 	}
-	a.begin(w, r, u.ID, safeNext(r.FormValue("next")))
+	if a.session(w, r, u.ID) {
+		_ = datastar.NewSSE(w, r).Redirect(safeNext(s.Next))
+	}
 }

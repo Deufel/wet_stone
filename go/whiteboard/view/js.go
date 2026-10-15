@@ -23,8 +23,18 @@ func postKept(name, op string) string {
 // it ($seq), so the server can drop a pointer command that arrives late.
 const pointer = "const r = stage.getBoundingClientRect(); $x = Math.round((evt.clientX - r.left) * 1000 / r.width); $y = Math.round((evt.clientY - r.top) * 1000 / r.height); $seq = $seq + 1; "
 
+// streamGet opens a page's view channel and keeps it open. Datastar's default
+// ('auto') never retries a stream that ends cleanly (a deploy, a proxy closing
+// a long connection) and gives up after ten failures (a phone asleep, a
+// network change): that device's page then went silently dead while its
+// commands still landed. So: always reconnect, forever, at most 5 s apart.
+// The stream's first push is the whole truth, so a reconnect heals the page.
+func streamGet(path string) string {
+	return "@get('" + path + "', {retry: 'always', retryMaxCount: Infinity, retryMaxWait: 5000})"
+}
+
 func onInit(name string) string {
-	return "$uid = Math.floor(Math.random() * 4294967295); @get('/b/" + name + "/stream')"
+	return "$uid = Math.floor(Math.random() * 4294967295); " + streamGet("/b/"+name+"/stream")
 }
 
 // Only the main button draws and drags; the right button is lock/unlock.
@@ -96,7 +106,10 @@ func onKey(name string) string {
 	}, " ")
 }
 
-const signals = "{uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _prev: 0}"
+// newBoard makes a board; the answer sends the page to it.
+func newBoard(vis string) string { return "@post('/new/" + vis + "')" }
+
+const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _prev: 0}"
 
 const editFocus = "$edit > 0 && setTimeout(() => { el.focus(); el.select() })"
 

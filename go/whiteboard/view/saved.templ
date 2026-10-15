@@ -1,0 +1,24 @@
+package view
+
+// Saved is the canonical acknowledgement line beside an input: empty until
+// the command that stored the input answers with ack.Saved (or ack.Bad), then
+// the server's few words for a moment. key is the ack's k: only the line it
+// names lights.
+templ Saved(key string) {
+	<output
+		class="saved"
+		data-show={ "$_saved.k === '" + key + "'" }
+		data-class:bad="$_saved.bad"
+		data-text="$_saved.m"
+		data-effect={ savedFade(key) }
+		aria-live="polite"
+	></output>
+}
+
+// savedFade: each ack (a new n) restarts the moment; the line then clears.
+func savedFade(key string) string {
+	return "$_saved.n; if ($_saved.k === '" + key + "') { clearTimeout(el._t); el._t = setTimeout(() => { $_saved.k = '' }, $_saved.bad ? 4000 : 1800) }"
+}
+
+// savedSignal declares $_saved on a page that has inputs.
+const savedSignal = "_saved: {k: '', m: '', bad: false, n: 0}"

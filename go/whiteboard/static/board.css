@@ -194,7 +194,6 @@
   :where(.me-menu) .who { display: grid; padding: 0.3lh 0.5em 0.4lh; border-block-end: 1px solid var(--border); margin-block-end: 0.2lh; }
   :where(.me-menu) .who > span { --fg: -0.5; --type: -1; }
   :where(.me-menu, .new-menu) :where(a, button) { display: flex; align-items: center; gap: 0.55em; inline-size: 100%; justify-content: flex-start; text-decoration: none; color: inherit; padding: 0.3lh 0.5em; }
-  :where(.me-menu, .new-menu) :where(form) { display: contents; }
   :where(.me-menu, .new-menu) :where(a, button) > :where(svg) { inline-size: 1.05em; block-size: 1.05em; }
 
   /* ── the front pages ───────────────────────────────────────────────── */
@@ -213,7 +212,6 @@
   :where(.home-body) > :where(h2) { --type: 3; margin: 0; letter-spacing: -0.015em; }
   :where(.home-body) > :where(h3) { --type: 0.5; margin: 0.6lh 0 0; --fg: -0.6; }
   :where(.starts) { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.6lh 1em; }
-  :where(.starts) > :where(form) { display: contents; }
   :where(.start-card) { display: grid; gap: 0.2lh; align-content: start; justify-items: start; text-align: start; padding: 0.9lh 1em; color: inherit; text-decoration: none; cursor: pointer; inline-size: 100%; font: inherit; }
   :where(.start-card) { justify-content: start; align-items: start; --bg: initial; --lift: 0.06; background-color: var(--_bg); border: 1px solid var(--border); border-radius: var(--cfg-radius); box-shadow: none; min-block-size: 0; }
   :where(.start-card):where(:hover) { --lift: 0.12; }
@@ -222,8 +220,14 @@
   :where(.boards) { list-style: none; margin: 0; padding: 0; display: grid; }
   :where(.boards) > :where(li) { display: flex; align-items: center; gap: 0.7em; padding-block: 0.3lh; border-block-end: 1px solid var(--border); }
   :where(.boards) > :where(li) > :where(a) { color: inherit; font-weight: 550; }
-  :where(.boards) form { display: contents; }
   :where(.boards) .meta { --fg: -0.45; --type: -1; margin-inline-end: auto; }
+
+  /* .saved: the canonical acknowledgement line (view.Saved, ack.Saved). Quiet
+     success ink, danger ink when .bad; it fades in, and the server's words
+     stay short. */
+  :where(.saved) { --type: -1; --hue-lock: var(--hue-suc); --fg: 0.75; white-space: nowrap; transition: opacity 0.2s; @starting-style { opacity: 0; } }
+  :where(.saved.bad) { --hue-lock: var(--hue-dgr); }
+  :where(.context-bar) > :where(.saved) { flex: none; }
   :where(.legal) { max-inline-size: 40rem; }
   :where(.legal) li { margin-block-end: 0.3lh; }
   :where(.fine) { --fg: -0.5; --type: -1; margin: 0.5lh 0 0; }
