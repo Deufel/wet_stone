@@ -94,6 +94,7 @@ func main() {
 
 	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
 	r := chi.NewRouter()
+	r.Use(track)
 	r.Use(slowLog)
 	r.Use(a.Middleware)
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServerFS(static.FS)))
@@ -112,6 +113,7 @@ func main() {
 		BaseContext: func(_ net.Listener) context.Context { return baseCtx },
 	}
 
+	debugListen()
 	go func() {
 		slog.Info("whiteboard", "url", "http://"+*addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
