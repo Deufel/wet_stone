@@ -36,7 +36,6 @@ const (
 	SnapPort    = 20 // px: a dragged connector end snaps to a port or a link node from this far
 	ExtentsPad  = 8  // px: the dotted outline sits this far outside a multi-selection
 
-
 	LaserMax  = 160 // live laser segments on a board, all users
 	LaserStep = 8   // px: a laser point is kept only this far from the last one
 	LaserTTL  = 1500 * time.Millisecond
@@ -114,8 +113,8 @@ type User struct {
 	Drag     Drag
 	Sel      [ShapesMax]bool // the selection
 	EditSeq  uint32          // bumped to put the page in the label editor
-	GuideVX  int32 // vertical guide at x, -1 = none
-	GuideHY  int32 // horizontal guide at y, -1 = none
+	GuideVX  int32           // vertical guide at x, -1 = none
+	GuideHY  int32           // horizontal guide at y, -1 = none
 	AnchorOn bool
 	AnchorX  int32
 	AnchorY  int32
@@ -125,7 +124,7 @@ type User struct {
 
 	laser    [3][2]int32 // the last kept laser points
 	laserN   int
-	laserSeg int // segments emitted in this stroke
+	laserSeg int   // segments emitted in this stroke
 	streams  int   // open streams for this user; present while > 0
 	lastSeq  int64 // the newest pointer command applied
 }

@@ -12,6 +12,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -19,6 +20,7 @@ import (
 
 	"whiteboard/board"
 	"whiteboard/bus"
+	"whiteboard/db"
 	"whiteboard/hub"
 	"whiteboard/view"
 
@@ -29,6 +31,7 @@ import (
 type Handler struct {
 	Hub *hub.Hub
 	Bus *bus.Bus
+	DB  *db.DB
 	// Compress is the stream's encoding: "br" (default), "gzip" or "none".
 	// Some proxies (ngrok) hold a compressed stream back instead of passing it on.
 	Compress string
@@ -74,9 +77,24 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/b/main", http.StatusFound)
 	})
+	r.Get("/healthz", h.healthz)
 	r.Get("/b/{name}", h.page)
 	r.Get("/b/{name}/stream", h.stream)
 	r.Post("/b/{name}/{op}", h.command)
+}
+
+// healthz: 200 "ok" while the database answers, 503 when it does not.
+func (h *Handler) healthz(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := h.DB.Ping(ctx); err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte("db unavailable\n"))
+		return
+	}
+	_, _ = w.Write([]byte("ok\n"))
 }
 
 func name(w http.ResponseWriter, r *http.Request) (string, bool) {

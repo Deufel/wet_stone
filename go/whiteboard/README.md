@@ -13,7 +13,9 @@ It runs on :8081 so it can sit next to the Odin version on :8080.
 
 **Deployed** at [draw.deufel.dev](https://draw.deufel.dev) with Coolify from
 this directory's `Dockerfile` (base directory `go/whiteboard`): a static
-binary on port 8080, its SQLite history on the `/data` volume. The stream's
+binary on port 8080, its SQLite history on the `/data` volume. `GET /healthz`
+answers `200 ok` while the database answers (503 otherwise); the image's
+`HEALTHCHECK` and Coolify's health check both use it. The stream's
 `-compress` flag (`br`, the default, `gzip` or `none`) exists because some
 proxies hold a compressed stream back; ngrok holds Brotli.
 

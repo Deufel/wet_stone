@@ -44,8 +44,8 @@ type live struct {
 	wake chan struct{} // cap 1
 
 	mu      sync.Mutex
-	pending string    // the latest unsaved change, "" = none
-	ops     []HistOp  // history commands, in order
+	pending string   // the latest unsaved change, "" = none
+	ops     []HistOp // history commands, in order
 }
 
 // HistOp is a history command from the panel.

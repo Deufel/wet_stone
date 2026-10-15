@@ -56,7 +56,7 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServerFS(static.FS)))
-	(&handler.Handler{Hub: h, Bus: b, Compress: *compress}).Routes(r)
+	(&handler.Handler{Hub: h, Bus: b, DB: d, Compress: *compress}).Routes(r)
 
 	// Streams are lifelong, so shutdown cancels every request context (which
 	// ends each stream's loop) instead of waiting for them to finish.

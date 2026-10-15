@@ -14,4 +14,7 @@ COPY --from=build /whiteboard /usr/local/bin/whiteboard
 USER board
 VOLUME /data
 EXPOSE 8080
+# /healthz answers 200 while the server and its database are up (busybox wget)
+HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1
 ENTRYPOINT ["/usr/local/bin/whiteboard", "-addr", "0.0.0.0:8080", "-db", "/data/whiteboard.db"]

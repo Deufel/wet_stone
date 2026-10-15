@@ -61,6 +61,9 @@ func Open(path string) (*DB, error) {
 
 func (d *DB) Close() error { return d.sql.Close() }
 
+// Ping reports whether the database answers.
+func (d *DB) Ping(ctx context.Context) error { return d.sql.PingContext(ctx) }
+
 // Ensure returns the board's position, creating the board and its main
 // branch on first use.
 func (d *DB) Ensure(ctx context.Context, name string) (Pos, error) {
