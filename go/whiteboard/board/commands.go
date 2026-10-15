@@ -672,3 +672,14 @@ func plural(n int) string {
 	}
 	return "s"
 }
+
+// SelectedBy is the shape that viewer has selected (its primary), or -1: what
+// a scripted presenter (the demo) labels after drawing it.
+func (b *Board) SelectedBy(uid uint32) int32 {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if u := b.viewer(uid); u != nil {
+		return u.Selected
+	}
+	return -1
+}

@@ -136,10 +136,18 @@ templ NotFound(u *db.User) {
 // whatever the page adds after them (the landing: a rule, then sign-in).
 templ appHeader(u *db.User) {
 	<header class="pg-header app-header">
-		<a class="brand" href="/">
-			@Mark()
-			<span>draw</span>
-		</a>
+		if u != nil {
+			<button class="brand" popovertarget="nav-drawer" aria-label="Menu" title="Menu">
+				@Mark()
+				<span>draw</span>
+			</button>
+			@frontDrawer()
+		} else {
+			<a class="brand" href="/">
+				@Mark()
+				<span>draw</span>
+			</a>
+		}
 		<div class="row end">
 			<button class="icon" popovertarget="theme-menu" aria-label="Theme" title="Theme">
 				@Icon("palette")
@@ -214,6 +222,50 @@ templ HomeBoards(tabs []db.Tab) {
 			</ul>
 		}
 	</section>
+}
+
+// frontDrawer opens from the logo on the front pages: home, the demo, a new board.
+templ frontDrawer() {
+	<aside id="nav-drawer" class="drawer left nav-drawer" popover aria-label="Menu">
+		<header class="drawer-head">
+			<a class="brand" href="/">
+				@Mark()
+				<span>draw</span>
+			</a>
+			<button class="icon" popovertarget="nav-drawer" popovertargetaction="hide" aria-label="Close menu">
+				@Icon("x")
+			</button>
+		</header>
+		<nav class="nav-list" aria-label="Menu">
+			<a href="/">
+				@Icon("home")
+				Your boards
+			</a>
+			<a href="/b/main">
+				@Icon("globe")
+				The global board
+			</a>
+			@demoEntry()
+			<button class="oneline" data-on:click={ newBoard(db.Public) }>
+				@Icon("plus")
+				New public board
+			</button>
+			<button class="oneline" data-on:click={ newBoard(db.Private) }>
+				@Icon("plus")
+				New private board
+			</button>
+		</nav>
+		<p class="fine"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
+	</aside>
+}
+
+// demoEntry starts the demo: a new board with a presenter on it.
+templ demoEntry() {
+	<button class="demo-entry" data-on:click="@post('/demo')" title="A short product review, played on a new board">
+		@Icon("play")
+		<span>Demo board</span>
+		<span class="meta">a product review, played</span>
+	</button>
 }
 
 // removeDialog asks before a board leaves your list ($_rm names it).

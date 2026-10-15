@@ -1,0 +1,263 @@
+package handler
+
+import (
+	"context"
+	"log/slog"
+	"math"
+	"net/http"
+	"strings"
+	"time"
+
+	"whiteboard/auth"
+	"whiteboard/board"
+	"whiteboard/db"
+
+	"github.com/starfederation/datastar-go/datastar"
+)
+
+// The demo: a new public board, and on it a scripted presenter ("Demo") who
+// runs a short product review the way a person would, through the same
+// commands a page sends: draws the checkout flow and links it, points at the
+// problem with the laser, proposes a fix, keeps the checklist, and types the
+// meeting notes into the viewer's own notebook. Anyone with the link can
+// watch it happen; it is also a walk through every part of the app.
+
+const demoUID = 0xDE30 // the presenter's viewer id on the board
+
+// demo makes the board, sends the page to it, and starts the presenter.
+func (h *Handler) demo(w http.ResponseWriter, r *http.Request) {
+	u := auth.User(r.Context())
+	if u == nil {
+		http.Error(w, "sign in first", http.StatusUnauthorized)
+		return
+	}
+	title := "Demo · Checkout redesign"
+	if now := h.DB.Now(r.Context()); len(now) >= 16 {
+		title += " · " + now[11:16] // SQLite's clock: each run its own name
+	}
+	name, err := h.DB.CreateBoard(r.Context(), u, title, db.Public)
+	if err != nil {
+		slog.Error("demo", "err", err)
+		http.Error(w, "could not make the demo board", http.StatusInternalServerError)
+		return
+	}
+	h.Hub.PublishUser(u.ID)
+	go h.playDemo(name, *u)
+	_ = datastar.NewSSE(w, r).Redirect("/b/" + name)
+}
+
+// presenter drives one viewer on a board, at a human pace.
+type presenter struct {
+	h    *Handler
+	ctx  context.Context
+	name string
+	b    *board.Board
+	seq  int64
+	x, y int32
+	err  error
+}
+
+func (p *presenter) cmd(c board.Cmd) {
+	if p.err != nil {
+		return
+	}
+	c.UID = demoUID
+	p.err = p.h.Hub.Apply(p.ctx, p.name, c)
+}
+
+func (p *presenter) pause(d time.Duration) {
+	if p.err != nil {
+		return
+	}
+	select {
+	case <-time.After(d):
+	case <-p.ctx.Done():
+		p.err = p.ctx.Err()
+	}
+}
+
+// glide moves the cursor to (x, y) in small steps, as a hand would.
+func (p *presenter) glide(tool uint8, x, y int32, dseq int64) {
+	const steps = 14
+	x0, y0 := p.x, p.y
+	for i := 1; i <= steps; i++ {
+		t := float64(i) / steps
+		t = t * t * (3 - 2*t) // ease in and out
+		p.seq++
+		p.cmd(board.Cmd{Op: "move", Tool: tool, Seq: p.seq, DSeq: dseq,
+			X: x0 + int32(float64(x-x0)*t), Y: y0 + int32(float64(y-y0)*t)})
+		p.pause(28 * time.Millisecond)
+	}
+	p.x, p.y = x, y
+}
+
+// stroke presses at (x1, y1), drags to (x2, y2), and lets go.
+func (p *presenter) stroke(tool uint8, x1, y1, x2, y2 int32) {
+	p.glide(0, x1, y1, 0)
+	p.seq++
+	down := p.seq
+	p.cmd(board.Cmd{Op: "down", Tool: tool, Seq: down, DSeq: down, X: x1, Y: y1})
+	p.glide(tool, x2, y2, down)
+	p.seq++
+	p.cmd(board.Cmd{Op: "up", Tool: tool, Seq: p.seq, DSeq: down, X: x2, Y: y2})
+}
+
+// box draws a box and labels it.
+func (p *presenter) box(x1, y1, x2, y2 int32, label string) {
+	p.stroke(1, x1, y1, x2, y2)
+	p.pause(250 * time.Millisecond)
+	p.label(label)
+}
+
+func (p *presenter) label(text string) {
+	sel := p.b.SelectedBy(demoUID)
+	if sel < 0 {
+		return
+	}
+	// typed a few letters at a time, as the label field sends them
+	for i := 3; i < len(text); i += 3 {
+		p.cmd(board.Cmd{Op: "label", Shape: sel, Label: text[:i]})
+		p.pause(45 * time.Millisecond)
+	}
+	p.cmd(board.Cmd{Op: "label", Shape: sel, Label: text})
+}
+
+// laser circles (cx, cy) once.
+func (p *presenter) laser(cx, cy, r int32) {
+	p.glide(4, cx+r, cy, 0)
+	p.seq++
+	down := p.seq
+	p.cmd(board.Cmd{Op: "down", Tool: 4, Seq: down, DSeq: down, X: cx + r, Y: cy})
+	for i := 1; i <= 40; i++ {
+		a := float64(i) / 40 * 2 * math.Pi
+		p.seq++
+		p.x, p.y = cx+int32(float64(r)*math.Cos(a)), cy+int32(float64(r)*0.8*math.Sin(a))
+		p.cmd(board.Cmd{Op: "move", Tool: 4, Seq: p.seq, DSeq: down, X: p.x, Y: p.y})
+		p.pause(22 * time.Millisecond)
+	}
+	p.seq++
+	p.cmd(board.Cmd{Op: "up", Tool: 4, Seq: p.seq, DSeq: down, X: p.x, Y: p.y})
+}
+
+// The meeting notes, as the presenter types them into the viewer's notebook.
+var demoNotes = []string{
+	"Product review · checkout redesign",
+	"Presenting: Demo · watching: the team",
+	"",
+	"Flow today: Cart → Shipping → Payment → Confirm",
+	"- 38% of mobile users leave at Payment",
+	"- the card form is the slow part",
+	"",
+	"Proposal",
+	"- Apple Pay on Payment: skips the card form",
+	"",
+	"Decisions",
+	"- spike Apple Pay this sprint",
+	"- keep Shipping as one step",
+	"",
+	"Follow-ups are on the checklist →",
+}
+
+func (p *presenter) notes(user db.User, boardID int64, lines int) {
+	if p.err != nil {
+		return
+	}
+	if err := p.h.DB.SaveNote(p.ctx, user.ID, boardID, strings.Join(demoNotes[:lines], "\n"), ""); err == nil {
+		p.h.Hub.PublishUser(user.ID)
+	}
+}
+
+func (p *presenter) todo(user db.User, boardID int64, text string) {
+	if p.err != nil {
+		return
+	}
+	if err := p.h.DB.AddTodo(p.ctx, boardID, user.ID, text); err == nil {
+		p.h.Hub.TodoChanged(p.ctx, p.name)
+	}
+}
+
+// playDemo is the session, start to finish (about twenty seconds of drawing,
+// at a quick presenter's pace).
+func (h *Handler) playDemo(name string, user db.User) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	b, _, err := h.Hub.Board(ctx, name)
+	if err != nil {
+		slog.Error("demo", "board", name, "err", err)
+		return
+	}
+	meta, err := h.Hub.Meta(ctx, name)
+	if err != nil {
+		return
+	}
+	b.Join(demoUID, "Demo")
+	h.Hub.Publish(name)
+	defer func() {
+		b.Leave(demoUID)
+		h.Hub.Publish(name)
+	}()
+	p := &presenter{h: h, ctx: ctx, name: name, b: b, x: 500, y: 900}
+	id := meta.ID
+
+	p.pause(2500 * time.Millisecond) // the page lands and its stream opens
+	p.notes(user, id, 2)
+
+	// 1. the flow as it is today
+	steps := []struct {
+		x1, x2 int32
+		label  string
+	}{{60, 220, "Cart"}, {290, 450, "Shipping"}, {520, 680, "Payment"}, {750, 910, "Confirm"}}
+	for _, s := range steps {
+		p.box(s.x1, 200, s.x2, 320, s.label)
+		p.pause(350 * time.Millisecond)
+	}
+	// linked arrows, port to port: they follow the boxes from now on
+	for i := 0; i+1 < len(steps); i++ {
+		p.stroke(3, steps[i].x2, 260, steps[i+1].x1, 260)
+		p.pause(250 * time.Millisecond)
+	}
+	p.notes(user, id, 4)
+	p.pause(600 * time.Millisecond)
+
+	// 2. where it hurts: the laser, then the question written down
+	p.laser(600, 260, 120)
+	p.notes(user, id, 6)
+	p.pause(500 * time.Millisecond)
+	p.box(290, 700, 910, 800, "38% of mobile users leave at Payment: why?")
+	p.pause(700 * time.Millisecond)
+
+	// 3. the proposal, branching off Payment
+	p.box(520, 450, 680, 560, "Apple Pay")
+	p.pause(250 * time.Millisecond)
+	p.stroke(3, 600, 320, 600, 450)
+	p.notes(user, id, 9)
+	p.pause(600 * time.Millisecond)
+
+	// 4. what comes out of the meeting
+	p.todo(user, id, "Measure drop-off at Payment by device")
+	p.pause(500 * time.Millisecond)
+	p.todo(user, id, "Spike Apple Pay on the Payment step")
+	p.pause(500 * time.Millisecond)
+	p.todo(user, id, "Review the Confirm copy with design")
+	p.notes(user, id, 13)
+	p.pause(900 * time.Millisecond)
+	// the first is already answered in the meeting: checked, with its time
+	if todos, err := h.DB.Todos(ctx, id); err == nil {
+		for _, t := range todos {
+			if strings.HasPrefix(t.Text, "Measure") && p.err == nil {
+				if h.DB.ToggleTodo(ctx, id, t.ID, user.ID) == nil {
+					h.Hub.TodoChanged(ctx, name)
+				}
+			}
+		}
+	}
+	p.notes(user, id, len(demoNotes))
+
+	// park the cursor, deselect, and leave
+	p.pause(400 * time.Millisecond)
+	p.stroke(0, 960, 960, 960, 960)
+	p.glide(0, 980, 980, 0)
+	if p.err != nil {
+		slog.Error("demo", "board", name, "err", p.err)
+	}
+}

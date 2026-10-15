@@ -269,6 +269,7 @@ templ navDrawer(d BoardData) {
 				@Icon("plus")
 				New private board
 			</button>
+			@demoEntry()
 			<hr/>
 			<a href={ templ.SafeURL("/b/" + d.Name + "/print") }>
 				@Icon("printer")

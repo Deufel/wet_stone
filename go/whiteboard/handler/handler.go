@@ -136,6 +136,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/auth/dev", h.Auth.DevLogin)
 	r.Get("/stream", h.homeStream)
 	r.Post("/new/{visibility}", h.newBoard)
+	r.Post("/demo", h.demo)
 	r.Post("/tabs/close/{name}", h.closeTab)
 	r.Get("/b/{name}", h.page)
 	r.Get("/b/{name}/stream", h.stream)
