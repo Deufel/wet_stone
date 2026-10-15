@@ -263,12 +263,17 @@ templ frontDrawer() {
 	</aside>
 }
 
-// demoEntry starts the demo: a new board with a presenter on it.
+// demoEntry starts a demo: a new board with a presenter on it.
 templ demoEntry() {
-	<button class="demo-entry" data-on:click="@post('/demo')" title="A short product review, played on a new board">
+	<button class="demo-entry" data-on:click="@post('/demo/review')" title="A short product review, played on a new board">
 		@Icon("play")
-		<span>Demo board</span>
-		<span class="meta">a product review, played</span>
+		<span>Demo: product review</span>
+		<span class="meta">a session, played for watchers</span>
+	</button>
+	<button class="demo-entry" data-on:click="@post('/demo/tour')" title="Every drawing control, shown on a new board">
+		@Icon("play")
+		<span>Demo: controls tour</span>
+		<span class="meta">move, link, select, group, nudge</span>
 	</button>
 }
 

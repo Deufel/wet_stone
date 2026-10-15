@@ -12,6 +12,7 @@ import (
 	"whiteboard/board"
 	"whiteboard/db"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/starfederation/datastar-go/datastar"
 )
 
@@ -24,6 +25,15 @@ import (
 
 const demoUID = 0xDE30 // the presenter's viewer id on the board
 
+// The demos, by the name in /demo/{kind}: a title and the session to play.
+var demos = map[string]struct {
+	title string
+	play  func(h *Handler, name string, user db.User)
+}{
+	"review": {"Demo · Checkout redesign", (*Handler).playDemo},
+	"tour":   {"Demo · Controls tour", (*Handler).playTour},
+}
+
 // demo makes the board, sends the page to it, and starts the presenter.
 func (h *Handler) demo(w http.ResponseWriter, r *http.Request) {
 	u := auth.User(r.Context())
@@ -31,7 +41,12 @@ func (h *Handler) demo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "sign in first", http.StatusUnauthorized)
 		return
 	}
-	title := "Demo · Checkout redesign"
+	d, ok := demos[chi.URLParam(r, "kind")]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	title := d.title
 	if now := h.DB.Now(r.Context()); len(now) >= 16 {
 		title += " · " + now[11:16] // SQLite's clock: each run its own name
 	}
@@ -42,7 +57,7 @@ func (h *Handler) demo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.Hub.PublishUser(u.ID)
-	go h.playDemo(name, *u)
+	go d.play(h, name, *u)
 	_ = datastar.NewSSE(w, r).Redirect("/b/" + name)
 }
 
@@ -256,6 +271,182 @@ func (h *Handler) playDemo(name string, user db.User) {
 	// park the cursor, deselect, and leave
 	p.pause(400 * time.Millisecond)
 	p.stroke(0, 960, 960, 960, 960)
+	p.glide(0, 980, 980, 0)
+	if p.err != nil {
+		slog.Error("demo", "board", name, "err", p.err)
+	}
+}
+
+// ─── The controls tour ──────────────────────────────────────────────────────
+
+// click presses and lets go at (x, y) in the select tool.
+func (p *presenter) click(x, y int32) { p.stroke(0, x, y, x, y) }
+
+// dblclick is the page's double-click: link or unlink a meeting point, or
+// open a shape's label.
+func (p *presenter) dblclick(x, y int32) {
+	p.glide(0, x, y, 0)
+	p.cmd(board.Cmd{Op: "link", X: x, Y: y})
+}
+
+// act is a key or a button on the selection: group, ungroup, nudge, delete.
+func (p *presenter) act(op string, nx, ny int8) {
+	p.cmd(board.Cmd{Op: op, NX: nx, NY: ny})
+}
+
+// check ticks the checklist item that starts with prefix.
+func (p *presenter) check(user db.User, boardID int64, prefix string) {
+	if p.err != nil {
+		return
+	}
+	todos, err := p.h.DB.Todos(p.ctx, boardID)
+	if err != nil {
+		return
+	}
+	for _, t := range todos {
+		if strings.HasPrefix(t.Text, prefix) && !t.Done {
+			if p.h.DB.ToggleTodo(p.ctx, boardID, t.ID, user.ID) == nil {
+				p.h.Hub.TodoChanged(p.ctx, p.name)
+			}
+			return
+		}
+	}
+}
+
+var tourSteps = []string{
+	"Draw: R for a box, A for an arrow",
+	"Arrows link to a box's ports",
+	"Move a box: its arrows follow",
+	"Drag down to select what it touches",
+	"Drag up to select only what it encloses",
+	"Group (G) moves as one; ungroup (⇧G)",
+	"Nudge the selection with the arrow keys",
+	"Double-click where lines meet: unlink, link",
+}
+
+var tourNotes = []string{
+	"Controls tour",
+	"",
+	"Tools: Esc select · R box · L line · A arrow · 5 laser",
+	"Arrows and lines snap to a box's ports (corners,",
+	"edge midpoints) and link there: move the box and",
+	"they follow.",
+	"",
+	"Selecting: drag on empty paper.",
+	"- downward: everything the rectangle touches",
+	"- upward: only what it fully encloses",
+	"",
+	"G groups the selection (one colour, moves as one);",
+	"⇧G ungroups. Arrows nudge it a grid step.",
+	"",
+	"Double-click a meeting point to unlink it, again to",
+	"link. Double-click a shape (or click its label) to",
+	"type its label in place.",
+}
+
+// playTour shows the drawing controls, one checklist item at a time.
+func (h *Handler) playTour(name string, user db.User) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	b, _, err := h.Hub.Board(ctx, name)
+	if err != nil {
+		slog.Error("demo", "board", name, "err", err)
+		return
+	}
+	meta, err := h.Hub.Meta(ctx, name)
+	if err != nil {
+		return
+	}
+	b.Join(demoUID, "Demo")
+	h.Hub.Publish(name)
+	defer func() {
+		b.Leave(demoUID)
+		h.Hub.Publish(name)
+	}()
+	p := &presenter{h: h, ctx: ctx, name: name, b: b, x: 500, y: 900}
+	id := meta.ID
+	notes := func(n int) {
+		if p.err == nil && h.DB.SaveNote(ctx, user.ID, id, strings.Join(tourNotes[:n], "\n"), "") == nil {
+			h.Hub.PublishUser(user.ID)
+		}
+	}
+
+	p.pause(2500 * time.Millisecond)
+	// the plan first: everything the tour will show, on the checklist
+	for _, s := range tourSteps {
+		p.todo(user, id, s)
+		p.pause(250 * time.Millisecond)
+	}
+	notes(3)
+	p.pause(800 * time.Millisecond)
+
+	// 1. draw three boxes, and label them
+	p.box(100, 150, 300, 300, "A")
+	p.pause(250 * time.Millisecond)
+	p.box(500, 150, 700, 300, "B")
+	p.pause(250 * time.Millisecond)
+	p.box(300, 500, 500, 650, "C")
+	p.check(user, id, "Draw")
+	p.pause(600 * time.Millisecond)
+
+	// 2. arrows, port to port: A's right to B's left, B's bottom to C's right
+	p.stroke(3, 300, 225, 500, 225)
+	p.pause(300 * time.Millisecond)
+	p.stroke(3, 600, 300, 500, 575)
+	notes(6)
+	p.check(user, id, "Arrows link")
+	p.pause(800 * time.Millisecond)
+
+	// 3. move B (grabbed off its label): both arrows come along
+	p.stroke(0, 660, 170, 720, 350)
+	p.check(user, id, "Move a box")
+	p.pause(900 * time.Millisecond)
+
+	// 4. drag down from empty paper: what the rectangle touches (C)
+	p.click(900, 900) // clear the selection
+	p.stroke(0, 80, 450, 330, 700)
+	notes(9)
+	p.check(user, id, "Drag down")
+	p.pause(1200 * time.Millisecond)
+
+	// 5. drag up: only what it encloses (A and C, not B or the arrows)
+	p.click(900, 900)
+	p.stroke(0, 520, 720, 80, 100)
+	notes(11)
+	p.check(user, id, "Drag up")
+	p.pause(1200 * time.Millisecond)
+
+	// 6. group them, move the group as one, ungroup
+	p.act("group", 0, 0)
+	p.pause(700 * time.Millisecond)
+	p.stroke(0, 130, 170, 130, 230) // A, off its label: the group moves
+	notes(14)
+	p.pause(700 * time.Millisecond)
+	p.act("ungroup", 0, 0)
+	p.check(user, id, "Group")
+	p.pause(900 * time.Millisecond)
+
+	// 7. select B and nudge it, a step at a time
+	p.click(900, 900)
+	p.click(580, 360) // B, moved above (snapped): (560,340)-(760,480)
+	for i := 0; i < 3; i++ {
+		p.pause(350 * time.Millisecond)
+		p.act("nudge", 1, 0)
+	}
+	p.check(user, id, "Nudge")
+	p.pause(900 * time.Millisecond)
+
+	// 8. where A's arrow meets B: unlink, then link again
+	bx := int32(560 + 3*20) // B's left edge after the nudges (a grid step is 20)
+	p.dblclick(bx, 410)
+	p.pause(1200 * time.Millisecond)
+	p.dblclick(bx, 410)
+	notes(len(tourNotes))
+	p.check(user, id, "Double-click")
+
+	// park the cursor, deselect, and leave
+	p.pause(600 * time.Millisecond)
+	p.click(960, 960)
 	p.glide(0, 980, 980, 0)
 	if p.err != nil {
 		slog.Error("demo", "board", name, "err", p.err)

@@ -173,6 +173,13 @@ func (h *Hub) live(ctx context.Context, name string) (*live, error) {
 		}
 		close(s.ready)
 	}
+	// a loaded board answers at once, even to a cancelled request (a select
+	// over both would pick one at random, and a 503 came back for nothing)
+	select {
+	case <-s.ready:
+		return s.l, s.err
+	default:
+	}
 	select {
 	case <-s.ready:
 		return s.l, s.err

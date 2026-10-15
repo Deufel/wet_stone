@@ -1102,7 +1102,7 @@ func frontDrawer() templ.Component {
 	})
 }
 
-// demoEntry starts the demo: a new board with a presenter on it.
+// demoEntry starts a demo: a new board with a presenter on it.
 func demoEntry() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -1124,7 +1124,7 @@ func demoEntry() templ.Component {
 			templ_7745c5c3_Var41 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "<button class=\"demo-entry\" data-on:click=\"@post('/demo')\" title=\"A short product review, played on a new board\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "<button class=\"demo-entry\" data-on:click=\"@post('/demo/review')\" title=\"A short product review, played on a new board\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1132,7 +1132,15 @@ func demoEntry() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "<span>Demo board</span> <span class=\"meta\">a product review, played</span></button>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "<span>Demo: product review</span> <span class=\"meta\">a session, played for watchers</span></button> <button class=\"demo-entry\" data-on:click=\"@post('/demo/tour')\" title=\"Every drawing control, shown on a new board\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = Icon("play").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "<span>Demo: controls tour</span> <span class=\"meta\">move, link, select, group, nudge</span></button>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1162,7 +1170,7 @@ func removeDialog() templ.Component {
 			templ_7745c5c3_Var42 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "<dialog id=\"remove-confirm\" class=\"modal content-1 confirm\" closedby=\"any\" aria-label=\"Remove from your boards\"><h2>Remove from your boards?</h2><p><strong data-text=\"$_rm.title\"></strong> leaves your list. The board itself is kept: open its link again to bring it back.</p><div class=\"row end\"><button data-on:click=\"document.getElementById('remove-confirm').close()\" autofocus>Cancel</button> <button class=\"dgr\" data-on:click=\"@post('/tabs/close/' + $_rm.name); document.getElementById('remove-confirm').close()\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "<dialog id=\"remove-confirm\" class=\"modal content-1 confirm\" closedby=\"any\" aria-label=\"Remove from your boards\"><h2>Remove from your boards?</h2><p><strong data-text=\"$_rm.title\"></strong> leaves your list. The board itself is kept: open its link again to bring it back.</p><div class=\"row end\"><button data-on:click=\"document.getElementById('remove-confirm').close()\" autofocus>Cancel</button> <button class=\"dgr\" data-on:click=\"@post('/tabs/close/' + $_rm.name); document.getElementById('remove-confirm').close()\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1170,7 +1178,7 @@ func removeDialog() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "Remove</button></div></dialog>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "Remove</button></div></dialog>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
