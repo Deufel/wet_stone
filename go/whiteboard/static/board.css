@@ -224,6 +224,9 @@
   :where(.boards) > :where(li) > :where(a) { color: inherit; font-weight: 550; }
   :where(.boards) form { display: contents; }
   :where(.boards) .meta { --fg: -0.45; --type: -1; margin-inline-end: auto; }
+  :where(.legal) { max-inline-size: 40rem; }
+  :where(.legal) li { margin-block-end: 0.3lh; }
+  :where(.fine) { --fg: -0.5; --type: -1; margin: 0.5lh 0 0; }
   :where(.notice) { justify-items: start; }
   :where(.notice) > :where(svg) { inline-size: 2em; block-size: 2em; --fg: -0.5; }
   :where(.notice) > :where(h2) { --type: 2; }

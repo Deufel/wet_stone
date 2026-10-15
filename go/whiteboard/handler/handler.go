@@ -87,6 +87,14 @@ type signals struct {
 func (h *Handler) Routes(r chi.Router) {
 	r.Get("/", h.home)
 	r.Get("/healthz", h.healthz)
+	r.Get("/privacy", func(w http.ResponseWriter, r *http.Request) {
+		html(w)
+		_ = view.Privacy(auth.User(r.Context())).Render(r.Context(), w)
+	})
+	r.Get("/terms", func(w http.ResponseWriter, r *http.Request) {
+		html(w)
+		_ = view.Terms(auth.User(r.Context())).Render(r.Context(), w)
+	})
 	r.Get("/auth/google", h.Auth.Start)
 	r.Get("/auth/google/callback", h.Auth.Callback)
 	r.Post("/auth/logout", h.Auth.Logout)
