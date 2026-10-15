@@ -35,6 +35,53 @@ morph. Through Coolify's proxy (HTTP/2, Brotli), from a home connection:
 The server's whole path (apply, render, compress, stream, morph) costs a few
 milliseconds on top of the round trip.
 
+## Accounts, boards and access
+
+Sign-in is Google (OpenID Connect, written directly: no SDK), with a server-side
+session (the cookie holds a random token, SQLite holds only its hash). The
+landing page is public; every board needs sign-in.
+
+| board | who may open it |
+|---|---|
+| global (`/b/main`) | everyone signed in |
+| public | everyone signed in who has the link |
+| private | its owner and the Google emails invited (an invite works before they ever sign in, and becomes a tab when they do) |
+
+New boards get unguessable names. The owner renames a board and manages who is
+invited from the Share dialog; the title and the dialog are morph targets on the
+board's stream, so a change shows for everyone at once. Every board route
+(page, stream, commands, share) checks access on the server.
+
+Configure with environment variables (in Coolify):
+
+| | |
+|---|---|
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | an OAuth client (type: web application) |
+| `BASE_URL` | `https://draw.deufel.dev`; the redirect URI is `BASE_URL/auth/google/callback` |
+
+`-dev-login` adds an email-only sign-in for local testing. Never in production.
+
+The schema migrates forward by `PRAGMA user_version` (`db/migrate.go`); an
+existing database keeps every board and revision.
+
+## The app shell
+
+A header (the board, Share, shortcuts, theme, you), the boards as underline
+tabs, a tool rail on tablet and desktop that moves to a bottom bar on phones
+(mike.css's `.mobile` / `.tablet` / `.desktop` gates), and a context toolbar over
+the paper. The history is always a right-hand `.drawer` (⇧H), on every width.
+
+**History, after Tufte:** a sparkline of the drawing's size over its life,
+labelled at its ends; the branches as plain text; the checked-out line on one
+hairline with a dot per revision, each a **small multiple** (a thumbnail of the
+drawing at that moment, every one on the board's own scale), what changed, by
+how much, and when. Forks are labelled where they leave the line.
+
+**PWA:** a manifest (`display: standalone`, scope `/`), the apple-* tags that
+keep iOS from bringing Safari's bars back on in-app navigation, `viewport-fit:
+cover` with safe-area padding, a paper icon (`static/icon.svg`, rasterized to
+the PNG sizes), and cross-document view transitions.
+
 ## Shape of the code
 
 | package | what |
@@ -43,8 +90,9 @@ milliseconds on top of the round trip.
 | `hub` | live boards by name: loaded from SQLite on first use, kept in memory; per board a keeper (the one history writer) and a ticker; `history.go` builds the panel's view |
 | `bus` | embedded in-process NATS (no TCP port), subject `board.{name}.changed` |
 | `db` | `schema.sql`; revisions, branches and the board's checked-out position |
-| `handler` | routes: page, stream, commands |
-| `view` | `page.templ` (the land), `history.templ` (the aside), `js.go` (every Datastar expression, built in Go) |
+| `auth` | Google sign-in, sessions, the request's user; the local dev sign-in |
+| `handler` | routes: landing, home, new board, page, stream, commands, share |
+| `view` | `layout.templ` (the PWA head), `landing.templ`, `page.templ` (the board), `history.templ`, `share.templ`, `icons.go`, `js.go` (every Datastar expression, built in Go) |
 | `static` | `mike.css` (committed copy), `board.css`, `board.js` (`gridSnap`), embedded |
 
 ## Land-and-stream

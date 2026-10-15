@@ -4,5 +4,5 @@ package static
 
 import "embed"
 
-//go:embed mike.css board.css
+//go:embed mike.css board.css theme.js manifest.webmanifest icon.svg icon-192.png icon-512.png icon-512-maskable.png apple-touch-icon.png
 var FS embed.FS

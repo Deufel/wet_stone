@@ -1,93 +1,235 @@
 package view
 
-import "whiteboard/hub"
+import (
+	"whiteboard/db"
+	"whiteboard/hub"
+)
 
-// Page is the land: the whole document, rendered once. Everything after comes
-// down the board's stream: <svg id="board">, drawn whole on the server for
-// this viewer, as a morph, plus a few signals. The page draws nothing itself;
-// it only carries the pointer and keys up as commands. The grid is a sibling
-// of the board the stream never touches.
-templ Page(name string, hist *hub.History) {
-	<!DOCTYPE html>
-	<html lang="en">
-		<head>
-			<meta charset="utf-8"/>
-			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<title>{ name } · whiteboard</title>
-			<link rel="stylesheet" href="/static/mike.css"/>
-			<link rel="stylesheet" href="/static/board.css"/>
-			<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.4/bundles/datastar.js"></script>
-		</head>
-		<body
-			data-signals={ signals }
-			data-persist:whiteboard="{include: /^(theme|hue)$/}"
-			data-init={ onInit(name) }
-			data-effect={ themeEffect }
-			data-on:keydown__window={ onKey(name) }
-		>
-			<div class="page">
-				<header class="pg-header spread">
-					<div class="row tools">
-						<h3>{ name }</h3>
-						@tool(0, "select", "Esc")
-						@tool(1, "box", "R")
-						@tool(2, "line", "L")
-						@tool(3, "arrow", "A")
-						@tool(4, "laser", "5")
-						<input
-							id="label"
-							type="text"
-							placeholder="label of the selected shape"
-							maxlength="48"
-							data-bind:label
-							data-attr:disabled="$sel < 0"
-							data-on:input__debounce.200ms={ post(name, "label") }
-							data-effect={ editFocus }
-						/>
-						<button data-on:click={ post(name, "group") } data-attr:disabled="$nsel < 2">group<kbd>G</kbd></button>
-						<button data-on:click={ post(name, "ungroup") } data-attr:disabled="!$grouped">ungroup<kbd>⇧</kbd><kbd>G</kbd></button>
-						<button data-on:click={ post(name, "delete") } data-attr:disabled="$nsel < 1">delete<kbd>Del</kbd></button>
-						<button class="dgr" data-on:click={ post(name, "clear") }>clear</button>
-					</div>
-					<span class="status"><span class="note" data-text="$note"></span> <span data-text="$shapes"></span> shapes · <span data-text="$users"></span> here</span>
-				</header>
-				<main class="pg-main">
-					<section>
-						<div
-							id="stage"
-							data-on:pointerdown={ onDown(name) }
-							data-on:pointermove__window={ onMove(name) }
-							data-on:pointerup__window={ onUp(name) }
-							data-on:dblclick={ onDblclick(name) }
-							data-on:contextmenu={ onContext(name) }
-						>
-							@grid()
-							<svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"></svg>
-						</div>
-					</section>
-				</main>
-				@History(name, hist)
-				<footer class="pg-footer spread">
-					<p class="keys">
-						<kbd>R</kbd> box · <kbd>L</kbd> line · <kbd>A</kbd> arrow · <kbd>5</kbd> laser · <kbd>Esc</kbd> select, or back ·
-						drag on empty board to select (down touches, up encloses) ·
-						<kbd>H</kbd><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd> or <kbd>←</kbd><kbd>↓</kbd><kbd>↑</kbd><kbd>→</kbd> nudge ·
-						<kbd>Enter</kbd> label · <kbd>G</kbd> group · <kbd>⇧</kbd><kbd>G</kbd> ungroup · <kbd>Del</kbd> delete ·
-						right-click: lock / unlock · double-click: link or edit label ·
-						the history keeps every change: jump back to any point and branch from it
-					</p>
-					<div class="row theme">
-						<label>theme <select data-bind:theme><option value="system">system</option><option value="light">light</option><option value="dark">dark</option></select></label>
-						<label>hue <input type="range" min="0" max="360" data-bind:hue/> <span data-text="$hue"></span></label>
-					</div>
-				</footer>
-			</div>
-		</body>
-	</html>
+type BoardData struct {
+	Name string
+	Link string // the board's full URL, for sharing
+	User *db.User
+	Meta *hub.Meta
+	Hist *hub.History
+	Tabs []db.Tab
 }
 
-templ tool(n int, label, key string) {
-	<button data-on:click={ pick(n) } data-attr:aria-pressed={ pressed(n) }>{ label }<kbd>{ key }</kbd></button>
+// Board is the land: the whole document, rendered once. Everything after comes
+// down the board's stream: <svg id="board">, drawn whole on the server for
+// this viewer, as a morph, plus a few signals; the history (#history), the
+// title (#board-title) and the share panel (#share-body) when they change. The
+// page draws nothing itself; it carries the pointer and keys up as commands.
+templ Board(d BoardData) {
+	@Doc(d.Meta.Title+" · draw", nil) {
+		<!-- the board's wiring sits on .page, in a fixed order: the signals are
+		     declared before data-init reads them (a map of body attributes has no
+		     order, and $uid once lost that race) -->
+		<div class="page board-page" data-signals={ signals } data-init={ onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
+			<header class="pg-header app-header">
+				<a class="brand" href="/" aria-label="draw: your boards">
+					@Mark()
+				</a>
+				@boardTitle(d.Meta)
+				<div class="row end">
+					<span class="presence tablet desktop" title="People on this board"><span data-text="$users"></span> here</span>
+					<button class="share" data-on:click="document.getElementById('share').showModal()">
+						@Icon("share")
+						<span class="tablet desktop">Share</span>
+					</button>
+					<button class="icon desktop" data-on:click="document.getElementById('keys').showModal()" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
+						@Icon("keys")
+					</button>
+					<button class="icon" popovertarget="theme-menu" aria-label="Theme" title="Theme">
+						@Icon("palette")
+					</button>
+					@avatarButton(d.User)
+				</div>
+			</header>
+			<nav class="pg-subheader board-tabs" aria-label="Your boards">
+				<div class="tabs-underline">
+					for _, t := range d.Tabs {
+						if t.Name == d.Name {
+							<a href={ templ.SafeURL("/b/" + t.Name) } aria-current="page">
+								@visIcon(t.Visibility)
+								@tabTitle(d.Meta)
+							</a>
+						} else {
+							<a href={ templ.SafeURL("/b/" + t.Name) }>
+								@visIcon(t.Visibility)
+								{ t.Title }
+							</a>
+						}
+					}
+					<button popovertarget="new-menu" aria-label="New board" title="New board">
+						@Icon("plus")
+					</button>
+				</div>
+			</nav>
+			<nav class="pg-toolbar tool-rail tablet desktop" aria-label="Tools">
+				@railTool(0, "select", "Select", "Esc")
+				@railTool(1, "box", "Box", "R")
+				@railTool(2, "line", "Line", "L")
+				@railTool(3, "arrow", "Arrow", "A")
+				@railTool(4, "laser", "Laser", "5")
+			</nav>
+			<div class="pg-main-header context-bar">
+				<input
+					id="label"
+					type="text"
+					placeholder="Label the selected shape"
+					maxlength="48"
+					aria-label="Label of the selected shape"
+					data-bind:label
+					data-attr:disabled="$sel < 0"
+					data-on:input__debounce.200ms={ post(d.Name, "label") }
+					data-effect={ editFocus }
+				/>
+				<div class="row acts">
+					<button class="icon" data-on:click={ post(d.Name, "group") } data-attr:disabled="$nsel < 2" aria-label="Group" title="Group (G)">
+						@Icon("group")
+					</button>
+					<button class="icon" data-on:click={ post(d.Name, "ungroup") } data-attr:disabled="!$grouped" aria-label="Ungroup" title="Ungroup (⇧G)">
+						@Icon("ungroup")
+					</button>
+					<button class="icon" data-on:click={ post(d.Name, "delete") } data-attr:disabled="$nsel < 1" aria-label="Delete" title="Delete (Del)">
+						@Icon("trash")
+					</button>
+					<button class="icon dgr" data-on:click={ post(d.Name, "clear") } aria-label="Clear the board" title="Clear the board (the history keeps it)">
+						@Icon("eraser")
+					</button>
+				</div>
+				<span class="note" data-text="$note" aria-live="polite"></span>
+				<span class="count num tablet desktop"><span data-text="$shapes"></span> shapes</span>
+				<button class="hist-toggle" popovertarget="history-drawer" title="History (⇧H)">
+					@Icon("history")
+					<span class="tablet desktop">History</span>
+				</button>
+			</div>
+			<main class="pg-main">
+				<section>
+					<div
+						id="stage"
+						data-on:pointerdown={ onDown(d.Name) }
+						data-on:pointermove__window={ onMove(d.Name) }
+						data-on:pointerup__window={ onUp(d.Name) }
+						data-on:dblclick={ onDblclick(d.Name) }
+						data-on:contextmenu={ onContext(d.Name) }
+					>
+						@grid()
+						<svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"></svg>
+					</div>
+				</section>
+			</main>
+			<footer class="pg-footer mobile mobile-tools" aria-label="Tools">
+				@railTool(0, "select", "Select", "")
+				@railTool(1, "box", "Box", "")
+				@railTool(2, "line", "Line", "")
+				@railTool(3, "arrow", "Arrow", "")
+				@railTool(4, "laser", "Laser", "")
+			</footer>
+		</div>
+		<aside id="history-drawer" class="drawer right history-drawer" popover="manual" aria-label="History">
+			<header class="drawer-head">
+				<h2>History</h2>
+				<button class="icon" popovertarget="history-drawer" popovertargetaction="hide" aria-label="Close history">
+					@Icon("x")
+				</button>
+			</header>
+			@History(d.Name, d.Hist)
+		</aside>
+		<dialog id="share" class="modal share" closedby="any" aria-label="Share">
+			<header class="drawer-head">
+				<h2>Share</h2>
+				<button class="icon" data-on:click="document.getElementById('share').close()" aria-label="Close">
+					@Icon("x")
+				</button>
+			</header>
+			@shareBody(d.Name, d.Link, d.User, d.Meta)
+		</dialog>
+		@keysDialog()
+		@ThemeMenu()
+		@MeMenu(d.User)
+		@newMenu()
+	}
+}
+
+templ railTool(n int, icon, label, key string) {
+	<button class="tool" data-on:click={ pick(n) } data-attr:aria-pressed={ pressed(n) } aria-label={ label } title={ label }>
+		@Icon(icon)
+		if key != "" {
+			<kbd>{ key }</kbd>
+		}
+	</button>
+}
+
+// boardTitle: the board's name and who may open it (a morph target, so a
+// rename shows everywhere at once).
+templ boardTitle(m *hub.Meta) {
+	<div id="board-title" class="board-title">
+		<h1>{ m.Title }</h1>
+		<span class="vis">
+			@visIcon(m.Visibility)
+			{ visWord(m.Visibility) }
+		</span>
+	</div>
+}
+
+templ newMenu() {
+	<div id="new-menu" class="menu new-menu" popover>
+		<form method="post" action="/new">
+			<input type="hidden" name="visibility" value="public"/>
+			<button type="submit">
+				@Icon("link")
+				New public board
+			</button>
+		</form>
+		<form method="post" action="/new">
+			<input type="hidden" name="visibility" value="private"/>
+			<button type="submit">
+				@Icon("lock")
+				New private board
+			</button>
+		</form>
+		<a href="/b/main">
+			@Icon("globe")
+			The global board
+		</a>
+	</div>
+}
+
+templ keysDialog() {
+	<dialog id="keys" class="modal keys" closedby="any" aria-label="Keyboard shortcuts">
+		<header class="drawer-head">
+			<h2>Shortcuts</h2>
+			<button class="icon" data-on:click="document.getElementById('keys').close()" aria-label="Close">
+				@Icon("x")
+			</button>
+		</header>
+		<dl class="keylist">
+			<dt><kbd>R</kbd> <kbd>L</kbd> <kbd>A</kbd> <kbd>5</kbd></dt>
+			<dd>box, line, arrow, laser</dd>
+			<dt><kbd>Esc</kbd></dt>
+			<dd>the select tool, or back to the last tool</dd>
+			<dt><kbd>H</kbd> <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd></dt>
+			<dd>nudge the selection (in the select tool); the arrows anywhere</dd>
+			<dt><kbd>Enter</kbd></dt>
+			<dd>label the selected shape; Enter again to finish</dd>
+			<dt><kbd>G</kbd> · <kbd>⇧</kbd> <kbd>G</kbd></dt>
+			<dd>group · ungroup</dd>
+			<dt><kbd>Del</kbd></dt>
+			<dd>delete the selection</dd>
+			<dt><kbd>⇧</kbd> <kbd>H</kbd></dt>
+			<dd>show or hide the history</dd>
+			<dt><kbd>?</kbd></dt>
+			<dd>these shortcuts</dd>
+			<dt>drag on empty paper</dt>
+			<dd>select: downward takes what it touches, upward only what it encloses</dd>
+			<dt>double-click</dt>
+			<dd>link or unlink where ends and corners meet; on a shape, edit its label</dd>
+			<dt>right-click</dt>
+			<dd>lock a shape onto what overlaps it, or unlock it</dd>
+		</dl>
+	</dialog>
 }
 
 // The grid is static: never morphed, never re-sent. Each pattern is offset by
@@ -101,4 +243,14 @@ templ grid() {
 		<rect width="1000" height="1000" fill="url(#major)"></rect>
 		<rect width="1000" height="1000" fill="url(#minor)"></rect>
 	</svg>
+}
+
+func visWord(v string) string {
+	switch v {
+	case db.Global:
+		return "everyone"
+	case db.Private:
+		return "private"
+	}
+	return "anyone with the link"
 }

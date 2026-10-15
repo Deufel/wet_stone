@@ -2,20 +2,36 @@ package view
 
 import (
 	"strconv"
+	"strings"
+	"time"
 	"whiteboard/hub"
 )
 
-// History is the page's aside: the board's branches, and the checked-out line
-// of revisions, newest first. It is a second morph target on the same stream,
-// sent only when the history changed. Every button posts a history command;
-// the panel re-renders from the store like everything else.
+// History is the history drawer's body, after Tufte: a sparkline of the
+// drawing's size over its life, labelled at its ends; the branches as plain
+// text; then the checked-out line of revisions on one hairline, newest first,
+// each a small multiple (the drawing at that moment, every thumbnail on the
+// board's own scale) beside what changed, by how much, and when. Forks are
+// labelled where they leave the line. It is a second morph target on the
+// board's stream, sent only when the history changed.
 templ History(name string, h *hub.History) {
-	<aside id="history" class="pg-aside history">
-		<h4>branches</h4>
-		<ul class="branches">
+	<div id="history" class="history">
+		if len(h.Spark) > 1 {
+			<figure class="spark">
+				<span class="num">{ strconv.Itoa(h.Spark[0]) }</span>
+				<svg viewBox="0 0 200 24" preserveAspectRatio="none" aria-hidden="true">
+					<polyline points={ sparkPoints(h.Spark) }></polyline>
+					<circle cx="200" cy={ sparkY(h.Spark, h.Spark[len(h.Spark)-1]) } r="2.5"></circle>
+				</svg>
+				<span class="num end">{ strconv.Itoa(h.Spark[len(h.Spark)-1]) + " shapes" }</span>
+				<figcaption>{ strconv.Itoa(len(h.Lineage)) + " revisions on this line" }</figcaption>
+			</figure>
+		}
+		<section class="branches" aria-label="Branches">
 			for _, b := range h.Branches {
-				<li data-ui-current?={ b.Current }>
-					<button class="pick" data-on:click={ histPost(name, "hbranch", b.ID, "switch") } aria-pressed={ strconv.FormatBool(b.Current) } title="switch to this branch">
+				<div class="branch" data-ui-current?={ b.Current }>
+					<button class="name" data-on:click={ histPost(name, "hbranch", b.ID, "switch") } aria-pressed={ strconv.FormatBool(b.Current) } title="Switch to this branch">
+						@Icon("branch")
 						{ b.Name }
 					</button>
 					if b.Main {
@@ -24,38 +40,98 @@ templ History(name string, h *hub.History) {
 					<span class="meta">{ branchMeta(b) }</span>
 					<span class="acts">
 						if !b.Main {
-							<button data-on:click={ histPost(name, "hbranch", b.ID, "mainbranch") } title="make this the main branch">make main</button>
+							<button class="quiet" data-on:click={ histPost(name, "hbranch", b.ID, "mainbranch") }>make main</button>
 						}
 						if !b.Main && !b.Current {
-							<button class="dgr" data-on:click={ histPost(name, "hbranch", b.ID, "delbranch") } title="delete this branch and the revisions only it reaches">delete</button>
+							<button class="quiet dgr" data-on:click={ histPost(name, "hbranch", b.ID, "delbranch") } title="Delete this branch and the revisions only it reaches">delete</button>
 						}
 					</span>
-				</li>
+				</div>
 			}
-		</ul>
-		<h4>history</h4>
+		</section>
 		if h.Detached() {
-			<p class="hint">Looking at an older revision: your next change starts a new branch here.</p>
+			<p class="hint">You are looking at an older moment. Your next change starts a new branch here.</p>
 		}
 		if len(h.Lineage) == 0 {
-			<p class="hint">Nothing saved yet. Every change you make lands here.</p>
+			<p class="hint">Nothing drawn yet. Every change you make is kept here.</p>
 		}
-		<ol class="revs">
+		<ol class="timeline" aria-label="Revisions, newest first">
 			for _, r := range h.Lineage {
 				<li data-ui-current?={ r.Current }>
-					<button data-on:click={ histPost(name, "hrev", r.ID, "checkout") } aria-pressed={ strconv.FormatBool(r.Current) } title="jump to this point">
-						<span class="num">{ "#" + strconv.FormatInt(r.ID, 10) }</span>
-						<span class="op">{ r.Op }</span>
-						<time>{ r.At.Format("15:04:05") }</time>
+					<button class="rev" data-on:click={ histPost(name, "hrev", r.ID, "checkout") } aria-current?={ r.Current } title="Go back to this moment">
+						if r.Thumb != "" {
+							<span class="thumb">
+								<svg viewBox="0 0 1000 1000" aria-hidden="true">
+									@Raw(r.Thumb)
+								</svg>
+							</span>
+						}
+						<span class="what">{ r.Op }</span>
+						<span class="delta num">{ deltaText(r.Delta) }</span>
+						<time datetime={ r.At.Format(time.RFC3339) }>{ when(r.At) }</time>
 					</button>
-					for _, n := range r.Heads {
-						<span class="tag">{ n }</span>
-					}
-					for _, n := range r.Forks {
-						<span class="fork" title="a branch leaves here">{ "⑂ " + n }</span>
+					if len(r.Heads) > 0 || len(r.Forks) > 0 {
+						<span class="marks">
+							for _, n := range r.Heads {
+								<span class="tag">{ n }</span>
+							}
+							for _, n := range r.Forks {
+								<span class="fork">{ "⑂ " + n }</span>
+							}
+						</span>
 					}
 				</li>
 			}
 		</ol>
-	</aside>
+	</div>
+}
+
+// sparkPoints scales counts onto a 200×24 box: x evenly spread, y from the
+// line's own min to max (a sparkline shows shape, not absolute zero).
+func sparkPoints(v []int) string {
+	var sb strings.Builder
+	for i, c := range v {
+		if i > 0 {
+			sb.WriteByte(' ')
+		}
+		x := 0.0
+		if len(v) > 1 {
+			x = float64(i) * 200 / float64(len(v)-1)
+		}
+		sb.WriteString(strconv.FormatFloat(x, 'f', 1, 64))
+		sb.WriteByte(',')
+		sb.WriteString(sparkY(v, c))
+	}
+	return sb.String()
+}
+
+func sparkY(v []int, c int) string {
+	lo, hi := v[0], v[0]
+	for _, x := range v {
+		lo, hi = min(lo, x), max(hi, x)
+	}
+	y := 12.0
+	if hi > lo {
+		y = 21 - float64(c-lo)*18/float64(hi-lo)
+	}
+	return strconv.FormatFloat(y, 'f', 1, 64)
+}
+
+func deltaText(d int) string {
+	switch {
+	case d > 0:
+		return "+" + strconv.Itoa(d)
+	case d < 0:
+		return "−" + strconv.Itoa(-d)
+	}
+	return "·"
+}
+
+// when is the time for today's revisions, the date and time for older ones.
+func when(t time.Time) string {
+	now := time.Now()
+	if t.Year() == now.Year() && t.YearDay() == now.YearDay() {
+		return t.Format("15:04")
+	}
+	return t.Format("Jan 2 15:04")
 }

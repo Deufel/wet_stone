@@ -1,0 +1,104 @@
+package view
+
+import (
+	"encoding/json"
+	"whiteboard/db"
+	"whiteboard/hub"
+)
+
+// MetaParts are the stream's metadata targets: the title in the header and
+// the share panel, sent together whenever the board's metadata changes.
+templ MetaParts(name, link string, u *db.User, m *hub.Meta) {
+	@boardTitle(m)
+	@tabTitle(m)
+	@shareBody(name, link, u, m)
+}
+
+// tabTitle is the current tab's label, so a rename shows in the tab strip too.
+templ tabTitle(m *hub.Meta) {
+	<span id="tab-title">{ m.Title }</span>
+}
+
+// shareBody is what the share dialog holds. The owner names the board and,
+// on a private board, invites people by their Google email; everyone else
+// sees who has access. The link is the same for all.
+templ shareBody(name, link string, u *db.User, m *hub.Meta) {
+	<div id="share-body" class="share-body" data-signals={ titleSignal(m.Title) }>
+		if m.OwnerID == u.ID {
+			<label class="name-row">
+				<span>Name</span>
+				<span class="row">
+					<input type="text" maxlength="60" data-bind:title data-on:keydown={ "evt.key === 'Enter' && " + post(name, "share/title") } aria-label="Board name"/>
+					<button data-on:click={ post(name, "share/title") }>Rename</button>
+				</span>
+			</label>
+		}
+		<p class="vis-line">
+			@visIcon(m.Visibility)
+			{ visSentence(m.Visibility) }
+		</p>
+		<div class="row link-row">
+			<input type="text" readonly value={ link } aria-label="Link to this board"/>
+			<button data-on:click={ "navigator.clipboard.writeText(" + jsString(link) + "); el.querySelector('span').textContent = 'Copied'; setTimeout(() => el.querySelector('span').textContent = 'Copy link', 1600)" }>
+				@Icon("copy")
+				<span>Copy link</span>
+			</button>
+		</div>
+		if m.Visibility == db.Private {
+			<h3>People with access</h3>
+			if m.OwnerID == u.ID {
+				<div class="row invite">
+					<input type="email" placeholder="name@gmail.com" data-bind:invite data-on:keydown={ "evt.key === 'Enter' && " + post(name, "share/invite") } aria-label="Email to invite"/>
+					<button data-on:click={ post(name, "share/invite") }>
+						@Icon("plus")
+						Invite
+					</button>
+				</div>
+			}
+			<ul class="people">
+				<li><span>{ ownerLine(u, m) }</span><span class="meta">owner</span></li>
+				for _, e := range m.Access {
+					<li>
+						<span>{ e }</span>
+						if m.OwnerID == u.ID {
+							<button class="icon" data-on:click={ "$who = " + jsString(e) + "; " + post(name, "share/uninvite") } aria-label={ "Remove " + e } title="Remove">
+								@Icon("x")
+							</button>
+						} else {
+							<span class="meta">invited</span>
+						}
+					</li>
+				}
+			</ul>
+			if len(m.Access) == 0 {
+				<p class="hint">Nobody else yet. An invited person sees this board in their tabs once they sign in with that Google account.</p>
+			}
+		}
+	</div>
+}
+
+func visSentence(v string) string {
+	switch v {
+	case db.Global:
+		return "The global board: everyone signed in can draw here."
+	case db.Private:
+		return "Private: only you and the people you invite can open it."
+	}
+	return "Public: anyone signed in who has the link can open it and draw."
+}
+
+func ownerLine(u *db.User, m *hub.Meta) string {
+	if m.OwnerID == u.ID {
+		return "You"
+	}
+	return "The board's owner"
+}
+
+func jsString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}
+
+// titleSignal re-seeds $title from the server whenever the panel morphs (a
+// rename elsewhere shows up in the field too).
+func titleSignal(t string) string { return "{title: " + jsString(t) + "}" }

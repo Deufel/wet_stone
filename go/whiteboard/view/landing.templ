@@ -1,0 +1,230 @@
+package view
+
+import "whiteboard/db"
+
+type LandingData struct {
+	Next   string // where to go after signing in
+	Google bool   // Google sign-in is configured
+	Dev    bool   // the local dev sign-in is on
+}
+
+// Landing is the front door for a visitor.
+templ Landing(d LandingData) {
+	@Doc("draw · think on paper, together", nil) {
+		<div class="page landing">
+			@appHeader(nil)
+			<main class="pg-main scroll-y">
+				<div class="intro">
+					<div class="intro-mark">
+						@Mark()
+					</div>
+					<h1>Think on paper, together.</h1>
+					<p class="lede">A live whiteboard for small teams: boxes, lines and arrows that link and follow each other, a laser pointer for showing, and a history you can step back through and branch from.</p>
+					<div class="signin">
+						if d.Google {
+							<form method="get" action="/auth/google">
+								<input type="hidden" name="next" value={ d.Next }/>
+								<button type="submit" class="google">
+									@googleG()
+									Sign in with Google
+								</button>
+							</form>
+						}
+						if d.Dev {
+							<form method="post" action="/auth/dev" class="row dev">
+								<input type="hidden" name="next" value={ d.Next }/>
+								<input type="email" name="email" placeholder="you@example.com" required aria-label="Email (local sign-in)"/>
+								<button type="submit">Sign in (local)</button>
+							</form>
+						}
+						if !d.Google && !d.Dev {
+							<p class="hint">Sign-in is not configured on this server yet.</p>
+						}
+					</div>
+					<ul class="features">
+						<li><strong>Live.</strong> Everyone on a board sees every stroke as it happens. The server draws the whole picture; your browser only shows it.</li>
+						<li><strong>Branching history.</strong> Every change is kept. Jump back to any moment, and draw a new branch from there.</li>
+						<li><strong>Yours, or everyone's.</strong> Draw on the global board, a public board anyone with the link can join, or a private board for the people you invite.</li>
+					</ul>
+				</div>
+			</main>
+		</div>
+		@ThemeMenu()
+	}
+}
+
+// Home is a signed-in user's front page: start or join a board, or go back
+// to one of theirs.
+templ Home(u *db.User, tabs []db.Tab) {
+	@Doc("draw · your boards", nil) {
+		<div class="page home">
+			@appHeader(u)
+			<main class="pg-main scroll-y">
+				<div class="home-body">
+					<h2>{ "Hello, " + u.First() + "." }</h2>
+					<div class="starts">
+						<a class="card start-card" href="/b/main">
+							@Icon("globe")
+							<strong>Join the global board</strong>
+							<span>Everyone signed in draws here.</span>
+						</a>
+						<form method="post" action="/new">
+							<input type="hidden" name="visibility" value="public"/>
+							<button type="submit" class="card start-card">
+								@Icon("link")
+								<strong>New public board</strong>
+								<span>Anyone you send the link to can draw.</span>
+							</button>
+						</form>
+						<form method="post" action="/new">
+							<input type="hidden" name="visibility" value="private"/>
+							<button type="submit" class="card start-card">
+								@Icon("lock")
+								<strong>New private board</strong>
+								<span>Only you and the people you invite.</span>
+							</button>
+						</form>
+					</div>
+					if len(tabs) > 1 {
+						<h3>Your boards</h3>
+						<ul class="boards">
+							for _, t := range tabs {
+								if t.Name != db.GlobalName {
+									<li>
+										@visIcon(t.Visibility)
+										<a href={ templ.SafeURL("/b/" + t.Name) }>{ t.Title }</a>
+										<span class="meta">{ boardRole(t) }</span>
+										<form method="post" action={ templ.SafeURL("/tabs/close/" + t.Name) }>
+											<button type="submit" class="icon" aria-label={ "Remove " + t.Title + " from your boards" } title="Remove from your boards">
+												@Icon("x")
+											</button>
+										</form>
+									</li>
+								}
+							}
+						</ul>
+					}
+				</div>
+			</main>
+		</div>
+		@ThemeMenu()
+		@MeMenu(u)
+	}
+}
+
+// Private is the answer to a board the user may not open.
+templ Private(u *db.User) {
+	@Doc("draw · private board", nil) {
+		<div class="page home">
+			@appHeader(u)
+			<main class="pg-main scroll-y">
+				<div class="home-body notice">
+					@Icon("lock")
+					<h2>This board is private.</h2>
+					<p>{ "Ask its owner to invite " + u.Email + "." }</p>
+					<p><a href="/">Back to your boards</a></p>
+				</div>
+			</main>
+		</div>
+		@ThemeMenu()
+		@MeMenu(u)
+	}
+}
+
+templ NotFound(u *db.User) {
+	@Doc("draw · not found", nil) {
+		<div class="page home">
+			@appHeader(u)
+			<main class="pg-main scroll-y">
+				<div class="home-body notice">
+					<h2>There is no board here.</h2>
+					<p><a href="/">Back to the front page</a></p>
+				</div>
+			</main>
+		</div>
+		@ThemeMenu()
+		if u != nil {
+			@MeMenu(u)
+		}
+	}
+}
+
+// appHeader is the header of the front pages: the brand, the theme, you.
+templ appHeader(u *db.User) {
+	<header class="pg-header app-header">
+		<a class="brand" href="/">
+			@Mark()
+			<span>draw</span>
+		</a>
+		<div class="row end">
+			<button class="icon" popovertarget="theme-menu" aria-label="Theme" title="Theme">
+				@Icon("palette")
+			</button>
+			if u != nil {
+				@avatarButton(u)
+			}
+		</div>
+	</header>
+}
+
+templ avatarButton(u *db.User) {
+	<button class="me" popovertarget="me-menu" aria-label={ "Account: " + u.Email } title={ u.Email }>
+		if u.Picture != "" {
+			<img class="avatar" src={ u.Picture } alt="" referrerpolicy="no-referrer"/>
+		} else {
+			<span class="avatar">{ initial(u) }</span>
+		}
+	</button>
+}
+
+// MeMenu: who you are, and the way out.
+templ MeMenu(u *db.User) {
+	<div id="me-menu" class="menu me-menu" popover>
+		<div class="who">
+			<strong>{ u.Name }</strong>
+			<span>{ u.Email }</span>
+		</div>
+		<a href="/">Your boards</a>
+		<form method="post" action="/auth/logout">
+			<button type="submit">
+				@Icon("logout")
+				Sign out
+			</button>
+		</form>
+	</div>
+}
+
+templ visIcon(v string) {
+	switch v {
+		case db.Global:
+			@Icon("globe")
+		case db.Private:
+			@Icon("lock")
+		default:
+			@Icon("link")
+	}
+}
+
+templ googleG() {
+	<svg class="g" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path></svg>
+}
+
+func initial(u *db.User) string {
+	f := u.First()
+	if f == "" {
+		return "?"
+	}
+	return string([]rune(f)[:1])
+}
+
+func boardRole(t db.Tab) string {
+	switch {
+	case t.Owned && t.Visibility == db.Private:
+		return "private · yours"
+	case t.Owned:
+		return "public · yours"
+	case t.Visibility == db.Private:
+		return "private · shared with you"
+	}
+	return "public"
+}

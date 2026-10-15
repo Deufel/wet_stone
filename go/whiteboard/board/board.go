@@ -119,6 +119,7 @@ type User struct {
 	AnchorX  int32
 	AnchorY  int32
 	LastSeen time.Time
+	Name     string // shown beside this viewer's cursor on everyone else's board
 	Note     string // one-line feedback for this user ($note)
 	NoteSeq  uint32
 

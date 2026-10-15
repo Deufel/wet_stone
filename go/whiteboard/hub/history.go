@@ -2,7 +2,10 @@ package hub
 
 import "whiteboard/db"
 
-const lineageMax = 300 // revisions shown in the panel
+const (
+	lineageMax = 300 // revisions shown in the panel
+	thumbsMax  = 40  // the newest this many carry a thumbnail
+)
 
 // History is what the history panel shows, built once per change and shared
 // read-only by every stream on the board.
@@ -11,6 +14,7 @@ type History struct {
 	Pos      db.Pos
 	Lineage  []RevView // the checked-out revision back to the first, newest first
 	Branches []BranchView
+	Spark    []int // shape count along the lineage, oldest first (the sparkline)
 	known    map[int64]bool
 }
 
@@ -19,6 +23,8 @@ type RevView struct {
 	Current bool
 	Heads   []string // branches whose head is this revision
 	Forks   []string // branches that leave the lineage here
+	Delta   int      // shapes added (+) or removed (−) by this revision
+	Thumb   string   // the drawing at this revision as SVG markup, "" past thumbsMax
 }
 
 type BranchView struct {
@@ -51,6 +57,17 @@ func buildHistory(version int, pos db.Pos, revs []db.Rev, branches []db.Branch) 
 		}
 		onLine[r] = len(h.Lineage)
 		h.Lineage = append(h.Lineage, RevView{Rev: rev, Current: r == pos.Rev})
+	}
+
+	for i := range h.Lineage {
+		parent := 0
+		if p, ok := byID[h.Lineage[i].Parent]; ok {
+			parent = p.Shapes
+		}
+		h.Lineage[i].Delta = h.Lineage[i].Shapes - parent
+	}
+	for i := len(h.Lineage) - 1; i >= 0; i-- {
+		h.Spark = append(h.Spark, h.Lineage[i].Shapes)
 	}
 
 	for _, b := range branches {

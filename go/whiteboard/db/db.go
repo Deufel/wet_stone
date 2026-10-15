@@ -56,6 +56,10 @@ func Open(path string) (*DB, error) {
 		sqldb.Close()
 		return nil, fmt.Errorf("schema: %w", err)
 	}
+	if err := migrate(sqldb); err != nil {
+		sqldb.Close()
+		return nil, err
+	}
 	return &DB{sql: sqldb}, nil
 }
 
@@ -64,8 +68,11 @@ func (d *DB) Close() error { return d.sql.Close() }
 // Ping reports whether the database answers.
 func (d *DB) Ping(ctx context.Context) error { return d.sql.PingContext(ctx) }
 
-// Ensure returns the board's position, creating the board and its main
-// branch on first use.
+// GlobalName is the one board that makes itself: everyone's shared board.
+const GlobalName = "main"
+
+// Ensure returns the board's position. Only the global board is created on
+// first use; any other unknown name is ErrNoBoard (boards are made by CreateBoard).
 func (d *DB) Ensure(ctx context.Context, name string) (Pos, error) {
 	var p Pos
 	var branch, rev sql.NullInt64
@@ -77,12 +84,16 @@ func (d *DB) Ensure(ctx context.Context, name string) (Pos, error) {
 	if !errors.Is(err, sql.ErrNoRows) {
 		return p, err
 	}
+	if name != GlobalName {
+		return p, ErrNoBoard
+	}
 	tx, err := d.sql.BeginTx(ctx, nil)
 	if err != nil {
 		return p, err
 	}
 	defer tx.Rollback()
-	if err := tx.QueryRowContext(ctx, `INSERT INTO boards (name) VALUES (?) RETURNING id`, name).Scan(&p.Board); err != nil {
+	if err := tx.QueryRowContext(ctx, `INSERT INTO boards (name, title, visibility, created_ms) VALUES (?, 'Global board', 'global', ?) RETURNING id`,
+		name, time.Now().UnixMilli()).Scan(&p.Board); err != nil {
 		return p, err
 	}
 	if err := tx.QueryRowContext(ctx, `INSERT INTO branches (board_id, name, is_main) VALUES (?, 'main', 1) RETURNING id`, p.Board).Scan(&p.Branch); err != nil {

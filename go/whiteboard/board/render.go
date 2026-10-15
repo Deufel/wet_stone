@@ -296,7 +296,13 @@ func (b *Board) render(v *User, uid uint32) string {
 		w.i(u.Y)
 		w.s(`)"`)
 		w.hue(u.Hue)
-		w.s(`><path d="M0 0v16l4-3.5 2.5 6 3-1.3-2.6-6H11z"/></g>`)
+		w.s(`><path d="M0 0v16l4-3.5 2.5 6 3-1.3-2.6-6H11z"/>`)
+		if u.Name != "" {
+			w.s(`<foreignObject x="12" y="14" width="140" height="26"><div xmlns="http://www.w3.org/1999/xhtml" class="who"><span>`)
+			w.s(html.EscapeString(u.Name))
+			w.s(`</span></div></foreignObject>`)
+		}
+		w.s(`</g>`)
 	}
 	w.s("</g></svg>")
 	return string(w.buf)

@@ -49,11 +49,11 @@ func branchMeta(b hub.BranchView) string {
 	case b.Head == 0:
 		return "empty"
 	case b.Fork != 0:
-		return "from #" + strconv.FormatInt(b.Fork, 10) + ", " + strconv.Itoa(b.Ahead) + " ahead"
+		return strconv.Itoa(b.Ahead) + " ahead" // ⑂ on the line marks where it leaves
 	case b.Current:
 		return "here"
 	}
-	return "#" + strconv.FormatInt(b.Head, 10)
+	return "on this line"
 }
 
 func onMove(name string) string {
@@ -81,6 +81,8 @@ func onKey(name string) string {
 		"else if (t.tagName === 'INPUT' || t.tagName === 'SELECT') {}",
 		"else if (evt.ctrlKey || evt.metaKey || evt.altKey) {}",
 		"else if (t.tagName === 'BUTTON' && k === 'Enter') {}",
+		"else if (k === '?') { evt.preventDefault(); document.getElementById('keys').showModal() }",
+		"else if (k === 'H') { document.getElementById('history-drawer').togglePopover() }",
 		"else if (k === 'Escape') { if ($tool !== 0) { $_prev = $tool; $tool = 0 } else { $tool = $_prev } }",
 		"else if (k === 'Enter' && $sel >= 0) { evt.preventDefault(); document.getElementById('label').focus(); document.getElementById('label').select() }",
 		"else if (d && $nsel > 0 && (k.startsWith('Arrow') || $tool === 0)) { evt.preventDefault(); $ndx = d[0]; $ndy = d[1]; " + postKept(name, "nudge") + " }",
@@ -94,10 +96,7 @@ func onKey(name string) string {
 	}, " ")
 }
 
-const signals = "{uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, theme: 'system', hue: 255, " +
-	"_prev: 0}"
-
-const themeEffect = "$theme === 'system' ? document.documentElement.removeAttribute('data-ui-theme') : document.documentElement.setAttribute('data-ui-theme', $theme); document.documentElement.style.setProperty('--hue', $hue)"
+const signals = "{uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _prev: 0}"
 
 const editFocus = "$edit > 0 && setTimeout(() => { el.focus(); el.select() })"
 

@@ -1,0 +1,50 @@
+package view
+
+// Doc is every page's document: the PWA head (as EventOS does it) and the
+// stylesheets. body carries the page's own attributes (the board's Datastar
+// wiring); the theme is applied before first paint from the stored choice.
+templ Doc(title string, body templ.Attributes) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+			<title>{ title }</title>
+			<meta name="description" content="A live whiteboard for thinking together."/>
+			<!-- PWA / iOS standalone: full screen, no Safari chrome. The manifest's
+			     display:standalone with scope "/" covers Android and Chrome; the
+			     apple-* tags keep iOS from bringing Safari's bars back on in-app,
+			     same-origin navigation (a full page load stays in the app). -->
+			<link rel="manifest" href="/static/manifest.webmanifest"/>
+			<meta name="theme-color" content="#f6f3ec" media="(prefers-color-scheme: light)"/>
+			<meta name="theme-color" content="#16171a" media="(prefers-color-scheme: dark)"/>
+			<meta name="apple-mobile-web-app-capable" content="yes"/>
+			<meta name="mobile-web-app-capable" content="yes"/>
+			<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+			<meta name="apple-mobile-web-app-title" content="draw"/>
+			<link rel="apple-touch-icon" href="/static/apple-touch-icon.png"/>
+			<link rel="icon" type="image/svg+xml" href="/static/icon.svg"/>
+			<script src="/static/theme.js"></script>
+			<link rel="stylesheet" href="/static/mike.css"/>
+			<link rel="stylesheet" href="/static/board.css"/>
+			<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.4/bundles/datastar.js"></script>
+		</head>
+		<body { body... }>
+			<div hidden data-signals="{theme: window.theme.saved().theme, hue: window.theme.saved().hue}" data-effect="window.theme.set($theme, $hue)"></div>
+			{ children... }
+		</body>
+	</html>
+}
+
+// ThemeMenu: light, dark or the system's, and the hue. A per-device choice
+// kept in this browser by static/theme.js, which applies it to <html>.
+templ ThemeMenu() {
+	<div id="theme-menu" class="menu theme-menu" popover>
+		<fieldset class="seg" role="radiogroup" aria-label="Theme">
+			<label><input type="radio" name="theme" value="system" data-bind:theme/>auto</label>
+			<label><input type="radio" name="theme" value="light" data-bind:theme/>light</label>
+			<label><input type="radio" name="theme" value="dark" data-bind:theme/>dark</label>
+		</fieldset>
+		<label class="hue">hue <input type="range" min="0" max="360" data-bind:hue/></label>
+	</div>
+}

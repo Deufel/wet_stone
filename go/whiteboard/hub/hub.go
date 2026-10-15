@@ -41,6 +41,7 @@ type live struct {
 	name string
 	b    *board.Board
 	hist atomic.Pointer[History]
+	meta atomic.Pointer[Meta]
 	wake chan struct{} // cap 1
 
 	mu      sync.Mutex
@@ -59,6 +60,13 @@ func New(d *db.DB, b *bus.Bus) *Hub {
 	return &Hub{db: d, bus: b, ctx: ctx, cancel: cancel, boards: map[string]*live{}}
 }
 
+// Meta is a board's identity and access list, versioned so a stream re-sends
+// the share panel only when it changed.
+type Meta struct {
+	db.Meta
+	Version int
+}
+
 // Board returns the named board and its history, loading it on first use.
 func (h *Hub) Board(ctx context.Context, name string) (*board.Board, *History, error) {
 	l, err := h.live(ctx, name)
@@ -66,6 +74,43 @@ func (h *Hub) Board(ctx context.Context, name string) (*board.Board, *History, e
 		return nil, nil, err
 	}
 	return l.b, l.hist.Load(), nil
+}
+
+// Meta returns the named board's identity and access, loading it on first use.
+func (h *Hub) Meta(ctx context.Context, name string) (*Meta, error) {
+	l, err := h.live(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	return l.meta.Load(), nil
+}
+
+// Share changes a board's title or access, then republishes its metadata.
+// op: "title" (arg = the new title), "invite" / "uninvite" (arg = an email).
+func (h *Hub) Share(ctx context.Context, name, op, arg string) error {
+	l, err := h.live(ctx, name)
+	if err != nil {
+		return err
+	}
+	m := l.meta.Load()
+	switch op {
+	case "title":
+		err = h.db.SetTitle(ctx, m.ID, arg)
+	case "invite":
+		err = h.db.Invite(ctx, m.ID, arg)
+	case "uninvite":
+		err = h.db.Uninvite(ctx, m.ID, arg)
+	}
+	if err != nil {
+		return err
+	}
+	fresh, err := h.db.Meta(ctx, name)
+	if err != nil {
+		return err
+	}
+	l.meta.Store(&Meta{Meta: fresh, Version: m.Version + 1})
+	h.Publish(name)
+	return nil
 }
 
 // History is the board's current history view (replaced whole on change).
@@ -89,11 +134,16 @@ func (h *Hub) live(ctx context.Context, name string) (*live, error) {
 	if err != nil {
 		return nil, err
 	}
+	meta, err := h.db.Meta(ctx, name)
+	if err != nil {
+		return nil, err
+	}
 	snap, err := h.db.Snapshot(ctx, pos.Rev)
 	if err != nil {
 		return nil, err
 	}
 	l := &live{name: name, b: board.New(), wake: make(chan struct{}, 1)}
+	l.meta.Store(&Meta{Meta: meta, Version: 1})
 	l.b.Restore(snap)
 	k := &keeper{h: h, l: l, pos: pos}
 	k.saved, _ = json.Marshal(snap)
@@ -185,6 +235,13 @@ type keeper struct {
 	lastOp  string // the last commit, for folding bursts
 	lastAt  time.Time
 	lastRev int64
+
+	thumbs map[int64]thumb // a revision's thumbnail, kept until it is amended
+}
+
+type thumb struct {
+	at  time.Time
+	svg string
 }
 
 func (k *keeper) run() {
@@ -292,6 +349,26 @@ func (k *keeper) refresh(ctx context.Context) error {
 	if old := k.l.hist.Load(); old != nil {
 		version = old.Version + 1
 	}
-	k.l.hist.Store(buildHistory(version, k.pos, revs, branches))
+	h := buildHistory(version, k.pos, revs, branches)
+	if k.thumbs == nil {
+		k.thumbs = map[int64]thumb{}
+	}
+	for i := range h.Lineage {
+		if i >= thumbsMax {
+			break
+		}
+		r := &h.Lineage[i]
+		t, ok := k.thumbs[r.ID]
+		if !ok || !t.at.Equal(r.At) { // new, or amended since
+			snap, err := k.h.db.Snapshot(ctx, r.ID)
+			if err != nil {
+				return err
+			}
+			t = thumb{at: r.At, svg: board.Thumb(snap)}
+			k.thumbs[r.ID] = t
+		}
+		r.Thumb = t.svg
+	}
+	k.l.hist.Store(h)
 	return nil
 }

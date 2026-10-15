@@ -92,11 +92,12 @@ func (b *Board) Replace(snap Snapshot) {
 }
 
 // Join and Leave count a viewer's open streams; an open stream keeps it present.
-func (b *Board) Join(uid uint32) {
+func (b *Board) Join(uid uint32, name string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if u := b.userFor(uid); u != nil {
 		u.streams++
+		u.Name = name
 	}
 }
 

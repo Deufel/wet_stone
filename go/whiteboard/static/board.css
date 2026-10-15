@@ -1,26 +1,73 @@
-/* the whiteboard's page CSS, in mike.css's block layer: zero-specificity :where() rules */
+/* the whiteboard's page CSS, in mike.css's components position (@layer block):
+   zero-specificity :where() rules, engine tokens only (no literal color). The
+   display gates (.mobile / .tablet / .desktop) live in the later visibility
+   layer, so a gated region still hides. */
+
+/* a full page navigation between boards cross-fades instead of flashing */
+@view-transition { navigation: auto; }
+
 @layer block {
-  :where(.pg-header) { --bg: 0.08; padding: 0.25lh 0.5em; }
-  :where(.pg-footer) { --bg: 0.08; padding: 0.25lh 0.5em; --fg: -0.4; }
+  /* ── the shell ─────────────────────────────────────────────────────── */
+  :where(.board-page) { --pg-toolbar-w: 3.4lh; }
+  :where(.app-header) {
+    display: flex; align-items: center; gap: 0.8em; min-inline-size: 0;
+    padding: max(0.35lh, env(safe-area-inset-top)) max(0.8em, env(safe-area-inset-right)) 0.35lh max(0.8em, env(safe-area-inset-left));
+    --bg: 0.04; border-block-end: 1px solid var(--border);
+  }
+  :where(.app-header) > :where(.end) { margin-inline-start: auto; gap: 0.35em; align-items: center; flex-wrap: nowrap; }
+  :where(.brand) { display: inline-flex; align-items: center; gap: 0.45em; color: inherit; text-decoration: none; font-weight: 650; --type: 1; letter-spacing: -0.01em; }
+  :where(.mark) { inline-size: 1.55em; block-size: 1.55em; flex: none; }
+  :where(.board-title) { display: flex; align-items: baseline; gap: 0.6em; min-inline-size: 0; }
+  :where(.board-title) > :where(h1) { --type: 0.5; margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  :where(.board-title) > :where(.vis) { display: inline-flex; align-items: center; gap: 0.3em; --fg: -0.5; --type: -1; white-space: nowrap; }
+  :where(.board-title) svg, :where(.vis-line) svg, :where(.boards) li > svg { inline-size: 1em; block-size: 1em; flex: none; }
+  :where(.presence) { --fg: -0.5; --type: -1; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  :where(button) > :where(svg) { inline-size: 1.15em; block-size: 1.15em; flex: none; }
+  :where(button.share) { display: inline-flex; align-items: center; gap: 0.4em; }
+  :where(.me) { appearance: none; border: 0; padding: 0; background: none; box-shadow: none; cursor: pointer; border-radius: 50%; }
+  :where(.avatar) { inline-size: 2em; block-size: 2em; border-radius: 50%; object-fit: cover; display: inline-grid; place-items: center; font-weight: 600; --lift: 0.18; background-color: var(--_bg); }
+
+  /* the board tabs: underline tabs on their own band, scrolling sideways when many */
+  :where(.board-tabs) { padding-inline: max(1em, env(safe-area-inset-left)) max(1em, env(safe-area-inset-right)); --bg: 0.04; }
+  :where(.board-tabs) > :where(.tabs-underline) { overflow-x: auto; scrollbar-width: none; border-block-end: 0; }
+  :where(.board-tabs) > :where(.tabs-underline) > :where(a) { white-space: nowrap; }
+  :where(.board-tabs) > :where(.tabs-underline) svg { inline-size: 0.95em; block-size: 0.95em; opacity: 0.7; }
+
+  /* the tool rail (tablet, desktop): one column of tools, each with its key */
+  :where(.tool-rail) { display: flex; flex-direction: column; align-items: center; gap: 0.2lh; padding: 0.5lh 0.35em; --bg: 0.02; border-inline-end: 1px solid var(--border); }
+  :where(.tool) { display: grid; justify-items: center; gap: 0.1lh; inline-size: 2.7lh; padding: 0.35lh 0 0.25lh; }
+  :where(.tool) > :where(svg) { inline-size: 1.3em; block-size: 1.3em; }
+  :where(.tool) > :where(kbd) { --type: -2; min-block-size: 1.25em; min-inline-size: 1.25em; padding-inline: 0.25em; border-block-end-width: 1px; opacity: 0.75; }
+
+  /* the context toolbar over the paper: the label, what you can do with the selection, the history */
+  :where(.context-bar) { display: flex; align-items: center; gap: 0.6em; padding: 0.35lh 0.8em; border-block-end: 1px solid var(--border); flex-wrap: wrap; min-inline-size: 0; }
+  :where(.context-bar) > :where(#label) { inline-size: min(18em, 42vw); flex: 1 1 4em; min-inline-size: 0; max-inline-size: 18em; }
+  :where(.context-bar) { flex-wrap: nowrap; }
+  :where(.context-bar) > :where(.note) { flex: 1 1 0; }
+  :where(.context-bar) > :where(.acts) { gap: 0.2em; flex-wrap: nowrap; flex: none; }
+  :where(.context-bar) > :where(.note) { flex: 1 1 6em; min-inline-size: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; --fg: 0.6; --type: -1; }
+  :where(.context-bar) > :where(.count) { --fg: -0.5; --type: -1; white-space: nowrap; }
+  :where(.hist-toggle) { display: inline-flex; align-items: center; gap: 0.4em; }
+
+  /* the mobile tool bar, at the thumb */
+  :where(.mobile-tools) { display: flex; justify-content: space-around; gap: 0.25em; padding: 0.3lh 0.5em max(0.3lh, env(safe-area-inset-bottom)); border-block-start: 1px solid var(--border); --bg: 0.04; }
+  :where(.mobile-tools) > :where(.tool) { inline-size: 3lh; }
+
+  /* ── the paper ─────────────────────────────────────────────────────── */
   /* the section is a size container, so the stage can be the largest square that fits it */
-  :where(.pg-main) > :where(section) { display: grid; place-items: center; block-size: 100%; container-type: size; }
-  :where(.tools) > :where(button) { --type: -1; }
-  :where(.tools) kbd { --fg: -0.5; margin-inline-start: 0.35em; min-block-size: 1.4em; min-inline-size: 1.4em; }
-  :where(#label) { inline-size: 14em; }
-  :where(.status) { --fg: -0.4; }
-  :where(.theme) > :where(label) { display: inline-flex; align-items: center; gap: 0.5em; }
-  :where(.theme) input[type="range"] { inline-size: 9em; }
+  :where(.board-page) > :where(.pg-main) > :where(section) { display: grid; place-items: center; block-size: 100%; container-type: size; padding: 0.5lh; }
   :where(#stage) {
-    position: relative; inline-size: min(100cqi, 100cqb); aspect-ratio: 1; touch-action: none; user-select: none;
-    --fg: 0.75; border: 1px solid color-mix(in oklch, currentColor 28%, transparent); border-radius: var(--cfg-radius, .5rem); overflow: hidden;
+    position: relative; inline-size: min(100cqi, 100cqb); aspect-ratio: 1; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+    --fg: 0.75; --lift: 0.06; background-color: var(--_bg);
+    border: 1px solid color-mix(in oklch, currentColor 22%, transparent); border-radius: var(--cfg-radius, .5rem); overflow: hidden;
+    box-shadow: 0 0.1lh 0.6lh color-mix(in oklch, currentColor 10%, transparent);
   }
   /* the grid is a static SVG layer under the streamed board: never morphed, never re-sent */
   :where(#stage) > :where(svg) { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; display: block; }
   /* strokes keep their pixel width however big the square stage is drawn */
   :where(#stage) :where(svg) * { vector-effect: non-scaling-stroke; }
-  :where(#stage) .plus  { fill: none; stroke: color-mix(in oklch, currentColor 40%, transparent); stroke-width: 1; }
-  :where(#stage) .major { fill: none; stroke: color-mix(in oklch, currentColor 22%, transparent); stroke-width: 1; }
-  :where(.note) { --fg: 0.6; }
+  :where(#stage) .plus  { fill: none; stroke: color-mix(in oklch, currentColor 34%, transparent); stroke-width: 1; }
+  :where(#stage) .major { fill: none; stroke: color-mix(in oklch, currentColor 18%, transparent); stroke-width: 1; }
   :where(#board) rect { fill: color-mix(in oklch, currentColor 14%, transparent); stroke: currentColor; stroke-width: 2; }
   :where(#board) line { stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
   :where(#board) .head { fill: currentColor; stroke: none; }
@@ -42,23 +89,144 @@
   :where(#board) .laser { animation: laser-fade 1.2s ease-in forwards; }
   :where(#board) .laser path { fill: none; stroke: currentColor; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
   :where(#board) .cursor path { fill: currentColor; stroke: none; }
+  :where(#board) .who { --type: -2; }
+  :where(#board) .who > span { display: inline-block; padding: 0 0.4em; border-radius: 0.6em; --fg: 1; background: color-mix(in oklch, currentColor 16%, Canvas); white-space: nowrap; }
   :where(#board) .label { display: flex; align-items: center; justify-content: center; block-size: 100%; inline-size: 100%; text-align: center; padding: 0.25em; overflow: hidden; pointer-events: none; --type: 1; }
   :where(#board) .label > span { background: color-mix(in oklch, Canvas 70%, transparent); padding: 0 0.3em; border-radius: 0.3em; }
 
-  /* the history aside: branches, then the checked-out line of revisions */
-  :where(.history) { inline-size: 17rem; padding: 0.5lh 0.75em; --type: -1; }
-  :where(.history) h4 { margin-block: 0.5lh 0.25lh; }
-  :where(.history) ul, :where(.history) ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.15lh; }
-  :where(.history) li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35em; }
-  :where(.history) li > button:first-child { flex: 1 1 auto; justify-content: flex-start; text-align: start; }
-  :where(.history) .revs button { display: flex; gap: 0.5em; flex: 1 1 0; min-inline-size: 0; }
-  :where(.history) li { flex-wrap: nowrap; }
-  :where(.history) .revs .op { flex: 1; }
-  :where(.history) .num, :where(.history) time, :where(.history) .meta { --fg: -0.4; }
-  :where(.history) [data-ui-current] > button:first-child { --fg: 1; font-weight: 600; }
-  :where(.history) .acts { display: inline-flex; gap: 0.25em; }
-  :where(.history) .fork { --fg: -0.3; }
-  :where(.history) .hint { --fg: -0.4; margin-block: 0.25lh; }
+  /* ── drawers and dialogs ───────────────────────────────────────────── */
+  :where(.history-drawer) { inline-size: min(92vw, 23rem); overflow-y: auto; overscroll-behavior: contain; padding-block-start: max(0.75lh, env(safe-area-inset-top)); padding-block-end: max(0.75lh, env(safe-area-inset-bottom)); }
+  :where(.drawer-head) { display: flex; align-items: center; justify-content: space-between; gap: 1em; margin-block-end: 0.5lh; }
+  :where(.drawer-head) > :where(h2) { --type: 1; margin: 0; }
+
+  /* bare text buttons: every button default neutralized, as the underline tabs do it */
+  :where(.history) :where(.rev, .name, .quiet) {
+    appearance: none; border: 0; background: none; box-shadow: none; margin: 0; min-block-size: 0;
+    font: inherit; text-align: start; cursor: pointer; --lift: initial;
+  }
+
+  /* ── history, after Tufte ──────────────────────────────────────────── */
+  :where(.history) { --type: -1; display: grid; gap: 0.6lh; }
+  :where(.history) .num, :where(.history) time { font-variant-numeric: tabular-nums; }
+  :where(.history) .hint { --fg: -0.45; margin: 0; }
+  :where(.history) .tag { --type: -2; }
+  /* the sparkline: word-sized, labelled at its two ends */
+  :where(.spark) { margin: 0; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.4em; }
+  :where(.spark) > :where(svg) { inline-size: 100%; block-size: 1.6em; overflow: visible; --fg: -0.7; }
+  :where(.spark) polyline { fill: none; stroke: currentColor; stroke-width: 1.25; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+  :where(.spark) circle { fill: currentColor; }
+  :where(.spark) > :where(.num) { --fg: -0.45; }
+  :where(.spark) > :where(.end) { --fg: -0.8; }
+  :where(.spark) > :where(figcaption) { grid-column: 1 / -1; --fg: -0.45; }
+  /* the branches as plain text */
+  :where(.branches) { display: grid; gap: 0.15lh; padding-block: 0.3lh; border-block: 1px solid var(--border); }
+  :where(.branch) { display: flex; align-items: center; gap: 0.45em; min-inline-size: 0; }
+  :where(.branch) > :where(.name) { display: inline-flex; align-items: center; gap: 0.35em; --fg: -0.7; }
+  :where(.branch) > :where(.name) > :where(svg) { inline-size: 0.95em; block-size: 0.95em; }
+  :where(.branch):where([data-ui-current]) > :where(.name) { --fg: -1; font-weight: 650; }
+  :where(.branch) > :where(.meta) { --fg: -0.45; white-space: nowrap; }
+  :where(.branch) > :where(.acts) { margin-inline-start: auto; display: inline-flex; gap: 0.6em; opacity: 0; transition: opacity calc(var(--cfg-motion) * 0.15s); }
+  :where(.branch):where(:hover, :focus-within) > :where(.acts) { opacity: 1; }
+  @media (hover: none) { :where(.branch) > :where(.acts) { opacity: 1; } }
+  :where(.quiet) { --fg: -0.5; text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 0.2em; }
+  :where(.quiet):where(:hover) { --fg: -0.9; }
+  /* the line of revisions: one hairline, a dot per revision, the current one filled */
+  :where(.timeline) { list-style: none; margin: 0 0 0 0.45em; padding: 0; border-inline-start: 1px solid var(--border); display: grid; }
+  :where(.timeline) > :where(li) { position: relative; padding-inline-start: 0.8em; }
+  :where(.timeline) > :where(li)::before {
+    content: ""; position: absolute; inset-inline-start: -0.27em; inset-block-start: calc(0.2lh + 1.375rem - 0.25em);
+    inline-size: 0.5em; block-size: 0.5em; border-radius: 50%; border: 1px solid currentColor;
+    background-color: Canvas; --fg: -0.45;
+  }
+  :where(.timeline) > :where(li[data-ui-current])::before { background-color: currentColor; --fg: -1; inline-size: 0.6em; block-size: 0.6em; inset-inline-start: -0.32em; }
+  :where(.timeline) :where(.rev) {
+    display: grid; grid-template-columns: 2.75rem 1fr auto auto; align-items: center; gap: 0.6em;
+    inline-size: 100%; padding: 0.2lh 0.35em; border-radius: calc(var(--cfg-radius) * 0.7);
+  }
+  :where(.timeline) :where(.rev):where(:hover) { --lift: 0.08; background-color: var(--_bg); }
+  :where(.timeline) :where(.rev):where(:not(:has(.thumb))) { grid-template-columns: 1fr auto auto; }
+  /* the small multiples: every thumbnail on the board's own scale */
+  :where(.thumb) { inline-size: 2.75rem; block-size: 2.75rem; border: 1px solid var(--border); border-radius: 3px; --lift: 0.05; background-color: var(--_bg); --fg: -0.55; }
+  :where(.thumb) { display: block; overflow: hidden; }
+  :where(.thumb) > :where(svg) { display: block; inline-size: 100%; block-size: 100%; }
+  :where(.thumb) svg * { fill: none; stroke: currentColor; stroke-width: 1; vector-effect: non-scaling-stroke; }
+  :where(.timeline) > :where(li[data-ui-current]) :where(.thumb) { border-color: var(--focus); --fg: -0.9; }
+  :where(.timeline) :where(.what) { --fg: -0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  :where(.timeline) > :where(li[data-ui-current]) :where(.what) { --fg: -1; font-weight: 600; }
+  :where(.timeline) :where(.delta, time) { --fg: -0.45; }
+  :where(.timeline) :where(.marks) { display: flex; flex-wrap: wrap; gap: 0.4em; padding-inline-start: calc(2.75rem + 0.95em); padding-block-end: 0.2lh; }
+  :where(.timeline) :where(.fork) { --fg: -0.5; font-style: italic; }
+
+  /* the share dialog */
+  :where(.share-body) { display: grid; gap: 0.6lh; }
+  :where(.share-body) h3 { --type: 0; margin: 0.3lh 0 0; }
+  :where(.share-body) .name-row { display: grid; gap: 0.2lh; }
+  :where(.share-body) .name-row > span:first-child { --fg: -0.5; --type: -1; }
+  :where(.share-body) .row > :where(input) { flex: 1; min-inline-size: 0; }
+  :where(.vis-line) { display: flex; align-items: center; gap: 0.5em; margin: 0; --fg: -0.6; }
+  :where(.link-row, .invite) > :where(button) { display: inline-flex; align-items: center; gap: 0.35em; white-space: nowrap; }
+  :where(.people) { list-style: none; margin: 0; padding: 0; display: grid; }
+  :where(.people) > :where(li) { display: flex; align-items: center; justify-content: space-between; gap: 1em; padding-block: 0.2lh; border-block-end: 1px solid var(--border); }
+  :where(.people) .meta, :where(.share-body) .hint { --fg: -0.45; --type: -1; }
+
+  /* the shortcut sheet */
+  :where(.keylist) { display: grid; grid-template-columns: auto 1fr; gap: 0.35lh 1.2em; margin: 0; align-items: baseline; }
+  :where(.keylist) > :where(dt) { white-space: nowrap; --fg: -0.55; }
+  :where(.keylist) > :where(dd) { margin: 0; }
+
+  /* menus: each named to its button, so it opens beside it (right-aligned at the header's end) */
+  :where([popovertarget="theme-menu"]) { anchor-name: --theme-btn; }
+  :where([popovertarget="me-menu"]) { anchor-name: --me-btn; }
+  :where([popovertarget="new-menu"]) { anchor-name: --new-btn; }
+  :where(#theme-menu) { position-anchor: --theme-btn; }
+  :where(#me-menu) { position-anchor: --me-btn; }
+  :where(#new-menu) { position-anchor: --new-btn; }
+  @supports (top: anchor(bottom)) {
+    :where(#theme-menu, #me-menu) { left: auto; right: anchor(right); }
+  }
+  /* menus */
+  :where(.theme-menu) { gap: 0.4lh; padding: 0.5lh; }
+  :where(.seg) { display: flex; border: 0; padding: 0; margin: 0; gap: 0.2em; }
+  :where(.seg) > :where(label) { flex: 1; display: grid; place-items: center; padding: 0.2lh 0.6em; border-radius: calc(var(--cfg-radius) * 0.7); cursor: pointer; --fg: -0.6; }
+  :where(.seg) > :where(label:has(:checked)) { --lift: 0.14; background-color: var(--_bg); --fg: -1; font-weight: 600; }
+  :where(.seg) input { position: absolute; opacity: 0; pointer-events: none; }
+  :where(.theme-menu) .hue { display: grid; gap: 0.15lh; --fg: -0.55; --type: -1; }
+  :where(.me-menu) .who { display: grid; padding: 0.3lh 0.5em 0.4lh; border-block-end: 1px solid var(--border); margin-block-end: 0.2lh; }
+  :where(.me-menu) .who > span { --fg: -0.5; --type: -1; }
+  :where(.me-menu, .new-menu) :where(a, button) { display: flex; align-items: center; gap: 0.55em; inline-size: 100%; justify-content: flex-start; text-decoration: none; color: inherit; padding: 0.3lh 0.5em; }
+  :where(.me-menu, .new-menu) :where(form) { display: contents; }
+  :where(.me-menu, .new-menu) :where(a, button) > :where(svg) { inline-size: 1.05em; block-size: 1.05em; }
+
+  /* ── the front pages ───────────────────────────────────────────────── */
+  :where(.intro) { max-inline-size: 38rem; margin-inline: auto; padding: 3lh 1.25em 2lh; display: grid; gap: 0.9lh; }
+  :where(.intro-mark) > :where(.mark) { inline-size: 3.6em; block-size: 3.6em; --fg: -0.8; }
+  :where(.intro) > :where(h1) { --type: 4; margin: 0; letter-spacing: -0.02em; line-height: 1.05; }
+  :where(.intro) > :where(.lede) { --type: 1; --fg: -0.65; margin: 0; }
+  :where(.signin) { display: grid; gap: 0.5lh; justify-items: start; }
+  :where(button.google) { display: inline-flex; align-items: center; gap: 0.6em; padding: 0.45lh 1.1em; --type: 0.5; }
+  :where(.g) { inline-size: 1.2em; block-size: 1.2em; }
+  :where(.signin) > :where(.dev) > :where(input) { inline-size: 16em; }
+  :where(.features) { list-style: none; margin: 1lh 0 0; padding: 1lh 0 0; display: grid; gap: 0.6lh; border-block-start: 1px solid var(--border); }
+  :where(.features) > :where(li) { --fg: -0.65; }
+  :where(.features) strong { --fg: -1; }
+  :where(.home-body) { max-inline-size: 52rem; margin-inline: auto; padding: 1.6lh 1.25em 2lh; display: grid; gap: 0.8lh; }
+  :where(.home-body) > :where(h2) { --type: 3; margin: 0; letter-spacing: -0.015em; }
+  :where(.home-body) > :where(h3) { --type: 0.5; margin: 0.6lh 0 0; --fg: -0.6; }
+  :where(.starts) { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.6lh 1em; }
+  :where(.starts) > :where(form) { display: contents; }
+  :where(.start-card) { display: grid; gap: 0.2lh; align-content: start; justify-items: start; text-align: start; padding: 0.9lh 1em; color: inherit; text-decoration: none; cursor: pointer; inline-size: 100%; font: inherit; }
+  :where(.start-card) { justify-content: start; align-items: start; --bg: initial; --lift: 0.06; background-color: var(--_bg); border: 1px solid var(--border); border-radius: var(--cfg-radius); box-shadow: none; min-block-size: 0; }
+  :where(.start-card):where(:hover) { --lift: 0.12; }
+  :where(.start-card) > :where(svg) { inline-size: 1.5em; block-size: 1.5em; --fg: -0.6; margin-block-end: 0.2lh; }
+  :where(.start-card) > :where(span) { --fg: -0.55; }
+  :where(.boards) { list-style: none; margin: 0; padding: 0; display: grid; }
+  :where(.boards) > :where(li) { display: flex; align-items: center; gap: 0.7em; padding-block: 0.3lh; border-block-end: 1px solid var(--border); }
+  :where(.boards) > :where(li) > :where(a) { color: inherit; font-weight: 550; }
+  :where(.boards) form { display: contents; }
+  :where(.boards) .meta { --fg: -0.45; --type: -1; margin-inline-end: auto; }
+  :where(.notice) { justify-items: start; }
+  :where(.notice) > :where(svg) { inline-size: 2em; block-size: 2em; --fg: -0.5; }
+  :where(.notice) > :where(h2) { --type: 2; }
 
   /* keys as keycaps, from the engine's own tokens: its border, radius and mono face */
   :where(kbd) {
@@ -67,5 +235,4 @@
     border: 1px solid var(--border); border-block-end-width: 2px; border-radius: calc(var(--cfg-radius, .5rem) * 0.6);
     --type: -1; line-height: 1; vertical-align: 0.05em;
   }
-  :where(.keys) { margin: 0; line-height: 2; }
 }

@@ -16,13 +16,16 @@ import (
 	"errors"
 	"flag"
 	"log/slog"
+	"mime"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"whiteboard/auth"
 	"whiteboard/bus"
 	"whiteboard/db"
 	"whiteboard/handler"
@@ -35,6 +38,7 @@ import (
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8081", "listen address")
 	dbPath := flag.String("db", "whiteboard.db", "SQLite file")
+	devLogin := flag.Bool("dev-login", false, "allow signing in by email alone (local testing only)")
 	compress := flag.String("compress", "br", "stream encoding: br, gzip or none")
 	flag.Parse()
 
@@ -54,9 +58,27 @@ func main() {
 
 	h := hub.New(d, b)
 
+	// Google sign-in comes from the environment (Coolify's environment variables).
+	base := strings.TrimRight(os.Getenv("BASE_URL"), "/")
+	if base == "" {
+		base = "http://" + *addr
+	}
+	a := &auth.Auth{
+		DB: d, BaseURL: base, Dev: *devLogin,
+		ClientID: os.Getenv("GOOGLE_CLIENT_ID"), ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+	}
+	if !a.Google() {
+		slog.Warn("Google sign-in is not configured: set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET")
+	}
+	if a.Dev {
+		slog.Warn("dev login is ON: anyone can sign in by email alone")
+	}
+
+	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
 	r := chi.NewRouter()
+	r.Use(a.Middleware)
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServerFS(static.FS)))
-	(&handler.Handler{Hub: h, Bus: b, DB: d, Compress: *compress}).Routes(r)
+	(&handler.Handler{Hub: h, Bus: b, DB: d, Auth: a, Compress: *compress}).Routes(r)
 
 	// Streams are lifelong, so shutdown cancels every request context (which
 	// ends each stream's loop) instead of waiting for them to finish.
