@@ -22,13 +22,50 @@ import (
 // the server (the connection); one that is shows in the goroutine dump where
 // it is stuck.
 
+// flight is a request being handled, and what the server has sent on it.
 type flight struct {
-	Method  string    `json:"method"`
-	Path    string    `json:"path"`
-	Session bool      `json:"session"` // it carried a sign-in cookie
-	Start   time.Time `json:"-"`
-	AgeMs   int64     `json:"age_ms"`
+	method, path string
+	session      bool // it carried a sign-in cookie
+	start        time.Time
+
+	bytes, writes, last atomic.Int64
 }
+
+// report is one flight as /inflight shows it. A stream that keeps writing
+// while its page stands still lost the data on the way; one that stopped
+// writing is stuck in the server.
+type report struct {
+	Method      string `json:"method"`
+	Path        string `json:"path"`
+	Session     bool   `json:"session"`
+	AgeMs       int64  `json:"age_ms"`
+	Bytes       int64  `json:"bytes"`
+	Writes      int64  `json:"writes"`
+	LastWriteMs int64  `json:"last_write_ms_ago"` // -1: nothing written yet
+}
+
+// counting is the response writer that keeps a flight's tally. It passes
+// Flush and Unwrap through, so a stream behaves exactly as before.
+type counting struct {
+	http.ResponseWriter
+	f *flight
+}
+
+func (c counting) Write(p []byte) (int, error) {
+	n, err := c.ResponseWriter.Write(p)
+	c.f.bytes.Add(int64(n))
+	c.f.writes.Add(1)
+	c.f.last.Store(time.Now().UnixMilli())
+	return n, err
+}
+
+func (c counting) Flush() {
+	if f, ok := c.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func (c counting) Unwrap() http.ResponseWriter { return c.ResponseWriter }
 
 var (
 	flights  sync.Map // id → *flight
@@ -40,19 +77,24 @@ func track(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := flightID.Add(1)
 		_, err := r.Cookie("wb_session")
-		flights.Store(id, &flight{Method: r.Method, Path: r.URL.Path, Session: err == nil, Start: time.Now()})
+		f := &flight{method: r.Method, path: r.URL.Path, session: err == nil, start: time.Now()}
+		flights.Store(id, f)
 		defer flights.Delete(id)
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(counting{w, f}, r)
 	})
 }
 
 func inflight(w http.ResponseWriter, _ *http.Request) {
-	var out []flight
+	var out []report
 	now := time.Now()
 	flights.Range(func(_, v any) bool {
-		f := *v.(*flight)
-		f.AgeMs = now.Sub(f.Start).Milliseconds()
-		out = append(out, f)
+		f := v.(*flight)
+		r := report{Method: f.method, Path: f.path, Session: f.session, AgeMs: now.Sub(f.start).Milliseconds(),
+			Bytes: f.bytes.Load(), Writes: f.writes.Load(), LastWriteMs: -1}
+		if last := f.last.Load(); last > 0 {
+			r.LastWriteMs = now.UnixMilli() - last
+		}
+		out = append(out, r)
 		return true
 	})
 	sort.Slice(out, func(i, j int) bool { return out[i].AgeMs > out[j].AgeMs })
