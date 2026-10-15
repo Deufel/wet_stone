@@ -415,16 +415,18 @@
 
 /* the highlighter's tokens (static/highlight.js names ranges "<lang>-<kind>").
    One hue per kind across languages; mid lightness reads on light and dark;
-   chroma follows the engine's --chroma, so .bw (a lost line) greys them too. */
+   chroma follows the engine's --chroma, so .bw (a lost line) greys them too.
+   No currentColor here: inside ::highlight() it is the highlight's own
+   colour, so a mix of it came out transparent (punctuation vanished). */
 @layer block {
-  ::highlight(css-comment), ::highlight(html-comment), ::highlight(python-comment), ::highlight(javascript-comment), ::highlight(go-comment), ::highlight(sqlite-comment) { color: color-mix(in oklch, currentColor 50%, transparent); }
+  ::highlight(css-comment), ::highlight(html-comment), ::highlight(python-comment), ::highlight(javascript-comment), ::highlight(go-comment), ::highlight(sqlite-comment) { color: oklch(0.58 calc(0.03 * var(--chroma, 1)) 250); }
   ::highlight(css-string), ::highlight(html-value), ::highlight(python-string), ::highlight(javascript-string), ::highlight(go-string), ::highlight(sqlite-string) { color: oklch(0.6 calc(0.13 * var(--chroma, 1)) 145); }
   ::highlight(css-atrule), ::highlight(html-tag), ::highlight(python-keyword), ::highlight(javascript-keyword), ::highlight(go-keyword), ::highlight(sqlite-keyword) { color: oklch(0.6 calc(0.16 * var(--chroma, 1)) 305); }
   ::highlight(css-number), ::highlight(css-unit), ::highlight(python-number), ::highlight(javascript-number), ::highlight(go-number), ::highlight(sqlite-number), ::highlight(html-entity) { color: oklch(0.65 calc(0.14 * var(--chroma, 1)) 55); }
   ::highlight(css-property), ::highlight(html-attribute), ::highlight(python-function), ::highlight(javascript-function), ::highlight(go-function), ::highlight(sqlite-function) { color: oklch(0.6 calc(0.14 * var(--chroma, 1)) 250); }
   ::highlight(css-selector), ::highlight(python-class), ::highlight(javascript-class), ::highlight(go-class), ::highlight(sqlite-type), ::highlight(html-doctype) { color: oklch(0.6 calc(0.12 * var(--chroma, 1)) 195); }
   ::highlight(css-var-name), ::highlight(python-builtin), ::highlight(javascript-builtin), ::highlight(go-builtin), ::highlight(sqlite-parameter), ::highlight(python-decorator), ::highlight(javascript-decorator) { color: oklch(0.6 calc(0.15 * var(--chroma, 1)) 20); }
-  ::highlight(css-punctuation), ::highlight(html-bracket), ::highlight(python-operator), ::highlight(python-punctuation), ::highlight(javascript-operator), ::highlight(javascript-punctuation), ::highlight(go-operator), ::highlight(go-punctuation), ::highlight(sqlite-operator), ::highlight(sqlite-punctuation), ::highlight(sqlite-identifier) { color: color-mix(in oklch, currentColor 70%, transparent); }
+  ::highlight(css-punctuation), ::highlight(html-bracket), ::highlight(python-operator), ::highlight(python-punctuation), ::highlight(javascript-operator), ::highlight(javascript-punctuation), ::highlight(go-operator), ::highlight(go-punctuation), ::highlight(sqlite-operator), ::highlight(sqlite-punctuation), ::highlight(sqlite-identifier) { color: oklch(0.66 0 0); }
 
   /* ── paper: /b/{name}/print, US Letter ──────────────────────────────── */
   :where(.print-page) { color-scheme: light; padding-block: 1lh 2lh; }

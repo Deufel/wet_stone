@@ -275,6 +275,11 @@ templ demoEntry() {
 		<span>Demo: controls tour</span>
 		<span class="meta">move, link, select, group, nudge</span>
 	</button>
+	<button class="demo-entry" data-on:click="@post('/demo/go')" title="A short Go lesson: the code in your notes, the picture on the board">
+		@Icon("play")
+		<span>Demo: Go slices</span>
+		<span class="meta">a lesson, with highlighted notes</span>
+	</button>
 }
 
 // removeDialog asks before a board leaves your list ($_rm names it).

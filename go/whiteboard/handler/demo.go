@@ -32,6 +32,7 @@ var demos = map[string]struct {
 }{
 	"review": {"Demo · Checkout redesign", (*Handler).playDemo},
 	"tour":   {"Demo · Controls tour", (*Handler).playTour},
+	"go":     {"Demo · Go slices, under the hood", (*Handler).playSlices},
 }
 
 // demo makes the board, sends the page to it, and starts the presenter.
@@ -61,7 +62,8 @@ func (h *Handler) demo(w http.ResponseWriter, r *http.Request) {
 	_ = datastar.NewSSE(w, r).Redirect("/b/" + name)
 }
 
-// presenter drives one viewer on a board, at a human pace.
+// presenter drives one viewer on a board, at a human pace (pace stretches
+// every pause: 1 is a quick presenter, 2 half that speed; 0 counts as 1).
 type presenter struct {
 	h    *Handler
 	ctx  context.Context
@@ -69,6 +71,7 @@ type presenter struct {
 	b    *board.Board
 	seq  int64
 	x, y int32
+	pace float64
 	err  error
 }
 
@@ -83,6 +86,9 @@ func (p *presenter) cmd(c board.Cmd) {
 func (p *presenter) pause(d time.Duration) {
 	if p.err != nil {
 		return
+	}
+	if p.pace > 0 {
+		d = time.Duration(float64(d) * p.pace)
 	}
 	select {
 	case <-time.After(d):
@@ -446,6 +452,156 @@ func (h *Handler) playTour(name string, user db.User) {
 
 	// park the cursor, deselect, and leave
 	p.pause(600 * time.Millisecond)
+	p.click(960, 960)
+	p.glide(0, 980, 980, 0)
+	if p.err != nil {
+		slog.Error("demo", "board", name, "err", p.err)
+	}
+}
+
+// ─── Go: slices, under the hood ─────────────────────────────────────────────
+
+var sliceSteps = []string{
+	"A slice is a header: pointer, length, capacity",
+	"The header points into a backing array",
+	"Slicing shares the array: nothing is copied",
+	"append within capacity writes in place",
+	"append past capacity moves to a new array",
+	"copy when you need a slice of your own",
+}
+
+var sliceCode = []string{
+	"// Slices, under the hood",
+	"package main",
+	"",
+	"func main() {",
+	"\tarr := [5]int{10, 20, 30, 40, 50} // the backing array",
+	"\ts := arr[1:3]                     // header: ptr → arr[1], len 2, cap 4",
+	"\t// s is [20 30]: it looks into arr; it owns nothing",
+	"",
+	"\ts = append(s, 99) // fits in cap: writes into arr[3]",
+	"\t// arr is now [10 20 30 99 50]",
+	"",
+	"\ts = append(s, 1, 2) // past cap: a new array, copied, then appended",
+	"\ts[0] = -1           // writes the new array; arr[1] is still 20",
+	"",
+	"\t// the old array lives on only while something points at it",
+	"\tc := make([]int, len(s))",
+	"\tcopy(c, s) // c has its own backing array",
+	"}",
+}
+
+// playSlices teaches what a Go slice is, slowly: the code in the notes
+// (highlighted as Go), the picture on the board, the laser on what each line
+// touches, and the checklist as the lesson's outline.
+func (h *Handler) playSlices(name string, user db.User) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	defer cancel()
+	b, _, err := h.Hub.Board(ctx, name)
+	if err != nil {
+		slog.Error("demo", "board", name, "err", err)
+		return
+	}
+	meta, err := h.Hub.Meta(ctx, name)
+	if err != nil {
+		return
+	}
+	b.Join(demoUID, "Demo")
+	h.Hub.Publish(name)
+	defer func() {
+		b.Leave(demoUID)
+		h.Hub.Publish(name)
+	}()
+	p := &presenter{h: h, ctx: ctx, name: name, b: b, x: 500, y: 950, pace: 1.8}
+	id := meta.ID
+	code := func(n int) {
+		if p.err == nil && h.DB.SaveNote(ctx, user.ID, id, strings.Join(sliceCode[:n], "\n"), "go") == nil {
+			h.Hub.PublishUser(user.ID)
+		}
+	}
+	// the array's cells: x from 100, 140 wide, 20 apart; row at y 140..240
+	cellX := func(i int) int32 { return int32(100 + i*160) }
+
+	p.pause(2000 * time.Millisecond)
+	for _, s := range sliceSteps { // the outline first
+		p.todo(user, id, s)
+		p.pause(300 * time.Millisecond)
+	}
+	code(5)
+	p.pause(1000 * time.Millisecond)
+
+	// the backing array: five cells
+	for i, v := range []string{"10", "20", "30", "40", "50"} {
+		p.box(cellX(i), 140, cellX(i)+140, 240, v)
+		p.pause(200 * time.Millisecond)
+	}
+	p.pause(600 * time.Millisecond)
+	p.laser(490, 190, 430) // "this whole row is arr"
+
+	// the slice header, and its pointer into the array (at arr[1])
+	code(6)
+	p.box(140, 460, 440, 560, "s · ptr · len 2 · cap 4")
+	p.check(user, id, "A slice is a header")
+	p.pause(800 * time.Millisecond)
+	p.stroke(3, 290, 460, 330, 240) // header's top to arr[1]'s bottom: linked
+	p.check(user, id, "The header points")
+	p.pause(800 * time.Millisecond)
+
+	// s is [20 30]: arr[1] and arr[2], no copy
+	code(7)
+	p.laser(410, 190, 180)
+	p.check(user, id, "Slicing shares")
+	p.pause(1200 * time.Millisecond)
+
+	// append within cap: the 99 lands in arr[3] itself
+	code(10)
+	p.laser(650, 190, 90)
+	p.click(600, 150) // arr[3], off its label
+	p.label("99")
+	p.check(user, id, "append within")
+	p.pause(1400 * time.Millisecond)
+
+	// append past cap: a new array (cap 8), the header moves to it
+	code(12)
+	for i, v := range []string{"20", "30", "99", "1", "2"} {
+		p.box(cellX(i), 700, cellX(i)+140, 800, v)
+		p.pause(150 * time.Millisecond)
+	}
+	p.pause(500 * time.Millisecond)
+	p.dblclick(330, 240)             // unlink the pointer from the old array…
+	p.pause(700 * time.Millisecond)
+	p.stroke(0, 330, 240, 170, 700) // …and drag it onto the new one (it links there)
+	p.pause(500 * time.Millisecond)
+	p.dblclick(290, 460)            // and its other end: off the header's top…
+	p.pause(500 * time.Millisecond)
+	p.stroke(0, 290, 460, 290, 560) // …onto its bottom, out of the label's way
+	p.pause(500 * time.Millisecond)
+	p.click(160, 545) // the header, off its label
+	p.label("s · ptr · len 5 · cap 8")
+	p.pause(600 * time.Millisecond)
+	code(13)
+	p.click(120, 715) // s[0] = -1 writes the NEW array
+	p.label("-1")
+	p.laser(330, 190, 90) // the old arr[1]: still 20
+	p.check(user, id, "append past")
+	p.pause(1400 * time.Millisecond)
+
+	// the old array is on its own now: group it and set it aside
+	code(15)
+	p.click(960, 960)
+	p.stroke(0, 900, 260, 80, 120) // drag up: only the old row, enclosed
+	p.act("group", 0, 0)
+	p.pause(700 * time.Millisecond)
+	p.stroke(0, 110, 150, 110, 90) // the group moves as one
+	p.pause(700 * time.Millisecond)
+	p.laser(490, 130, 430)
+	p.pause(800 * time.Millisecond)
+
+	// independence: copy
+	code(len(sliceCode))
+	p.check(user, id, "copy when")
+
+	p.pause(800 * time.Millisecond)
 	p.click(960, 960)
 	p.glide(0, 980, 980, 0)
 	if p.err != nil {
