@@ -1,0 +1,23 @@
+# /etc/systemd/system/asm-files.service
+#
+# Runs the assembly file server as your user, serving ~/files on 127.0.0.1:8000.
+# Caddy (deploy/Caddyfile) exposes it on https://files.deufel.dev
+[Unit]
+Description=asm file server (localhost:8000)
+After=network.target
+
+[Service]
+User=mike
+Group=mike
+ExecStart=/home/mike/code/wet_stone/asm-http-server/server /home/mike/files
+Restart=on-failure
+RestartSec=2
+# hardening: the server only ever needs its own directory
+ProtectSystem=strict
+ReadWritePaths=/home/mike/files
+ProtectHome=read-only
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

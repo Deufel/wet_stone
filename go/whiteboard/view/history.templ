@@ -1,0 +1,61 @@
+package view
+
+import (
+	"strconv"
+	"whiteboard/hub"
+)
+
+// History is the page's aside: the board's branches, and the checked-out line
+// of revisions, newest first. It is a second morph target on the same stream,
+// sent only when the history changed. Every button posts a history command;
+// the panel re-renders from the store like everything else.
+templ History(name string, h *hub.History) {
+	<aside id="history" class="pg-aside history">
+		<h4>branches</h4>
+		<ul class="branches">
+			for _, b := range h.Branches {
+				<li data-ui-current?={ b.Current }>
+					<button class="pick" data-on:click={ histPost(name, "hbranch", b.ID, "switch") } aria-pressed={ strconv.FormatBool(b.Current) } title="switch to this branch">
+						{ b.Name }
+					</button>
+					if b.Main {
+						<span class="tag">main</span>
+					}
+					<span class="meta">{ branchMeta(b) }</span>
+					<span class="acts">
+						if !b.Main {
+							<button data-on:click={ histPost(name, "hbranch", b.ID, "mainbranch") } title="make this the main branch">make main</button>
+						}
+						if !b.Main && !b.Current {
+							<button class="dgr" data-on:click={ histPost(name, "hbranch", b.ID, "delbranch") } title="delete this branch and the revisions only it reaches">delete</button>
+						}
+					</span>
+				</li>
+			}
+		</ul>
+		<h4>history</h4>
+		if h.Detached() {
+			<p class="hint">Looking at an older revision: your next change starts a new branch here.</p>
+		}
+		if len(h.Lineage) == 0 {
+			<p class="hint">Nothing saved yet. Every change you make lands here.</p>
+		}
+		<ol class="revs">
+			for _, r := range h.Lineage {
+				<li data-ui-current?={ r.Current }>
+					<button data-on:click={ histPost(name, "hrev", r.ID, "checkout") } aria-pressed={ strconv.FormatBool(r.Current) } title="jump to this point">
+						<span class="num">{ "#" + strconv.FormatInt(r.ID, 10) }</span>
+						<span class="op">{ r.Op }</span>
+						<time>{ r.At.Format("15:04:05") }</time>
+					</button>
+					for _, n := range r.Heads {
+						<span class="tag">{ n }</span>
+					}
+					for _, n := range r.Forks {
+						<span class="fork" title="a branch leaves here">{ "⑂ " + n }</span>
+					}
+				</li>
+			}
+		</ol>
+	</aside>
+}

@@ -1,0 +1,29 @@
+# /etc/caddy/Caddyfile
+#
+# files.deufel.dev -> the assembly file server on localhost:8000
+# Caddy terminates HTTPS (automatic Let's Encrypt certificate) and requires a
+# username/password before anything reaches the server.
+#
+# Generate the hash with:  caddy hash-password
+files.deufel.dev {
+    basic_auth {
+        mike REPLACE_WITH_BCRYPT_HASH
+    }
+
+    # uploads can be large; don't cap the request body
+    request_body {
+        max_size 0
+    }
+
+    reverse_proxy localhost:8000 {
+        # stream the SSE feed through immediately instead of buffering it
+        flush_interval -1
+        # let uploads stream straight through
+        transport http {
+            read_timeout 0
+            write_timeout 0
+        }
+    }
+
+    encode zstd gzip
+}

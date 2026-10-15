@@ -1,0 +1,34 @@
+<section class="upload">
+  <label>upload <input type="file" multiple onchange="up(this)"></label>
+  <span id="upstatus"></span>
+</section>
+<section class="feed">
+  <progress max="100" data-attr:value="$pct" data-show="$pct > 0"></progress>
+  <div data-text="$cur" data-show="$cur"></div>
+  <div id="log"></div>
+</section>
+<script>
+async function up(i){
+  const s=document.getElementById('upstatus');
+  for(const f of i.files){
+    s.textContent='uploading '+f.name+' …';
+    const r=await fetch(location.pathname+encodeURIComponent(f.name),{method:'PUT',body:f});
+    if(!r.ok){s.textContent='failed: '+f.name+' ('+r.status+')';return;}
+  }
+  location.reload();
+}
+async function del(n){
+  if(!confirm('Delete '+n+'?'))return;
+  await fetch(location.pathname+encodeURIComponent(n),{method:'DELETE'});
+  location.reload();
+}
+(function(){
+  const u=document.getElementById('files'); if(!u) return;
+  [...u.children]
+    .sort((a,b)=>(b.classList.contains('dir')-a.classList.contains('dir'))||a.textContent.localeCompare(b.textContent))
+    .forEach(li=>u.appendChild(li));
+})();
+</script>
+</main>
+</body>
+</html>

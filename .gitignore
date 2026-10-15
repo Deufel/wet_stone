@@ -1,0 +1,10 @@
+# build outputs
+go/whiteboard/whiteboard
+odin/whiteboard/whiteboard
+odin/pulse/pulse
+asm-http-server/server
+*.o
+# local data
+*.db
+*.db-shm
+*.db-wal

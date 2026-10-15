@@ -1,0 +1,71 @@
+/* the whiteboard's page CSS, in mike.css's block layer: zero-specificity :where() rules */
+@layer block {
+  :where(.pg-header) { --bg: 0.08; padding: 0.25lh 0.5em; }
+  :where(.pg-footer) { --bg: 0.08; padding: 0.25lh 0.5em; --fg: -0.4; }
+  /* the section is a size container, so the stage can be the largest square that fits it */
+  :where(.pg-main) > :where(section) { display: grid; place-items: center; block-size: 100%; container-type: size; }
+  :where(.tools) > :where(button) { --type: -1; }
+  :where(.tools) kbd { --fg: -0.5; margin-inline-start: 0.35em; min-block-size: 1.4em; min-inline-size: 1.4em; }
+  :where(#label) { inline-size: 14em; }
+  :where(.status) { --fg: -0.4; }
+  :where(.theme) > :where(label) { display: inline-flex; align-items: center; gap: 0.5em; }
+  :where(.theme) input[type="range"] { inline-size: 9em; }
+  :where(#stage) {
+    position: relative; inline-size: min(100cqi, 100cqb); aspect-ratio: 1; touch-action: none; user-select: none;
+    --fg: 0.75; border: 1px solid color-mix(in oklch, currentColor 28%, transparent); border-radius: var(--cfg-radius, .5rem); overflow: hidden;
+  }
+  /* the grid is a static SVG layer under the streamed board: never morphed, never re-sent */
+  :where(#stage) > :where(svg) { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; display: block; }
+  /* strokes keep their pixel width however big the square stage is drawn */
+  :where(#stage) :where(svg) * { vector-effect: non-scaling-stroke; }
+  :where(#stage) .plus  { fill: none; stroke: color-mix(in oklch, currentColor 40%, transparent); stroke-width: 1; }
+  :where(#stage) .major { fill: none; stroke: color-mix(in oklch, currentColor 22%, transparent); stroke-width: 1; }
+  :where(.note) { --fg: 0.6; }
+  :where(#board) rect { fill: color-mix(in oklch, currentColor 14%, transparent); stroke: currentColor; stroke-width: 2; }
+  :where(#board) line { stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  :where(#board) .head { fill: currentColor; stroke: none; }
+  :where(#board) .node { fill: color-mix(in oklch, currentColor 10%, Canvas); stroke: currentColor; stroke-width: 1.5; }
+  :where(#board) .node[data-ui-linked] { fill: currentColor; }
+  :where(#board) [data-ui-selected] { --fg: 1; }
+  :where(#board) [data-ui-selected] rect, :where(#board) [data-ui-selected] line { stroke-width: 3; }
+  :where(#board) .handles circle { fill: color-mix(in oklch, currentColor 35%, transparent); stroke: currentColor; stroke-width: 2; }
+  :where(#board) .guide { stroke: currentColor; stroke-width: 1; stroke-dasharray: 6 6; }
+  :where(#board) .anchor { fill: none; stroke: currentColor; stroke-width: 2; }
+  /* marquee: dashed while it takes what it touches (dragged down), solid when it takes only what it encloses (dragged up) */
+  :where(#board) rect.marquee { fill: color-mix(in oklch, currentColor 6%, transparent); stroke: currentColor; stroke-width: 1; stroke-dasharray: 6 4; }
+  :where(#board) rect.marquee.enclose { stroke-dasharray: none; }
+  :where(#board) .extents { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-dasharray: 0 6; stroke-linecap: round; }
+  :where(#board) .port { fill: Canvas; stroke: currentColor; stroke-width: 2; }
+  :where(#board) .port[data-ui-linked] { fill: currentColor; }
+  /* the laser fades by its ink: --fg is a registered number, so it animates, and 0 is the surface */
+  @keyframes laser-fade { from { --fg: 1; } to { --fg: 0; } }
+  :where(#board) .laser { animation: laser-fade 1.2s ease-in forwards; }
+  :where(#board) .laser path { fill: none; stroke: currentColor; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+  :where(#board) .cursor path { fill: currentColor; stroke: none; }
+  :where(#board) .label { display: flex; align-items: center; justify-content: center; block-size: 100%; inline-size: 100%; text-align: center; padding: 0.25em; overflow: hidden; pointer-events: none; --type: 1; }
+  :where(#board) .label > span { background: color-mix(in oklch, Canvas 70%, transparent); padding: 0 0.3em; border-radius: 0.3em; }
+
+  /* the history aside: branches, then the checked-out line of revisions */
+  :where(.history) { inline-size: 17rem; padding: 0.5lh 0.75em; --type: -1; }
+  :where(.history) h4 { margin-block: 0.5lh 0.25lh; }
+  :where(.history) ul, :where(.history) ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.15lh; }
+  :where(.history) li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35em; }
+  :where(.history) li > button:first-child { flex: 1 1 auto; justify-content: flex-start; text-align: start; }
+  :where(.history) .revs button { display: flex; gap: 0.5em; flex: 1 1 0; min-inline-size: 0; }
+  :where(.history) li { flex-wrap: nowrap; }
+  :where(.history) .revs .op { flex: 1; }
+  :where(.history) .num, :where(.history) time, :where(.history) .meta { --fg: -0.4; }
+  :where(.history) [data-ui-current] > button:first-child { --fg: 1; font-weight: 600; }
+  :where(.history) .acts { display: inline-flex; gap: 0.25em; }
+  :where(.history) .fork { --fg: -0.3; }
+  :where(.history) .hint { --fg: -0.4; margin-block: 0.25lh; }
+
+  /* keys as keycaps, from the engine's own tokens: its border, radius and mono face */
+  :where(kbd) {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-inline-size: 1.6em; min-block-size: 1.6em; padding-inline: 0.35em; margin-inline: 0.08em;
+    border: 1px solid var(--border); border-block-end-width: 2px; border-radius: calc(var(--cfg-radius, .5rem) * 0.6);
+    --type: -1; line-height: 1; vertical-align: 0.05em;
+  }
+  :where(.keys) { margin: 0; line-height: 2; }
+}

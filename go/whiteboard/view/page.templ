@@ -1,0 +1,104 @@
+package view
+
+import "whiteboard/hub"
+
+// Page is the land: the whole document, rendered once. Everything after comes
+// down the board's stream: <svg id="board">, drawn whole on the server for
+// this viewer, as a morph, plus a few signals. The page draws nothing itself;
+// it only carries the pointer and keys up as commands. The grid is a sibling
+// of the board the stream never touches.
+templ Page(name string, hist *hub.History) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ name } · whiteboard</title>
+			<link rel="stylesheet" href="/static/mike.css"/>
+			<link rel="stylesheet" href="/static/board.css"/>
+			<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.4/bundles/datastar.js"></script>
+		</head>
+		<body
+			data-signals={ signals }
+			data-persist:whiteboard="{include: /^(theme|hue)$/}"
+			data-init={ onInit(name) }
+			data-effect={ themeEffect }
+			data-on:keydown__window={ onKey(name) }
+		>
+			<div class="page">
+				<header class="pg-header spread">
+					<div class="row tools">
+						<h3>{ name }</h3>
+						@tool(0, "select", "Esc")
+						@tool(1, "box", "R")
+						@tool(2, "line", "L")
+						@tool(3, "arrow", "A")
+						@tool(4, "laser", "5")
+						<input
+							id="label"
+							type="text"
+							placeholder="label of the selected shape"
+							maxlength="48"
+							data-bind:label
+							data-attr:disabled="$sel < 0"
+							data-on:input__debounce.200ms={ post(name, "label") }
+							data-effect={ editFocus }
+						/>
+						<button data-on:click={ post(name, "group") } data-attr:disabled="$nsel < 2">group<kbd>G</kbd></button>
+						<button data-on:click={ post(name, "ungroup") } data-attr:disabled="!$grouped">ungroup<kbd>⇧</kbd><kbd>G</kbd></button>
+						<button data-on:click={ post(name, "delete") } data-attr:disabled="$nsel < 1">delete<kbd>Del</kbd></button>
+						<button class="dgr" data-on:click={ post(name, "clear") }>clear</button>
+					</div>
+					<span class="status"><span class="note" data-text="$note"></span> <span data-text="$shapes"></span> shapes · <span data-text="$users"></span> here</span>
+				</header>
+				<main class="pg-main">
+					<section>
+						<div
+							id="stage"
+							data-on:pointerdown={ onDown(name) }
+							data-on:pointermove__window={ onMove(name) }
+							data-on:pointerup__window={ onUp(name) }
+							data-on:dblclick={ onDblclick(name) }
+							data-on:contextmenu={ onContext(name) }
+						>
+							@grid()
+							<svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"></svg>
+						</div>
+					</section>
+				</main>
+				@History(name, hist)
+				<footer class="pg-footer spread">
+					<p class="keys">
+						<kbd>R</kbd> box · <kbd>L</kbd> line · <kbd>A</kbd> arrow · <kbd>5</kbd> laser · <kbd>Esc</kbd> select, or back ·
+						drag on empty board to select (down touches, up encloses) ·
+						<kbd>H</kbd><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd> or <kbd>←</kbd><kbd>↓</kbd><kbd>↑</kbd><kbd>→</kbd> nudge ·
+						<kbd>Enter</kbd> label · <kbd>G</kbd> group · <kbd>⇧</kbd><kbd>G</kbd> ungroup · <kbd>Del</kbd> delete ·
+						right-click: lock / unlock · double-click: link or edit label ·
+						the history keeps every change: jump back to any point and branch from it
+					</p>
+					<div class="row theme">
+						<label>theme <select data-bind:theme><option value="system">system</option><option value="light">light</option><option value="dark">dark</option></select></label>
+						<label>hue <input type="range" min="0" max="360" data-bind:hue/> <span data-text="$hue"></span></label>
+					</div>
+				</footer>
+			</div>
+		</body>
+	</html>
+}
+
+templ tool(n int, label, key string) {
+	<button data-on:click={ pick(n) } data-attr:aria-pressed={ pressed(n) }>{ label }<kbd>{ key }</kbd></button>
+}
+
+// The grid is static: never morphed, never re-sent. Each pattern is offset by
+// half a tile so its mark lands on the snap lattice (multiples of 20 and 100).
+templ grid() {
+	<svg class="grid" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" aria-hidden="true">
+		<defs>
+			<pattern id="minor" width="20" height="20" x="-10" y="-10" patternUnits="userSpaceOnUse"><path class="plus" d="M7 10h6M10 7v6"></path></pattern>
+			<pattern id="major" width="100" height="100" x="-50" y="-50" patternUnits="userSpaceOnUse"><path class="major" d="M50 0v100M0 50h100"></path></pattern>
+		</defs>
+		<rect width="1000" height="1000" fill="url(#major)"></rect>
+		<rect width="1000" height="1000" fill="url(#minor)"></rect>
+	</svg>
+}

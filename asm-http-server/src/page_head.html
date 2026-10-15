@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>files</title>
+<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.4/bundles/datastar.js"></script>
+<style>
+  body { font: 15px/1.5 ui-monospace, monospace; background: #0f1115; color: #d7dae0; margin: 0; padding: 1.5rem 1rem; }
+  main { max-width: 60rem; margin: 0 auto; }
+  h2 { font-size: 1.1rem; margin: 0 0 1rem; color: #7cc8ff; word-break: break-all; }
+  a { color: #d7dae0; text-decoration: none; }
+  a:hover { color: #7cc8ff; }
+  #files { list-style: none; padding: 0; margin: 0 0 1.5rem; }
+  #files li { display: flex; align-items: center; gap: .5rem; padding: .15rem 0; border-bottom: 1px solid #1b1f27; }
+  #files li a { flex: 1; word-break: break-all; }
+  #files li.dir a::before { content: "▸ "; color: #7cc8ff; }
+  #files li button { background: none; border: 1px solid #333; color: #8b93a3; border-radius: 4px; cursor: pointer; }
+  #files li button:hover { color: #ff7c7c; border-color: #ff7c7c; }
+  .upload { margin: 0 0 1.5rem; color: #8b93a3; }
+  .upload input { color: #d7dae0; }
+  progress { width: 100%; height: 1rem; accent-color: #7cc8ff; }
+  .feed { border-top: 1px solid #262a33; padding-top: 1rem; color: #8b93a3; font-size: 13px; }
+  #log { white-space: pre-wrap; word-break: break-all; }
+  #log > div:last-child { color: #d7dae0; }
+</style>
+</head>
+<body data-signals="{pct: 0, cur: '', done: false}" data-init="@get('/_events')">
+<main>

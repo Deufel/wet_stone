@@ -1,0 +1,87 @@
+// whiteboard — the Go sister of the Odin board: Go + templ + Datastar + an
+// embedded NATS bus + SQLite (modernc).
+//
+// Land-and-stream, pure CQRS. A page opens one stream per board; every change
+// publishes board.{name}.changed on the bus and each stream re-renders its
+// viewer's <svg id="board"> as a morph. Commands answer an empty SSE stream.
+// Boards live in memory for the drag path; the drawing (not cursors,
+// selections, drags or laser strokes) is saved to SQLite after each command
+// that changed it.
+//
+//	make run    then open http://127.0.0.1:8081 (boards at /b/{name})
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"log/slog"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"whiteboard/bus"
+	"whiteboard/db"
+	"whiteboard/handler"
+	"whiteboard/hub"
+	"whiteboard/static"
+
+	"github.com/go-chi/chi/v5"
+)
+
+func main() {
+	addr := flag.String("addr", "127.0.0.1:8081", "listen address")
+	dbPath := flag.String("db", "whiteboard.db", "SQLite file")
+	compress := flag.String("compress", "br", "stream encoding: br, gzip or none")
+	flag.Parse()
+
+	d, err := db.Open(*dbPath)
+	if err != nil {
+		slog.Error("db", "err", err)
+		os.Exit(1)
+	}
+	defer d.Close()
+
+	b, err := bus.Open()
+	if err != nil {
+		slog.Error("bus", "err", err)
+		os.Exit(1)
+	}
+	defer b.Close()
+
+	h := hub.New(d, b)
+
+	r := chi.NewRouter()
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServerFS(static.FS)))
+	(&handler.Handler{Hub: h, Bus: b, Compress: *compress}).Routes(r)
+
+	// Streams are lifelong, so shutdown cancels every request context (which
+	// ends each stream's loop) instead of waiting for them to finish.
+	baseCtx, cancelRequests := context.WithCancel(context.Background())
+	srv := &http.Server{
+		Addr:        *addr,
+		Handler:     r,
+		BaseContext: func(_ net.Listener) context.Context { return baseCtx },
+	}
+
+	go func() {
+		slog.Info("whiteboard", "url", "http://"+*addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("serve", "err", err)
+			os.Exit(1)
+		}
+	}()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	<-stop
+	slog.Info("shutting down")
+	cancelRequests()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = srv.Shutdown(ctx)
+	h.Close() // flushes pending saves
+}

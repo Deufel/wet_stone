@@ -1,0 +1,297 @@
+// Package hub owns the live boards. A board is loaded from SQLite on first use
+// and stays in memory, where the drag path runs at pointer speed. Every
+// command publishes board.{name}.changed. A command that changed the drawing
+// hands its change to the board's keeper, the one goroutine that writes the
+// board's history: it commits the latest drawing as a revision (bursts
+// collapse; an unchanged drawing is never written) and runs history commands
+// (checkout, switch, delete, make main) in order after any pending save.
+package hub
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"log/slog"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"whiteboard/board"
+	"whiteboard/bus"
+	"whiteboard/db"
+)
+
+const (
+	tickEvery = 50 * time.Millisecond // laser and idle-viewer expiry
+	amendFor  = 2 * time.Second       // a label or nudge this soon after the last folds into it
+)
+
+type Hub struct {
+	db     *db.DB
+	bus    *bus.Bus
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+
+	mu     sync.Mutex
+	boards map[string]*live
+}
+
+type live struct {
+	name string
+	b    *board.Board
+	hist atomic.Pointer[History]
+	wake chan struct{} // cap 1
+
+	mu      sync.Mutex
+	pending string    // the latest unsaved change, "" = none
+	ops     []HistOp  // history commands, in order
+}
+
+// HistOp is a history command from the panel.
+type HistOp struct {
+	Kind string // checkout (ID = revision), switch, delbranch, mainbranch (ID = branch)
+	ID   int64
+}
+
+func New(d *db.DB, b *bus.Bus) *Hub {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Hub{db: d, bus: b, ctx: ctx, cancel: cancel, boards: map[string]*live{}}
+}
+
+// Board returns the named board and its history, loading it on first use.
+func (h *Hub) Board(ctx context.Context, name string) (*board.Board, *History, error) {
+	l, err := h.live(ctx, name)
+	if err != nil {
+		return nil, nil, err
+	}
+	return l.b, l.hist.Load(), nil
+}
+
+// History is the board's current history view (replaced whole on change).
+func (h *Hub) History(name string) *History {
+	h.mu.Lock()
+	l := h.boards[name]
+	h.mu.Unlock()
+	if l == nil {
+		return nil
+	}
+	return l.hist.Load()
+}
+
+func (h *Hub) live(ctx context.Context, name string) (*live, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if l, ok := h.boards[name]; ok {
+		return l, nil
+	}
+	pos, err := h.db.Ensure(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	snap, err := h.db.Snapshot(ctx, pos.Rev)
+	if err != nil {
+		return nil, err
+	}
+	l := &live{name: name, b: board.New(), wake: make(chan struct{}, 1)}
+	l.b.Restore(snap)
+	k := &keeper{h: h, l: l, pos: pos}
+	k.saved, _ = json.Marshal(snap)
+	if err := k.refresh(ctx); err != nil {
+		return nil, err
+	}
+	h.boards[name] = l
+	h.wg.Add(2)
+	go k.run()
+	go h.ticker(l)
+	slog.Info("board loaded", "board", name, "rev", pos.Rev, "shapes", len(snap.Shapes))
+	return l, nil
+}
+
+// Apply runs a command on the named board, publishes, and hands a drawing
+// change to the keeper.
+func (h *Hub) Apply(ctx context.Context, name string, c board.Cmd) error {
+	l, err := h.live(ctx, name)
+	if err != nil {
+		return err
+	}
+	change := l.b.Apply(c)
+	h.Publish(name)
+	if change != "" {
+		l.mu.Lock()
+		l.pending = change
+		l.mu.Unlock()
+		l.poke()
+	}
+	return nil
+}
+
+// Hist queues a history command for the keeper.
+func (h *Hub) Hist(ctx context.Context, name string, op HistOp) error {
+	l, err := h.live(ctx, name)
+	if err != nil {
+		return err
+	}
+	l.mu.Lock()
+	l.ops = append(l.ops, op)
+	l.mu.Unlock()
+	l.poke()
+	return nil
+}
+
+func (l *live) poke() {
+	select {
+	case l.wake <- struct{}{}:
+	default: // already awake; it will take this too
+	}
+}
+
+func (h *Hub) Publish(name string) {
+	if err := h.bus.Publish(bus.BoardSubject(name), nil); err != nil {
+		slog.Error("publish", "board", name, "err", err)
+	}
+}
+
+func (h *Hub) ticker(l *live) {
+	defer h.wg.Done()
+	t := time.NewTicker(tickEvery)
+	defer t.Stop()
+	for {
+		select {
+		case now := <-t.C:
+			if l.b.Tick(now) {
+				h.Publish(l.name)
+			}
+		case <-h.ctx.Done():
+			return
+		}
+	}
+}
+
+// Close stops every board's goroutines after flushing pending saves.
+func (h *Hub) Close() {
+	h.cancel()
+	h.wg.Wait()
+}
+
+// ─── The keeper: the one writer of a board's history ────────────────────────
+
+type keeper struct {
+	h     *Hub
+	l     *live
+	pos   db.Pos
+	saved []byte // the drawing at pos.Rev, to skip unchanged saves
+
+	lastOp  string // the last commit, for folding bursts
+	lastAt  time.Time
+	lastRev int64
+}
+
+func (k *keeper) run() {
+	defer k.h.wg.Done()
+	for {
+		stopping := false
+		select {
+		case <-k.l.wake:
+		case <-k.h.ctx.Done():
+			stopping = true // flush what is pending on the way out
+		}
+		k.l.mu.Lock()
+		change, ops := k.l.pending, k.l.ops
+		k.l.pending, k.l.ops = "", nil
+		k.l.mu.Unlock()
+
+		ctx := context.Background()
+		changed := false
+		if change != "" {
+			changed = k.save(ctx, change)
+		}
+		if !stopping {
+			for _, op := range ops {
+				if err := k.apply(ctx, op); err != nil {
+					slog.Error("history", "board", k.l.name, "op", op.Kind, "id", op.ID, "err", err)
+				}
+				changed = true
+			}
+		}
+		if changed {
+			if err := k.refresh(ctx); err != nil {
+				slog.Error("history refresh", "board", k.l.name, "err", err)
+			}
+			k.h.Publish(k.l.name)
+		}
+		if stopping {
+			return
+		}
+	}
+}
+
+// save commits the board's drawing as a revision, unless it is unchanged.
+func (k *keeper) save(ctx context.Context, change string) bool {
+	snap := k.l.b.Snapshot()
+	key, _ := json.Marshal(snap)
+	if bytes.Equal(key, k.saved) {
+		return false
+	}
+	amend := (change == "label" || change == "nudge") && change == k.lastOp &&
+		k.lastRev == k.pos.Rev && k.pos.Branch != 0 && time.Since(k.lastAt) < amendFor
+	pos, err := k.h.db.Commit(ctx, k.pos, change, snap, amend)
+	if err != nil {
+		slog.Error("commit", "board", k.l.name, "err", err)
+		return false
+	}
+	k.pos, k.saved = pos, key
+	k.lastOp, k.lastAt, k.lastRev = change, time.Now(), pos.Rev
+	return true
+}
+
+func (k *keeper) apply(ctx context.Context, op HistOp) error {
+	k.lastOp = "" // never fold across a history move
+	switch op.Kind {
+	case "checkout":
+		if !k.l.hist.Load().has(op.ID) {
+			return nil
+		}
+		pos, err := k.h.db.Checkout(ctx, k.pos, op.ID)
+		if err != nil {
+			return err
+		}
+		return k.load(ctx, pos)
+	case "switch":
+		pos, err := k.h.db.Switch(ctx, k.pos, op.ID)
+		if err != nil {
+			return err
+		}
+		return k.load(ctx, pos)
+	case "delbranch":
+		return k.h.db.DeleteBranch(ctx, k.pos, op.ID)
+	case "mainbranch":
+		return k.h.db.MakeMain(ctx, k.pos, op.ID)
+	}
+	return nil
+}
+
+// load puts the drawing at pos on the board.
+func (k *keeper) load(ctx context.Context, pos db.Pos) error {
+	snap, err := k.h.db.Snapshot(ctx, pos.Rev)
+	if err != nil {
+		return err
+	}
+	k.l.b.Replace(snap)
+	k.pos = pos
+	k.saved, _ = json.Marshal(snap)
+	return nil
+}
+
+func (k *keeper) refresh(ctx context.Context) error {
+	revs, branches, err := k.h.db.History(ctx, k.pos.Board)
+	if err != nil {
+		return err
+	}
+	version := 1
+	if old := k.l.hist.Load(); old != nil {
+		version = old.Version + 1
+	}
+	k.l.hist.Store(buildHistory(version, k.pos, revs, branches))
+	return nil
+}
