@@ -84,8 +84,16 @@ func branchMeta(b hub.BranchView) string {
 	return "on this line"
 }
 
+// onMove sends the pointer one post at a time: while one is on its way, the
+// newest position waits (el._again) and goes the moment it returns. Moves are
+// never cancelled. Each cancelled move left a half-closed request on the
+// browser's HTTP/3 connection; enough of them used up its request slots, and
+// then no new request (a move, a click, a page) could start while the open
+// streams went on: the freeze. The server orders strokes by $seq, and the up
+// carries the final point, so a skipped middle position costs nothing.
 func onMove(name string) string {
-	return pointer + post(name, "move")
+	return pointer + "if (el._mv) { el._again = true } else { const send = () => { el._mv = true; el._again = false; " +
+		"@post('/b/" + name + "/move', {requestCancellation: 'disabled'}).finally(() => { el._mv = false; if (el._again) { send() } }) }; send() }"
 }
 
 func onUp(name string) string {
