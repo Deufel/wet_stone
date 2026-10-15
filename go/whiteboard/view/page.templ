@@ -170,6 +170,8 @@ templ boardCard(name string) {
 					data-on:pointerdown={ onDown(name) }
 					data-on:pointermove__window={ onMove(name) }
 					data-on:pointerup__window={ onUp(name) }
+					data-on:pointercancel={ onLost(name) }
+					data-on:lostpointercapture={ onLost(name) }
 					data-on:dblclick={ onDblclick(name) }
 					data-on:contextmenu={ onContext(name) }
 				>
