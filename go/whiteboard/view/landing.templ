@@ -63,7 +63,7 @@ templ Landing(d LandingData) {
 // to one of theirs.
 templ Home(u *db.User, tabs []db.Tab) {
 	@Doc("draw · your boards", nil) {
-		<div class="page home" data-signals={ "{" + savedSignal + ", _rm: {name: '', title: ''}}" } data-init={ streamGet("/stream") }>
+		<div class="page home" data-signals={ "{" + savedSignal + ", _beat: 0, _rm: {name: '', title: ''}}" } data-effect={ aliveBeat } data-init={ streamGet("/stream") }>
 			@appHeader(u)
 			<main class="pg-main scroll-y">
 				<div class="home-body">

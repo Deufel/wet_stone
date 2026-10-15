@@ -260,7 +260,7 @@ func (h *Handler) homeStream(w http.ResponseWriter, r *http.Request) {
 		}
 		return sse.PatchElements(buf.String()) == nil
 	}
-	keep := time.NewTicker(15 * time.Second)
+	keep := time.NewTicker(Beat) // the heartbeat, as on the board's stream
 	defer keep.Stop()
 	if !push() {
 		return
@@ -274,7 +274,7 @@ func (h *Handler) homeStream(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case <-keep.C:
-			if err := sse.Send(datastar.EventType("keepalive"), nil); err != nil {
+			if err := beat(sse); err != nil {
 				return
 			}
 		}
@@ -486,7 +486,7 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 				slog.Error("todos", "board", n, "err", err)
 			} else {
 				buf.Reset()
-				if err := view.Todos(n, list).Render(ctx, &buf); err == nil {
+				if err := view.TodoLists(n, list).Render(ctx, &buf); err == nil {
 					if sse.PatchElements(buf.String()) != nil {
 						return false
 					}
@@ -519,9 +519,10 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 		return history() // after the drawing, never ahead of it
 	}
 
-	// A keepalive, as in eos-go: a data-less event every 15 s so nothing in the
-	// middle culls an idle stream. It is the only timed thing on this wire.
-	keep := time.NewTicker(15 * time.Second)
+	// The heartbeat: every Beat a tiny signal ($_beat) goes down, so nothing in
+	// the middle culls an idle stream, and the page's sentinel (alive.js) knows
+	// the server can still reach it; when the beats stop it greys the page.
+	keep := time.NewTicker(Beat)
 	defer keep.Stop()
 
 	// the tab strip once on connect, too: a page landed before a change on
@@ -547,7 +548,7 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case <-keep.C:
-			if err := sse.Send(datastar.EventType("keepalive"), nil); err != nil {
+			if err := beat(sse); err != nil {
 				return
 			}
 		}
@@ -778,6 +779,14 @@ func (h *Handler) print(w http.ResponseWriter, r *http.Request) {
 	note, _ := h.DB.Note(r.Context(), u.ID, meta.ID)
 	html(w)
 	_ = view.Print(view.PrintData{Name: n, Meta: meta, Drawing: b.Print(), Todos: todos, Note: note, Printed: h.DB.Now(r.Context())}).Render(r.Context(), w)
+}
+
+// Beat is the heartbeat's period; static/alive.js calls the line lost after
+// a little over two missed beats.
+const Beat = 5 * time.Second
+
+func beat(sse *datastar.ServerSentEventGenerator) error {
+	return sse.PatchSignals([]byte(`{"_beat":` + strconv.FormatInt(time.Now().UnixMilli(), 10) + `}`))
 }
 
 // Control characters dropped, capped at max bytes on a rune boundary.

@@ -1,6 +1,7 @@
 package view
 
 import (
+	"strconv"
 	"whiteboard/db"
 	"whiteboard/hub"
 )
@@ -25,7 +26,7 @@ templ Board(d BoardData) {
 		<!-- the board's wiring sits on .page, in a fixed order: the signals are
 		     declared before data-init reads them (a map of body attributes has no
 		     order, and $uid once lost that race) -->
-		<div class="page board-page" data-signals={ pageSignals(d.Inst) } data-init={ onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
+		<div class="page board-page" data-signals={ pageSignals(d.Inst) } data-effect={ aliveBeat } data-init={ onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
 			<header class="pg-header app-header">
 				<button class="brand" popovertarget="nav-drawer" aria-label="Menu" title="Your boards">
 					@Mark()
@@ -49,7 +50,7 @@ templ Board(d BoardData) {
 			@BoardTabs(d.Name, d.User, d.Meta, d.Tabs)
 			<!-- the workspace: the board, its checklist and your notes, laid out
 			     by container queries on the space they get -->
-			<main class="pg-main scroll-y workspace-wrap">
+			<main class="pg-main workspace-wrap">
 				<div class="workspace">
 					@boardCard(d.Name)
 					@TodoCard(d.Name)
@@ -58,6 +59,8 @@ templ Board(d BoardData) {
 			</main>
 		</div>
 		@navDrawer(d)
+		@TodoDrawer(d.Name)
+		@panelMenus(d.Name)
 		@clearDialog(d.Name)
 		<aside id="history-drawer" class="drawer right history-drawer" popover="manual" aria-label="History">
 			<header class="drawer-head">
@@ -90,14 +93,27 @@ templ Board(d BoardData) {
 templ boardCard(name string) {
 	<section class="card board-card" data-class:full="$_full" data-init={ fullSync } aria-label="Whiteboard">
 		<div class="board-panel">
-			<div class="row oneline tools" role="toolbar" aria-label="Tools">
+			<!-- a phone: the tools and the selection's actions as two small menus -->
+			<div class="row oneline panel-menus mobile">
+				<button class="icon tool-now" popovertarget="tools-menu" aria-label="Tools" title="Tools">
+					for _, t := range tools {
+						<span data-show={ "$tool === " + strconv.Itoa(t.n) }>
+							@Icon(t.icon)
+						</span>
+					}
+				</button>
+				<button class="icon" popovertarget="acts-menu" aria-label="Selection" title="Selection">
+					@Icon("more")
+				</button>
+			</div>
+			<div class="button-group tools tablet desktop" role="toolbar" aria-label="Tools">
 				@railTool(0, "select", "Select", "Esc")
 				@railTool(1, "box", "Box", "R")
 				@railTool(2, "line", "Line", "L")
 				@railTool(3, "arrow", "Arrow", "A")
 				@railTool(4, "laser", "Laser", "5")
 			</div>
-			<div class="row oneline acts">
+			<div class="button-group acts tablet desktop">
 				<button class="icon" data-on:click={ post(name, "group") } data-attr:disabled="$nsel < 2" aria-label="Group" title="Group (G)">
 					@Icon("group")
 				</button>
@@ -113,6 +129,10 @@ templ boardCard(name string) {
 			</div>
 			<div class="row oneline ends">
 				<span class="count num"><span data-text="$shapes"></span> shapes</span>
+				<!-- a phone: the checklist opens as a bottom drawer -->
+				<button class="icon todo-open" popovertarget="todo-drawer" aria-label="Checklist" title="Checklist">
+					@Icon("list")
+				</button>
 				<button class="icon" popovertarget="history-drawer" aria-label="History" title="History (⇧H)">
 					@Icon("history")
 				</button>
@@ -143,21 +163,62 @@ templ boardCard(name string) {
 		</div>
 		<!-- the paper sits a few pixels in from the frame, and the grid runs on
 		     under that margin, so its edge marks show whole -->
-		<div class="stage-frame">
-			<div
-				id="stage"
-				data-on:pointerdown={ onDown(name) }
-				data-on:pointermove__window={ onMove(name) }
-				data-on:pointerup__window={ onUp(name) }
-				data-on:dblclick={ onDblclick(name) }
-				data-on:contextmenu={ onContext(name) }
-			>
-				@grid()
-				<svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"></svg>
+		<div class="stage-box">
+			<div class="stage-frame">
+				<div
+					id="stage"
+					data-on:pointerdown={ onDown(name) }
+					data-on:pointermove__window={ onMove(name) }
+					data-on:pointerup__window={ onUp(name) }
+					data-on:dblclick={ onDblclick(name) }
+					data-on:contextmenu={ onContext(name) }
+				>
+					@grid()
+					<svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"></svg>
+				</div>
 			</div>
 		</div>
 	</section>
 }
+
+// panelMenus are the phone's tool and selection menus (the board's panel
+// shows them inline on anything wider).
+templ panelMenus(name string) {
+	<div id="tools-menu" class="menu panel-menu" popover aria-label="Tools">
+		for _, t := range tools {
+			<button data-on:click={ pick(t.n) + "; document.getElementById('tools-menu').hidePopover()" } data-attr:aria-pressed={ pressed(t.n) }>
+				@Icon(t.icon)
+				{ t.label }
+			</button>
+		}
+	</div>
+	<div id="acts-menu" class="menu panel-menu" popover aria-label="Selection">
+		<button data-on:click={ post(name, "group") + "; document.getElementById('acts-menu').hidePopover()" } data-attr:disabled="$nsel < 2">
+			@Icon("group")
+			Group
+		</button>
+		<button data-on:click={ post(name, "ungroup") + "; document.getElementById('acts-menu').hidePopover()" } data-attr:disabled="!$grouped">
+			@Icon("ungroup")
+			Ungroup
+		</button>
+		<button data-on:click={ post(name, "delete") + "; document.getElementById('acts-menu').hidePopover()" } data-attr:disabled="$nsel < 1">
+			@Icon("trash")
+			Delete
+		</button>
+		<hr/>
+		<button class="dgr" data-on:click="document.getElementById('acts-menu').hidePopover(); document.getElementById('clear-confirm').showModal()">
+			@Icon("eraser")
+			Clear the board
+		</button>
+	</div>
+}
+
+type tool struct {
+	n           int
+	icon, label string
+}
+
+var tools = []tool{{0, "select", "Select"}, {1, "box", "Box"}, {2, "line", "Line"}, {3, "arrow", "Arrow"}, {4, "laser", "Laser"}}
 
 // clearDialog: clearing the board asks first (the history still keeps it).
 templ clearDialog(name string) {
@@ -221,7 +282,8 @@ templ navDrawer(d BoardData) {
 }
 
 templ railTool(n int, icon, label, key string) {
-	<button class="tool" data-on:click={ pick(n) } data-attr:aria-pressed={ pressed(n) } aria-label={ label } title={ label }>
+	<!-- a .stack: the icon, and its key over it, shown on hover -->
+	<button class="tool stack" data-on:click={ pick(n) } data-attr:aria-pressed={ pressed(n) } aria-label={ label } title={ label }>
 		@Icon(icon)
 		if key != "" {
 			<kbd>{ key }</kbd>
@@ -235,7 +297,7 @@ templ railTool(n int, icon, label, key string) {
 // The owner renames it in place: a click makes the name editable, Enter or
 // leaving saves, Esc puts it back.
 templ boardTitle(name string, u *db.User, m *hub.Meta) {
-	<div id="board-title" class="board-title" data-signals={ "{_doctitle: " + jsString(m.Title + " · draw") + "}" } data-effect="document.title = $_doctitle">
+	<div id="board-title" class="board-title" data-signals={ "{_doctitle: " + jsString(m.Title+" · draw") + "}" } data-effect="document.title = $_doctitle">
 		<div class="row oneline title-row">
 			<h1 { titleEdit(name, u, m)... }>{ m.Title }</h1>
 			@Saved("title")

@@ -17,7 +17,7 @@ templ TodoCard(name string) {
 			<h2>Checklist</h2>
 			@Saved("todo")
 		</header>
-		@Todos(name, nil)
+		@Todos(name, TodoCardID, nil)
 		<div class="row oneline todo-add">
 			<input type="text" placeholder="Add an item" maxlength="200" aria-label="New checklist item" data-bind:_todo data-on:keydown={ "if (evt.key === 'Enter') { " + todoAdd(name) + " }" }/>
 			<button class="icon" data-on:click={ todoAdd(name) } aria-label="Add" title="Add">
@@ -27,15 +27,49 @@ templ TodoCard(name string) {
 	</section>
 }
 
+// TodoDrawer is the same checklist again, explicitly: on a phone the card has
+// no room in the workspace, and it opens from the board's panel as a bottom
+// drawer. Its list has its own id; the stream sends both.
+templ TodoDrawer(name string) {
+	<aside id="todo-drawer" class="drawer bottom todo-drawer" popover aria-label="Checklist">
+		<header class="drawer-head">
+			<h2>Checklist</h2>
+			@Saved("todo")
+			<button class="icon" popovertarget="todo-drawer" popovertargetaction="hide" aria-label="Close checklist">
+				@Icon("x")
+			</button>
+		</header>
+		@Todos(name, TodoDrawerID, nil)
+		<div class="row oneline todo-add">
+			<input type="text" placeholder="Add an item" maxlength="200" aria-label="New checklist item" data-bind:_todo data-on:keydown={ "if (evt.key === 'Enter') { " + todoAdd(name) + " }" }/>
+			<button class="icon" data-on:click={ todoAdd(name) } aria-label="Add" title="Add">
+				@Icon("plus")
+			</button>
+		</div>
+	</aside>
+}
+
+// The two lists' ids: the card's and the drawer's.
+const (
+	TodoCardID   = "todo"
+	TodoDrawerID = "todo-m"
+)
+
+// TodoLists renders both lists for one stream patch.
+templ TodoLists(name string, list []db.Todo) {
+	@Todos(name, TodoCardID, list)
+	@Todos(name, TodoDrawerID, list)
+}
+
 // Todos is the list: a morph target on the board's stream, sent when it changes.
-templ Todos(name string, list []db.Todo) {
-	<div id="todo" class="todo">
+templ Todos(name, id string, list []db.Todo) {
+	<div id={ id } class="todo">
 		if len(list) > 0 {
 			<p class="todo-sum num">{ todoSum(list) }</p>
 		}
 		<ul class="todo-list">
 			for _, t := range list {
-				<li id={ "todo-" + strconv.FormatInt(t.ID, 10) } data-ui-done?={ t.Done }>
+				<li id={ id + "-" + strconv.FormatInt(t.ID, 10) } data-ui-done?={ t.Done }>
 					<button class="check" data-on:click={ postKept(name, "todo/"+strconv.FormatInt(t.ID, 10)+"/toggle") } aria-pressed={ strconv.FormatBool(t.Done) } aria-label={ "Done: " + t.Text }>
 						if t.Done {
 							@Icon("checked")
