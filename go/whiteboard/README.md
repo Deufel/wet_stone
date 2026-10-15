@@ -19,6 +19,22 @@ answers `200 ok` while the database answers (503 otherwise); the image's
 `-compress` flag (`br`, the default, `gzip` or `none`) exists because some
 proxies hold a compressed stream back; ngrok holds Brotli.
 
+## Measured (draw.deufel.dev, 2026-10-15)
+
+No client-side drawing at all: pointer events go up as commands, and every frame
+is the whole SVG, drawn on the server for each viewer and streamed down as a
+morph. Through Coolify's proxy (HTTP/2, Brotli), from a home connection:
+
+| | |
+|---|---|
+| network round trip (`/healthz`) | ~30 ms |
+| pointer move → server-drawn frame on screen | median 32 ms (25–45) |
+| sustained drag | 121 moves/s in → 116 frames/s applied; last move on screen 25 ms after sending |
+| wire cost per frame (60-box board, Brotli) | ~40 B for a ~5.8 KB SVG (144×) |
+
+The server's whole path (apply, render, compress, stream, morph) costs a few
+milliseconds on top of the round trip.
+
 ## Shape of the code
 
 | package | what |
