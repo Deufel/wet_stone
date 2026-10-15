@@ -92,7 +92,7 @@ var boardName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,39}$`)
 
 var ops = map[string]bool{
 	"down": true, "move": true, "up": true, "delete": true, "clear": true, "link": true,
-	"label": true, "nudge": true, "group": true, "ungroup": true, "locktoggle": true,
+	"label": true, "editsel": true, "nudge": true, "group": true, "ungroup": true, "locktoggle": true,
 }
 
 var histOps = map[string]bool{"checkout": true, "switch": true, "delbranch": true, "mainbranch": true}
@@ -521,7 +521,7 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The heartbeat: every Beat a tiny signal ($_beat) goes down, so nothing in
-	// the middle culls an idle stream, and the page's sentinel (alive.js) knows
+	// the middle culls an idle stream, and the page's sentinel (Datastar, view/js.go aliveCheck) knows
 	// the server can still reach it; when the beats stop it greys the page.
 	keep := time.NewTicker(Beat)
 	defer keep.Stop()
@@ -782,7 +782,7 @@ func (h *Handler) print(w http.ResponseWriter, r *http.Request) {
 	_ = view.Print(view.PrintData{Name: n, Meta: meta, Drawing: b.Print(), Todos: todos, Note: note, Printed: h.DB.Now(r.Context())}).Render(r.Context(), w)
 }
 
-// Beat is the heartbeat's period; static/alive.js calls the line lost after
+// Beat is the heartbeat's period; the page's sentinel calls the line lost after
 // a little over two missed beats.
 const Beat = 5 * time.Second
 

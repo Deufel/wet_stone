@@ -48,7 +48,10 @@ func onInit(name string) string {
 // browser window: a release out there used to be lost, the drag never ended,
 // and the shape kept following the mouse (the "freeze").
 func onDown(name string) string {
-	return "if (evt.button === 0) { evt.preventDefault(); try { el.setPointerCapture(evt.pointerId) } catch {} $_drag = true; " + pointer +
+	// a press on the board ends an open label edit first (preventDefault keeps
+	// focus where it was, so the editor would never hear its blur)
+	return "if ($_ledit) { document.getElementById('label-edit').blur() } " +
+		"if (evt.button === 0) { evt.preventDefault(); try { el.setPointerCapture(evt.pointerId) } catch {} $_drag = true; " + pointer +
 		"$dseq = $seq; " + postKept(name, "down") + " }"
 }
 
@@ -89,6 +92,24 @@ func onUp(name string) string {
 	return "$_drag = false; " + pointer + postKept(name, "up")
 }
 
+
+
+// The label editor. It opens when the server bumps $edit (sending the
+// shape's label box, $lbox, and its text, $label) and only then: el._seen
+// keeps a change of $label from reopening it.
+const labelBoxStyle = "{left: $lbox[0] / 10 + '%', top: $lbox[1] / 10 + '%', width: $lbox[2] / 10 + '%', height: $lbox[3] / 10 + '%'}"
+
+const labelOpen = "if ($edit > 0 && $edit !== el._seen) { el._seen = $edit; $_ledit = true; el.textContent = $label; " +
+	"requestAnimationFrame(() => { el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r) }) }"
+
+// Enter or leaving the editor saves; Esc puts it back. Its keys stop here.
+const labelKeys = "evt.stopPropagation(); if (evt.key === 'Enter') { evt.preventDefault(); el.blur() } else if (evt.key === 'Escape') { evt.preventDefault(); el._cancel = true; el.blur() }"
+
+func labelCommit(name string) string {
+	return "if ($_ledit) { $_ledit = false; const t = el.textContent.replace(/\\s+/g, ' ').trim().slice(0, 48); " +
+		"if (!el._cancel && t !== $label) { $label = t; " + postKept(name, "label") + " } el._cancel = false }"
+}
+
 func onDblclick(name string) string {
 	return "const r = stage.getBoundingClientRect(); $lx = Math.round((evt.clientX - r.left) * 1000 / r.width); $ly = Math.round((evt.clientY - r.top) * 1000 / r.height); " +
 		postKept(name, "link")
@@ -102,15 +123,14 @@ func onKey(name string) string {
 	return strings.Join([]string{
 		"const k = evt.key, t = evt.target;",
 		"const d = {ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], h: [-1, 0], j: [0, 1], k: [0, -1], l: [1, 0]}[k];",
-		"if (t.id === 'label') { if (k === 'Enter' || k === 'Escape') { evt.preventDefault(); " + post(name, "label") + "; t.blur() } }",
-		"else if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.isContentEditable) {}",
+		"if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.isContentEditable) {}",
 		"else if (evt.ctrlKey || evt.metaKey || evt.altKey) {}",
 		"else if (t.tagName === 'BUTTON' && k === 'Enter') {}",
 		"else if (k === '?') { evt.preventDefault(); document.getElementById('keys').showModal() }",
 		"else if (k === 'H') { document.getElementById('history-drawer').togglePopover() }",
 		"else if (k === 'f' || k === 'F') { " + fullToggle + " }",
 		"else if (k === 'Escape') { if ($tool !== 0) { $_prev = $tool; $tool = 0 } else { $tool = $_prev } }",
-		"else if (k === 'Enter' && $sel >= 0) { evt.preventDefault(); document.getElementById('label').focus(); document.getElementById('label').select() }",
+		"else if (k === 'Enter' && $sel >= 0) { evt.preventDefault(); " + postKept(name, "editsel") + " }",
 		"else if (d && $nsel > 0 && (k.startsWith('Arrow') || $tool === 0)) { evt.preventDefault(); $ndx = d[0]; $ndy = d[1]; " + postKept(name, "nudge") + " }",
 		"else if (k === 'Delete' || k === 'Backspace') { " + post(name, "delete") + " }",
 		"else if (k === 'g') { " + post(name, "group") + " }",
@@ -145,8 +165,17 @@ func titleEdit(name string, u *db.User, m *hub.Meta) templ.Attributes {
 	}
 }
 
-// aliveBeat hands each heartbeat to the sentinel (static/alive.js).
-const aliveBeat = "$_beat && window.alive && window.alive.beat()"
+// The alive sentinel, in Datastar: each heartbeat ($_beat, every 5 s from the
+// stream) stamps the page element (el.beatAt); once a second, a visible page
+// with no beat for 12 s goes black and white (mike.css .bw on <html>,
+// data-ui-lost too), and the next beat brings the colour back. A hidden tab's
+// stream is closed on purpose, so while hidden the stamp is kept fresh (a
+// grace on return). It arms on the first beat: a page with no stream never
+// greys. (The stamp is not a signal: an effect that assigns a signal also
+// reads it, re-runs on its own write, and the stamp never aged.)
+const aliveBeat = "$_beat && (el.beatAt = Date.now())"
+
+const aliveCheck = "if (el.beatAt) { if (document.hidden) { el.beatAt = Date.now() } else { const lost = Date.now() - el.beatAt > 12000; document.documentElement.classList.toggle('bw', lost); document.documentElement.toggleAttribute('data-ui-lost', lost) } }"
 
 // newBoard makes a board; the answer sends the page to it.
 func newBoard(vis string) string { return "@post('/new/" + vis + "')" }
@@ -154,7 +183,7 @@ func newBoard(vis string) string { return "@post('/new/" + vis + "')" }
 // pageSignals: the board page's signals, with the server process it landed on.
 func pageSignals(inst string) string { return "{inst: " + jsString(inst) + ", " + signals[1:] }
 
-const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, dseq: 0, _drag: false, _beat: 0, _full: false, _todo: '', _notes: {text: '', lang: '', v: 0}, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _prev: 0}"
+const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, dseq: 0, lbox: [0, 0, 0, 0], _ledit: false, _drag: false, _beat: 0, _full: false, _todo: '', _notes: {text: '', lang: '', v: 0}, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _prev: 0}"
 
 // fullToggle: the whiteboard alone on the screen. The card fills the window
 // ($_full, CSS); where the browser can, the window goes full screen too (an
@@ -163,8 +192,6 @@ const fullToggle = "$_full = !$_full; if ($_full) { document.documentElement.req
 
 // fullSync: leaving the browser's full screen (Esc, a gesture) leaves ours too.
 const fullSync = "document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $_full) { $_full = false } })"
-
-const editFocus = "$edit > 0 && setTimeout(() => { el.focus(); el.select() })"
 
 func pressed(tool int) string {
 	return "$tool === " + string(rune('0'+tool)) + " ? 'true' : 'false'"

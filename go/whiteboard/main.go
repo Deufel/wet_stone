@@ -12,9 +12,9 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"context"
 	"errors"
 	"flag"
 	"log/slog"
@@ -36,6 +36,22 @@ import (
 
 	"github.com/go-chi/chi/v5"
 )
+
+// slowLog names any request (not a stream) that took longer than it should:
+// the trail to follow if the board ever freezes again.
+func slowLog(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/stream") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		if d := time.Since(start); d > 300*time.Millisecond {
+			slog.Warn("slow request", "method", r.Method, "path", r.URL.Path, "ms", d.Milliseconds())
+		}
+	})
+}
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8081", "listen address")
@@ -78,6 +94,7 @@ func main() {
 
 	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
 	r := chi.NewRouter()
+	r.Use(slowLog)
 	r.Use(a.Middleware)
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServerFS(static.FS)))
 	// this process's id: a page carries it, and a page from another process

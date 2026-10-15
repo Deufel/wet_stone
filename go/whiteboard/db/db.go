@@ -20,7 +20,10 @@ import (
 //go:embed schema.sql
 var schema string
 
-type DB struct{ sql *sql.DB }
+type DB struct {
+	sql *sql.DB // the one writer
+	rd  *sql.DB // the readers (WAL: any number beside the writer)
+}
 
 // Rev is one revision without its drawing.
 type Rev struct {
@@ -60,10 +63,32 @@ func Open(path string) (*DB, error) {
 		sqldb.Close()
 		return nil, err
 	}
-	return &DB{sql: sqldb}, nil
+	// The readers: WAL lets any number of them run beside the one writer, so
+	// a session lookup (every request, every pointer move) or a page's reads
+	// never queue behind a commit. query_only keeps them honest.
+	rd, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(on)&_pragma=query_only(1)")
+	if err != nil {
+		sqldb.Close()
+		return nil, fmt.Errorf("open readers: %w", err)
+	}
+	rd.SetMaxOpenConns(8)
+	rd.SetMaxIdleConns(8)
+	return &DB{sql: sqldb, rd: rd}, nil
 }
 
-func (d *DB) Close() error { return d.sql.Close() }
+// reading detaches a read from its request's cancellation (with its own short
+// limit instead). A cancelled context makes the driver interrupt the
+// connection mid-query, and with a pool of connections that interrupt can
+// linger and fail the next query to use it (eos-go learnt this); a page
+// cancels its pointer posts all the time.
+func reading(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+}
+
+func (d *DB) Close() error {
+	d.rd.Close()
+	return d.sql.Close()
+}
 
 // Ping reports whether the database answers.
 func (d *DB) Ping(ctx context.Context) error { return d.sql.PingContext(ctx) }
@@ -107,12 +132,14 @@ func (d *DB) Ensure(ctx context.Context, name string) (Pos, error) {
 
 // Snapshot loads one revision's drawing; revision 0 is the empty board.
 func (d *DB) Snapshot(ctx context.Context, rev int64) (board.Snapshot, error) {
+	ctx, cancel := reading(ctx)
+	defer cancel()
 	var snap board.Snapshot
 	if rev == 0 {
 		return snap, nil
 	}
 	var raw string
-	if err := d.sql.QueryRowContext(ctx, `SELECT snapshot FROM revisions WHERE id = ?`, rev).Scan(&raw); err != nil {
+	if err := d.rd.QueryRowContext(ctx, `SELECT snapshot FROM revisions WHERE id = ?`, rev).Scan(&raw); err != nil {
 		return snap, err
 	}
 	return snap, json.Unmarshal([]byte(raw), &snap)
@@ -120,7 +147,9 @@ func (d *DB) Snapshot(ctx context.Context, rev int64) (board.Snapshot, error) {
 
 // History lists the board's revisions (oldest first) and branches.
 func (d *DB) History(ctx context.Context, boardID int64) ([]Rev, []Branch, error) {
-	rows, err := d.sql.QueryContext(ctx, `SELECT id, COALESCE(parent_id, 0), at_ms, op, shapes FROM revisions WHERE board_id = ? ORDER BY id`, boardID)
+	ctx, cancel := reading(ctx)
+	defer cancel()
+	rows, err := d.rd.QueryContext(ctx, `SELECT id, COALESCE(parent_id, 0), at_ms, op, shapes FROM revisions WHERE board_id = ? ORDER BY id`, boardID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -137,7 +166,7 @@ func (d *DB) History(ctx context.Context, boardID int64) ([]Rev, []Branch, error
 	}
 	rows.Close()
 
-	rows, err = d.sql.QueryContext(ctx, `SELECT id, name, COALESCE(head, 0), is_main FROM branches WHERE board_id = ? ORDER BY id`, boardID)
+	rows, err = d.rd.QueryContext(ctx, `SELECT id, name, COALESCE(head, 0), is_main FROM branches WHERE board_id = ? ORDER BY id`, boardID)
 	if err != nil {
 		return nil, nil, err
 	}

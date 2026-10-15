@@ -34,7 +34,7 @@ type Hub struct {
 	wg     sync.WaitGroup
 
 	mu     sync.Mutex
-	boards map[string]*live
+	boards map[string]*slot // a board loaded, or loading
 }
 
 type live struct {
@@ -42,7 +42,7 @@ type live struct {
 	b    *board.Board
 	hist atomic.Pointer[History]
 	meta atomic.Pointer[Meta]
-	todo atomic.Int64 // the checklist's version: a stream re-reads it when this moves
+	todo atomic.Int64  // the checklist's version: a stream re-reads it when this moves
 	wake chan struct{} // cap 1
 
 	mu      sync.Mutex
@@ -58,7 +58,7 @@ type HistOp struct {
 
 func New(d *db.DB, b *bus.Bus) *Hub {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Hub{db: d, bus: b, ctx: ctx, cancel: cancel, boards: map[string]*live{}}
+	return &Hub{db: d, bus: b, ctx: ctx, cancel: cancel, boards: map[string]*slot{}}
 }
 
 // Meta is a board's identity and access list, versioned so a stream re-sends
@@ -130,20 +130,59 @@ func (h *Hub) Share(ctx context.Context, name, op, arg string) error {
 // History is the board's current history view (replaced whole on change).
 func (h *Hub) History(name string) *History {
 	h.mu.Lock()
-	l := h.boards[name]
+	s := h.boards[name]
 	h.mu.Unlock()
-	if l == nil {
+	if s == nil {
 		return nil
 	}
-	return l.hist.Load()
+	select {
+	case <-s.ready:
+	default:
+		return nil // still loading
+	}
+	if s.l == nil {
+		return nil
+	}
+	return s.l.hist.Load()
+}
+
+// slot is a board in the hub: loaded once by whoever asked first, while the
+// others wait on ready. The hub's lock covers only the map, never the load
+// (the database work, the history, the thumbnails): it once covered it all,
+// so loading one board held up every command on every board.
+type slot struct {
+	ready chan struct{}
+	l     *live
+	err   error
 }
 
 func (h *Hub) live(ctx context.Context, name string) (*live, error) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-	if l, ok := h.boards[name]; ok {
-		return l, nil
+	s, ok := h.boards[name]
+	if !ok {
+		s = &slot{ready: make(chan struct{})}
+		h.boards[name] = s
 	}
+	h.mu.Unlock()
+	if !ok {
+		s.l, s.err = h.load(context.WithoutCancel(ctx), name)
+		if s.err != nil { // forget it, so the next ask tries again
+			h.mu.Lock()
+			delete(h.boards, name)
+			h.mu.Unlock()
+		}
+		close(s.ready)
+	}
+	select {
+	case <-s.ready:
+		return s.l, s.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// load reads a board in and starts its keeper and ticker.
+func (h *Hub) load(ctx context.Context, name string) (*live, error) {
 	pos, err := h.db.Ensure(ctx, name)
 	if err != nil {
 		return nil, err
@@ -164,7 +203,6 @@ func (h *Hub) live(ctx context.Context, name string) (*live, error) {
 	if err := k.refresh(ctx); err != nil {
 		return nil, err
 	}
-	h.boards[name] = l
 	h.wg.Add(2)
 	go k.run()
 	go h.ticker(l)

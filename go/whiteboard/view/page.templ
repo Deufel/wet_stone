@@ -26,7 +26,7 @@ templ Board(d BoardData) {
 		<!-- the board's wiring sits on .page, in a fixed order: the signals are
 		     declared before data-init reads them (a map of body attributes has no
 		     order, and $uid once lost that race) -->
-		<div class="page board-page" data-signals={ pageSignals(d.Inst) } data-effect={ aliveBeat } data-init={ onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
+		<div class="page board-page" data-signals={ pageSignals(d.Inst) } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
 			<header class="pg-header app-header">
 				<button class="brand" popovertarget="nav-drawer" aria-label="Menu" title="Your boards">
 					@Mark()
@@ -102,20 +102,25 @@ templ boardCard(name string) {
 				</button>
 			</div>
 			<div class="button-group acts tablet desktop">
-				<button class="icon" data-on:click={ post(name, "group") } data-attr:disabled="$nsel < 2" aria-label="Group" title="Group (G)">
+				<button class="tool stack" data-on:click={ post(name, "group") } data-attr:disabled="$nsel < 2" aria-label="Group" title="Group">
 					@Icon("group")
+					<kbd>G</kbd>
 				</button>
-				<button class="icon" data-on:click={ post(name, "ungroup") } data-attr:disabled="!$grouped" aria-label="Ungroup" title="Ungroup (⇧G)">
+				<button class="tool stack" data-on:click={ post(name, "ungroup") } data-attr:disabled="!$grouped" aria-label="Ungroup" title="Ungroup">
 					@Icon("ungroup")
+					<kbd>⇧G</kbd>
 				</button>
-				<button class="icon" data-on:click={ post(name, "delete") } data-attr:disabled="$nsel < 1" aria-label="Delete" title="Delete (Del)">
+				<button class="tool stack" data-on:click={ post(name, "delete") } data-attr:disabled="$nsel < 1" aria-label="Delete" title="Delete">
 					@Icon("trash")
+					<kbd>Del</kbd>
 				</button>
-				<button class="icon dgr" data-on:click="document.getElementById('clear-confirm').showModal()" aria-label="Clear the board" title="Clear the board">
+				<button class="tool stack dgr" data-on:click="document.getElementById('clear-confirm').showModal()" aria-label="Clear the board" title="Clear the board">
 					@Icon("eraser")
 				</button>
 			</div>
 			<div class="row oneline ends">
+				<span class="note" data-text="$note" aria-live="polite"></span>
+				@Saved("label")
 				<span class="count num"><span data-text="$shapes"></span> shapes</span>
 				<!-- a phone: the checklist opens as a bottom drawer -->
 				<button class="icon todo-open" popovertarget="todo-drawer" aria-label="Checklist" title="Checklist">
@@ -133,21 +138,6 @@ templ boardCard(name string) {
 					</span>
 				</button>
 			</div>
-		</div>
-		<div class="row oneline label-row">
-			<input
-				id="label"
-				type="text"
-				placeholder="Label the selected shape"
-				maxlength="48"
-				aria-label="Label of the selected shape"
-				data-bind:label
-				data-attr:disabled="$sel < 0"
-				data-on:input__debounce.200ms={ post(name, "label") }
-				data-effect={ editFocus }
-			/>
-			@Saved("label")
-			<span class="note" data-text="$note" aria-live="polite"></span>
 		</div>
 		<!-- the body: the tools in a column at the paper's left (a phone has them
 		     in the panel's menu), then the paper. The paper sits a few pixels in
@@ -175,6 +165,23 @@ templ boardCard(name string) {
 				>
 					@grid()
 					<svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"></svg>
+				<!-- the label editor: opened over a shape's label box (a double-click,
+				     a click on its label, Enter), typed in place, sent on leaving it;
+				     the server draws the label back into the shape -->
+				<div
+					id="label-edit"
+					class="label-edit"
+					contenteditable="plaintext-only"
+					spellcheck="false"
+					role="textbox"
+					aria-label="Label"
+					data-show="$_ledit"
+					data-style={ labelBoxStyle }
+					data-effect={ labelOpen }
+					data-on:keydown={ labelKeys }
+					data-on:blur={ labelCommit(name) }
+					data-on:pointerdown="evt.stopPropagation()"
+				></div>
 				</div>
 			</div>
 		</div>

@@ -26,7 +26,9 @@ func (b *Board) link(c Cmd) {
 		s := &b.Shapes[i]
 		switch s.Kind {
 		case Box:
-			for a := uint8(0); a < AnchorCount; a++ {
+			// its ports only (corners, edge midpoints): a link is never made
+			// at a box's centre, and a double-click there means its label
+			for a := uint8(0); a < PortCount; a++ {
 				ax, ay := anchorPoint(s, a)
 				if d := dist2(c.X, c.Y, ax, ay); d < best {
 					best, tx, ty = d, ax, ay

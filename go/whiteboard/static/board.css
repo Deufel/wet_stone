@@ -52,7 +52,7 @@
   :where(.workspace) > :where(.todo-card) { grid-area: todo; }
   :where(.workspace) > :where(.notes-card) { grid-area: notes; }
   :where(.workspace) > :where(.card) { display: grid; align-content: start; gap: 0.35lh; padding: 0.45lh 0.7em; min-inline-size: 0; min-block-size: 0; overflow: hidden; }
-  :where(.workspace) > :where(.board-card) { grid-template-rows: auto auto minmax(0, 1fr); align-content: stretch; }
+  :where(.workspace) > :where(.board-card) { grid-template-rows: auto minmax(0, 1fr); align-content: stretch; }
   :where(.workspace) > :where(.todo-card) { grid-template-rows: auto minmax(0, 1fr) auto; align-content: stretch; }
   :where(.workspace) > :where(.notes-card) { grid-template-rows: auto minmax(0, 1fr); align-content: stretch; }
   /* the checklist's drawer button shows only while its card does not */
@@ -125,9 +125,6 @@
   :where(.panel-menu) :where(button[aria-pressed="true"]) { --lift: 0.16; font-weight: 600; }
   :where(.panel-menu) :where(button) > :where(svg) { inline-size: 1.05em; block-size: 1.05em; }
   :where(.panel-menu) > :where(hr) { margin-block: 0.2lh; }
-  :where(.label-row) { gap: 0.6em; align-items: center; min-inline-size: 0; }
-  :where(.label-row) > :where(#label) { flex: 0 1 18em; min-inline-size: 0; }
-  :where(.label-row) > :where(.note) { flex: 1 1 0; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; --fg: 0.6; --type: -1; }
 
   /* the paper: the largest square the space left in the card holds (the
      stage box is a size container for exactly that); it sits a few pixels in
@@ -142,8 +139,16 @@
     border: 1px solid color-mix(in oklch, currentColor 22%, transparent);
     box-shadow: 0 0.1lh 0.6lh color-mix(in oklch, currentColor 10%, transparent);
   }
-  :where(#stage) { position: relative; inline-size: 100%; block-size: 100%; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  :where(#stage) { container-type: size; position: relative; inline-size: 100%; block-size: 100%; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
   :where(#stage) > :where(svg.grid) { overflow: visible; }
+  /* the label editor, over the shape's label box: the drawn label's face and
+     size (26 board units: 2.6% of the paper), so typing reads as the label */
+  :where(.label-edit) {
+    position: absolute; z-index: 3; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
+    padding: 0.2em; font-size: 2.6cqi; line-height: 1.15; text-align: center; white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden;
+    border-radius: 6px; outline: 2px solid var(--focus); outline-offset: 0; cursor: text; user-select: text; -webkit-user-select: text;
+    background: color-mix(in oklch, Canvas 82%, transparent);
+  }
 
   /* full screen: the whiteboard alone, its panel on top */
   :where(.board-card.full) {

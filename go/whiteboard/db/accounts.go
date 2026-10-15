@@ -104,11 +104,13 @@ func (d *DB) NewSession(ctx context.Context, userID int64) (string, time.Time, e
 
 // SessionUser returns the user a live session token belongs to, or nil.
 func (d *DB) SessionUser(ctx context.Context, token string) (*User, error) {
+	ctx, cancel := reading(ctx)
+	defer cancel()
 	if token == "" {
 		return nil, nil
 	}
 	var u User
-	err := d.sql.QueryRowContext(ctx, `SELECT u.id, u.sub, u.email, u.name, u.picture FROM sessions s
+	err := d.rd.QueryRowContext(ctx, `SELECT u.id, u.sub, u.email, u.name, u.picture FROM sessions s
 		JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_ms > ?`,
 		hashToken(token), time.Now().UnixMilli()).Scan(&u.ID, &u.Sub, &u.Email, &u.Name, &u.Picture)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -133,9 +135,11 @@ func hashToken(t string) string {
 
 // Meta loads a board's identity and access list.
 func (d *DB) Meta(ctx context.Context, name string) (Meta, error) {
+	ctx, cancel := reading(ctx)
+	defer cancel()
 	m := Meta{Name: name}
 	var owner sql.NullInt64
-	err := d.sql.QueryRowContext(ctx, `SELECT id, title, visibility, owner_id FROM boards WHERE name = ?`, name).
+	err := d.rd.QueryRowContext(ctx, `SELECT id, title, visibility, owner_id FROM boards WHERE name = ?`, name).
 		Scan(&m.ID, &m.Title, &m.Visibility, &owner)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrNoBoard
@@ -144,7 +148,7 @@ func (d *DB) Meta(ctx context.Context, name string) (Meta, error) {
 		return m, err
 	}
 	m.OwnerID = owner.Int64
-	rows, err := d.sql.QueryContext(ctx, `SELECT email FROM board_access WHERE board_id = ? ORDER BY email`, m.ID)
+	rows, err := d.rd.QueryContext(ctx, `SELECT email FROM board_access WHERE board_id = ? ORDER BY email`, m.ID)
 	if err != nil {
 		return m, err
 	}
@@ -228,15 +232,19 @@ func (d *DB) OpenTab(ctx context.Context, userID, boardID int64) (bool, error) {
 
 // UserID is the account with this email, or 0 when nobody has signed in with it.
 func (d *DB) UserID(ctx context.Context, email string) int64 {
+	ctx, cancel := reading(ctx)
+	defer cancel()
 	var id int64
-	_ = d.sql.QueryRowContext(ctx, `SELECT id FROM users WHERE email = ?`, strings.ToLower(strings.TrimSpace(email))).Scan(&id)
+	_ = d.rd.QueryRowContext(ctx, `SELECT id FROM users WHERE email = ?`, strings.ToLower(strings.TrimSpace(email))).Scan(&id)
 	return id
 }
 
 // TabHolders are the users who have the board in their tabs: the people a
 // rename has to reach.
 func (d *DB) TabHolders(ctx context.Context, boardID int64) ([]int64, error) {
-	rows, err := d.sql.QueryContext(ctx, `SELECT user_id FROM tabs WHERE board_id = ?`, boardID)
+	ctx, cancel := reading(ctx)
+	defer cancel()
+	rows, err := d.rd.QueryContext(ctx, `SELECT user_id FROM tabs WHERE board_id = ?`, boardID)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +267,9 @@ func (d *DB) CloseTab(ctx context.Context, userID int64, name string) error {
 
 // Tabs lists the user's boards, the global board first, then in the order opened.
 func (d *DB) Tabs(ctx context.Context, userID int64) ([]Tab, error) {
-	rows, err := d.sql.QueryContext(ctx, `SELECT b.name, b.title, b.visibility, COALESCE(b.owner_id, 0) = ?
+	ctx, cancel := reading(ctx)
+	defer cancel()
+	rows, err := d.rd.QueryContext(ctx, `SELECT b.name, b.title, b.visibility, COALESCE(b.owner_id, 0) = ?
 		FROM tabs t JOIN boards b ON b.id = t.board_id WHERE t.user_id = ?
 		ORDER BY b.visibility = 'global' DESC, t.opened_ms`, userID, userID)
 	if err != nil {

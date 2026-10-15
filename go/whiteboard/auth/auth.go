@@ -10,14 +10,15 @@
 package auth
 
 import (
+	"sync"
 	"whiteboard/ack"
 
-	"github.com/starfederation/datastar-go/datastar"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/starfederation/datastar-go/datastar"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -38,6 +39,33 @@ type Auth struct {
 	ClientSecret string
 	BaseURL      string // https://draw.deufel.dev — the redirect URI is built from it
 	Dev          bool   // allow /auth/dev: local testing without Google
+
+	sessions sync.Map // token → cached: a session's user, for a moment
+}
+
+// cached is a session looked up a moment ago. Every request carries the
+// cookie (every pointer move); the user behind it changes only at sign-out,
+// which forgets it here at once.
+type cached struct {
+	u  *db.User
+	at time.Time
+}
+
+const sessionCacheFor = 30 * time.Second
+
+func (a *Auth) sessionUser(ctx context.Context, token string) (*db.User, error) {
+	if v, ok := a.sessions.Load(token); ok {
+		if c := v.(cached); time.Since(c.at) < sessionCacheFor {
+			return c.u, nil
+		}
+	}
+	u, err := a.DB.SessionUser(ctx, token)
+	if err == nil && u != nil {
+		a.sessions.Store(token, cached{u, time.Now()})
+	} else if err == nil {
+		a.sessions.Delete(token)
+	}
+	return u, err
 }
 
 // Google reports whether Google sign-in is configured.
@@ -49,7 +77,7 @@ type ctxKey struct{}
 func (a *Auth) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if c, err := r.Cookie(sessionCookie); err == nil {
-			u, err := a.DB.SessionUser(r.Context(), c.Value)
+			u, err := a.sessionUser(r.Context(), c.Value)
 			if err != nil {
 				slog.Error("session", "err", err)
 			}
@@ -219,6 +247,7 @@ func (a *Auth) session(w http.ResponseWriter, r *http.Request, userID int64) boo
 // post: the cookie goes in the headers, then the stream sends the page home.
 func (a *Auth) Logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(sessionCookie); err == nil {
+		a.sessions.Delete(c.Value)
 		_ = a.DB.EndSession(r.Context(), c.Value)
 	}
 	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Path: "/", MaxAge: -1, HttpOnly: true, Secure: a.secure(r), SameSite: http.SameSiteLaxMode})

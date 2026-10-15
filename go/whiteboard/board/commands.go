@@ -44,6 +44,11 @@ func (b *Board) Apply(c Cmd) (change string) {
 	case "link":
 		b.link(c)
 		return "link"
+	case "editsel": // Enter: the selected shape's editor opens
+		if u := b.userFor(c.UID); u != nil && u.Selected >= 0 && b.Shapes[u.Selected].Kind != None {
+			u.EditSeq++
+		}
+		return ""
 	case "label":
 		b.label(c)
 		return "label"
@@ -261,6 +266,10 @@ func (b *Board) down(c Cmd) {
 				u.Drag = Drag{Kind: DragGroup, Shape: index, GX: c.X, GY: c.Y, Toggle: -1}
 			}
 		}
+		// a press on a label's text: let go without moving, and its editor opens
+		if hit && u.Drag.Kind != DragHandle && b.onLabel(&b.Shapes[index], c.X, c.Y) {
+			u.Drag.Label, u.Drag.PX, u.Drag.PY = true, c.X, c.Y
+		}
 	}
 }
 
@@ -392,6 +401,9 @@ func (b *Board) up(c Cmd) (change string) {
 	u.clearGuides()
 	drag := u.Drag
 	u.Drag = Drag{}
+	if drag.Label && abs32(c.X-drag.PX) <= 4 && abs32(c.Y-drag.PY) <= 4 {
+		u.EditSeq++ // a click on the label: the page opens its editor
+	}
 	switch drag.Kind {
 	case DragMarquee:
 		b.marqueeSelect(u, drag.GX, drag.GY, c.X, c.Y)

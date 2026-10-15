@@ -29,7 +29,9 @@ const whenSQL = `CASE WHEN date(%[1]s, 'unixepoch', 'localtime') = date('now', '
 // Todos lists a board's checklist: open items first in the order added, then
 // the done ones, most recently done first.
 func (d *DB) Todos(ctx context.Context, boardID int64) ([]Todo, error) {
-	rows, err := d.sql.QueryContext(ctx, `SELECT t.id, t.text, t.done_at IS NOT NULL,
+	ctx, cancel := reading(ctx)
+	defer cancel()
+	rows, err := d.rd.QueryContext(ctx, `SELECT t.id, t.text, t.done_at IS NOT NULL,
 		COALESCE(`+sprintf(whenSQL, "t.done_at")+`, ''),
 		COALESCE(substr(u.name, 1, instr(u.name || ' ', ' ') - 1), ''),
 		COALESCE(strftime('%Y-%m-%dT%H:%M:%SZ', t.done_at, 'unixepoch'), '')
@@ -81,8 +83,10 @@ type Note struct {
 }
 
 func (d *DB) Note(ctx context.Context, userID, boardID int64) (Note, error) {
+	ctx, cancel := reading(ctx)
+	defer cancel()
 	var n Note
-	err := d.sql.QueryRowContext(ctx, `SELECT text, lang, updated_at FROM notes WHERE user_id = ? AND board_id = ?`, userID, boardID).
+	err := d.rd.QueryRowContext(ctx, `SELECT text, lang, updated_at FROM notes WHERE user_id = ? AND board_id = ?`, userID, boardID).
 		Scan(&n.Text, &n.Lang, &n.Updated)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Note{}, nil
@@ -99,7 +103,9 @@ func (d *DB) SaveNote(ctx context.Context, userID, boardID int64, text, lang str
 
 // Now is SQLite's clock, formatted for a printed page.
 func (d *DB) Now(ctx context.Context) string {
+	ctx, cancel := reading(ctx)
+	defer cancel()
 	var s string
-	_ = d.sql.QueryRowContext(ctx, `SELECT strftime('%Y-%m-%d %H:%M', 'now', 'localtime')`).Scan(&s)
+	_ = d.rd.QueryRowContext(ctx, `SELECT strftime('%Y-%m-%d %H:%M', 'now', 'localtime')`).Scan(&s)
 	return s
 }

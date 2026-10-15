@@ -91,6 +91,8 @@ type Drag struct {
 	AX, AY int32 // Group: the grid delta applied so far
 	Toggle int32 // Group: the shape a click without movement deselects, -1 = none
 	Moved  bool  // Group: the pointer has really moved
+	Label  bool  // the press was on the shape's label text: let go here, it is a click that edits it
+	PX, PY int32 // where the press was
 }
 
 // One smoothed piece of a laser stroke: a quadratic from a through control c

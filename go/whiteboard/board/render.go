@@ -56,7 +56,42 @@ func (w *writer) circle(cx, cy, r int32, extra string) {
 }
 
 // a label as a foreignObject the engine types, centered in the given box
-func (w *writer) label(s *Shape, x, y, width, height int32) {
+// labelBox is where a shape's label sits, [x, y, w, h] in board units: a
+// box's own rectangle, a connector's band across its middle. The page's label
+// editor opens over exactly this box.
+func (b *Board) labelBox(s *Shape) [4]int32 {
+	if s.Kind == Box {
+		x1, x2 := min(s.X1, s.X2), max(s.X1, s.X2)
+		y1, y2 := min(s.Y1, s.Y2), max(s.Y1, s.Y2)
+		return [4]int32{x1, y1, x2 - x1, y2 - y1}
+	}
+	ax, ay := b.endPoint(s, 0)
+	bx, by := b.endPoint(s, 1)
+	return [4]int32{(ax+bx)/2 - 120, (ay+by)/2 - 22, 240, 44}
+}
+
+// onLabel reports whether (x, y) is on the shape's label text: centred in its
+// label box, about 15 units a character at the 26-unit face, wrapping when
+// the box is narrow (the server's estimate; the page needs no hit test).
+func (b *Board) onLabel(s *Shape, x, y int32) bool {
+	n := int32(len([]rune(s.Label)))
+	if n == 0 {
+		return false
+	}
+	box := b.labelBox(s)
+	cx, cy := box[0]+box[2]/2, box[1]+box[3]/2
+	width := n*15 + 16
+	lines := int32(1)
+	if inner := box[2] - 16; inner > 0 && width > inner {
+		lines = (width + inner - 1) / inner
+		width = inner
+	}
+	halfW, halfH := width/2, min(box[3]/2, lines*15+8)
+	return abs32(x-cx) <= halfW && abs32(y-cy) <= halfH
+}
+
+func (w *writer) label(s *Shape, box [4]int32) {
+	x, y, width, height := box[0], box[1], box[2], box[3]
 	if s.Label == "" {
 		return
 	}
@@ -263,8 +298,14 @@ func (b *Board) signals(v *User, sent *Sent) []byte {
 	m["nsel"] = b.selCount(v)
 	m["grouped"] = grouped
 	if v.EditSeq != sent.Edit {
+		// open the page's label editor: over this shape's label box, with
+		// its text as it stands
 		sent.Edit = v.EditSeq
 		m["edit"] = v.EditSeq
+		if s := v.Selected; s >= 0 && b.Shapes[s].Kind != None {
+			m["lbox"] = b.labelBox(&b.Shapes[s])
+			m["label"] = b.Shapes[s].Label
+		}
 	}
 	selected := v.Selected
 	if selected >= 0 && b.Shapes[selected].Kind == None {
@@ -324,7 +365,7 @@ func (b *Board) drawShapes(w *writer, v *User) {
 					w.circle(cx, cy, 4, ` class="node" data-ui-linked`)
 				}
 			}
-			w.label(s, x1, y1, x2-x1, y2-y1)
+			w.label(s, b.labelBox(s))
 		case Line, Arrow:
 			ax, ay := b.endPoint(s, 0)
 			bx, by := b.endPoint(s, 1)
@@ -364,7 +405,7 @@ func (b *Board) drawShapes(w *writer, v *User) {
 				}
 				w.circle(p[0], p[1], 4, extra)
 			}
-			w.label(s, (ax+bx)/2-120, (ay+by)/2-22, 240, 44)
+			w.label(s, b.labelBox(s))
 		}
 		w.s("</g>")
 	}

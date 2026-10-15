@@ -14,10 +14,10 @@
 package bus
 
 import (
-	"strconv"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
+	"strconv"
 	"time"
 
 	"github.com/nats-io/nats-server/v2/server"
