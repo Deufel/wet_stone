@@ -1,7 +1,7 @@
+# the Odin experiments are kept locally, out of the repo
+odin/
 # build outputs
 go/whiteboard/whiteboard
-odin/whiteboard/whiteboard
-odin/pulse/pulse
 asm-http-server/server
 *.o
 # local data
