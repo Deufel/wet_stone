@@ -173,7 +173,10 @@
      on it otherwise overrides the browser's display: none for the closed
      state, and the closed dialog sat invisible over the page, taking every
      pointer event in its box */
-  :where(.confirm) { padding: 0.9lh 1.1em; gap: 0.5lh; }
+  /* a confirm is as tall as what it says (a .modal is pinned top and bottom,
+     so without a height of its own it stretched to the 85% cap), and keeps a
+     little air at the sides of a phone */
+  :where(.confirm) { padding: 0.9lh 1.1em; gap: 0.5lh; block-size: fit-content; inline-size: calc(100% - 1.5rem); }
   :where(.confirm[open]) { display: grid; }
   :where(.confirm) > :where(h2) { --type: 1; margin: 0; }
   :where(.confirm) > :where(p) { margin: 0; --fg: -0.65; }
