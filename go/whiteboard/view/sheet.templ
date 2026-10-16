@@ -40,7 +40,10 @@ templ PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing 
 	<div id="page-strip" class="page-strip">
 		if b != nil {
 			<ol class="strip-pages">
-				for _, s := range sheets {
+				for i, s := range sheets {
+					if i == 0 || sheets[i-1].ChapterNo != s.ChapterNo {
+						<li class="strip-chapter" title={ chapterLine(s) }>{ "Ch " + strconv.Itoa(s.ChapterNo) }</li>
+					}
 					<li data-ui-editing?={ s.No == editing }>
 						if owner {
 							<button class="strip-page" data-on:click={ "@post('/b/" + name + "/editpage/" + strconv.Itoa(s.No) + "', {payload: {inst: $inst}})" } title={ "Page " + strconv.Itoa(s.No) + ": put it back on the whiteboard to change it" }>
@@ -51,6 +54,14 @@ templ PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing 
 								@stripPage(s)
 							</a>
 						}
+					</li>
+				}
+				if owner {
+					<li class="strip-add">
+						<button class="sec" data-on:click={ "@post('/book/" + b.Name + "/chapter')" } title="A new chapter: the next pages sent go in it">
+							@Icon("plus")
+							Chapter
+						</button>
 					</li>
 				}
 			</ol>
@@ -75,8 +86,8 @@ templ PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing 
 templ stripPage(s db.Sheet) {
 	<span class="mini">
 		@templ.Raw(sheetDrawing(s))
+		<span class="no">{ strconv.Itoa(s.No) }</span>
 	</span>
-	<span class="no">{ strconv.Itoa(s.No) }</span>
 }
 
 // Marks is a student's own layer over the whiteboard: their marks, and the
@@ -125,7 +136,7 @@ templ SheetView(u *db.User, b *db.Book, sheets []db.Sheet, no int, marks string)
 			</main>
 		</div>
 		<script src="/static/highlight.js"></script>
-		<script src="https://cdn.jsdelivr.net/npm/temml@0.14.0/dist/temml.min.js"></script>
+		@mathAssets()
 	}
 }
 
@@ -182,6 +193,14 @@ templ SheetsPrint(b *db.Book, sheets []db.Sheet, marks map[int64]string) {
 			</main>
 		</div>
 		<script src="/static/highlight.js"></script>
-		<script src="https://cdn.jsdelivr.net/npm/temml@0.14.0/dist/temml.min.js"></script>
+		@mathAssets()
 	}
+}
+
+// mathAssets: Temml (LaTeX to MathML) and a math font (Noto Sans Math has
+// the OpenType MATH table MathML lays out with), for ```math blocks.
+templ mathAssets() {
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Math&display=swap"/>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/temml@0.14.0/dist/Temml-Local.css"/>
+	<script src="https://cdn.jsdelivr.net/npm/temml@0.14.0/dist/temml.min.js"></script>
 }

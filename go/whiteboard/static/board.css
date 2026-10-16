@@ -179,7 +179,7 @@
   :where(.todo-add) > :where(input) { --type: -1; flex: 1 1 auto; min-inline-size: 0; }
 
   /* ── notes: a monospace notebook, highlighted by static/highlight.js ── */
-  :where(.notes-pre) { min-block-size: 0; display: grid; overflow: hidden; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: calc(var(--cfg-radius) * 0.7); --lift: 0.03; background-color: var(--_bg); }
+  :where(.notes-pre) { min-block-size: 0; display: grid; overflow: hidden; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: calc(var(--cfg-radius) * 0.7); --bg: -0.8; background-color: var(--_bg); } /* a code surface: the text reads */
   :where(#notes) {
     display: block; block-size: 100%; min-block-size: 0; overflow: auto; overscroll-behavior: contain; padding: 0.5lh 0.75em;
     font-family: var(--font-mono); --type: -2; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; outline: none; cursor: text;
@@ -625,7 +625,7 @@
 
 /* a code block: a box whose label is fenced (```go …); highlighted by the page */
 @layer block {
-  :where(#board) .label.code { display: block; text-align: start; padding: 10px 12px; overflow: hidden; pointer-events: none; }
+  :where(#board) .label.code { display: block; text-align: start; padding: 10px 12px; overflow: hidden; pointer-events: none; --bg: -0.8; background-color: var(--_bg); border-radius: 6px; } /* a code surface, as the notes */
   :where(#board) .label.code > pre { margin: 0; padding: 0; background: none; border: 0; font-family: var(--font-mono, ui-monospace, monospace); font-size: 15px; line-height: 1.4; white-space: pre; tab-size: 4; }
   :where(.print-board) :where(.label.code) { display: block; text-align: start; padding: 8px 10px; }
   :where(.print-board) :where(.label.code) > :where(pre) { margin: 0; font-family: ui-monospace, monospace; font-size: 13px; white-space: pre; }
@@ -675,8 +675,12 @@
   :where(.strip-book) { display: inline-flex; align-items: center; gap: 0.35em; white-space: nowrap; color: inherit; text-decoration: none; font-weight: 600; }
   :where(.strip-pages) { display: flex; gap: 0.5em; list-style: none; margin: 0; padding: 0; }
   :where(.strip-pages) :where(a) { display: grid; justify-items: center; gap: 0.1lh; color: inherit; text-decoration: none; }
-  :where(.strip-pages) :where(.mini) { display: block; block-size: 3.2lh; aspect-ratio: 8.5 / 11; background: white; border-radius: 2px; padding: 3px; box-sizing: border-box; box-shadow: 0 1px 3px color-mix(in oklch, black 35%, transparent); overflow: hidden; }
-  :where(.strip-pages) :where(.no) { --type: -1; --fg: -0.5; }
+  :where(.strip-pages) :where(.mini) { position: relative; display: block; block-size: 3.2lh; aspect-ratio: 8.5 / 11; background: white; border-radius: 2px; padding: 3px; box-sizing: border-box; box-shadow: 0 1px 3px color-mix(in oklch, black 35%, transparent); overflow: hidden; }
+  :where(.strip-pages) :where(.no) { position: absolute; inset-block-end: 1px; inset-inline-end: 3px; --type: -2; line-height: 1; color: #555; font-variant-numeric: tabular-nums; }
+  :where(.strip-pages) { align-items: center; }
+  :where(.strip-chapter) { writing-mode: vertical-rl; rotate: 180deg; --type: -2; --fg: -0.5; letter-spacing: 0.05em; padding-inline: 0.1em; border-inline-end: 1px solid var(--border); }
+  :where(.strip-add) > :where(button) { display: inline-flex; align-items: center; gap: 0.3em; --type: -1; padding: 0.2lh 0.6em; }
+  :where(.strip-add) :where(svg) { inline-size: 0.9em; block-size: 0.9em; }
   :where(.strip-pages) :where(a:hover) :where(.mini) { outline: 2px solid var(--focus, currentColor); }
 }
 
@@ -695,7 +699,7 @@
 @layer print {
   .print-board.leaf-drawing { inline-size: 100%; block-size: 100%; max-inline-size: none; aspect-ratio: auto; border: 0; margin: 0; }
   .print-board .label > span { background: none; }
-  .print-board .label.code { display: block; text-align: start; padding: 10px 12px; }
+  .print-board .label.code { display: block; text-align: start; padding: 10px 12px; background: #f2f2f0; border-radius: 6px; } /* paper: a light wash, not ink */
   .print-board .label.code > pre { margin: 0; padding: 0; background: none; border: 0; color: black; font-family: var(--font-mono, ui-monospace, monospace); font-size: 15px; line-height: 1.4; white-space: pre; text-align: start; }
 }
 
@@ -736,6 +740,12 @@
 @layer block {
   :where(#board) .label.math { display: grid; place-items: center; padding: 8px; overflow: hidden; font-size: 40px; }
   :where(#board) .label.math > .tex { font-size: inherit; white-space: pre-wrap; }
+}
+/* MathML sizes itself: the math takes the block's size, its parts scale by
+   their depth (font-size: math), not the engine's type steps */
+@layer block {
+  .label.math math { font-size: inherit; font-family: "Noto Sans Math", math; }
+  .label.math math * { font-size: math; }
 }
 @layer print {
   .print-board .label.math { display: grid; place-items: center; padding: 8px; overflow: hidden; font-size: 40px; }

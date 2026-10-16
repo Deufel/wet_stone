@@ -198,6 +198,10 @@ func (h *Handler) bookEdit(w http.ResponseWriter, r *http.Request) {
 	if err := h.Bus.Publish(bus.BookSubject(b.ID), nil); err != nil {
 		slog.Error("publish book", "err", err)
 	}
+	if b.Board != "" { // its whiteboard's strip shows the chapters too
+		sheetVersion.Add(1)
+		h.Hub.Publish(b.Board)
+	}
 	sse := datastar.NewSSE(w, r)
 	if goTo != "" {
 		_ = sse.Redirect("/b/" + goTo)
