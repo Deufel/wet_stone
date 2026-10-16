@@ -1,7 +1,6 @@
 package db
 
 import (
-	"whiteboard/board"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -12,6 +11,7 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"whiteboard/board"
 )
 
 // ErrNoBoard: no board by that name (and only the global board makes itself).

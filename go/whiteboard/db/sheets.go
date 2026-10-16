@@ -140,4 +140,3 @@ func (d *DB) RemoveSheet(ctx context.Context, bookID, sheetID int64) error {
 	}
 	return nil
 }
-

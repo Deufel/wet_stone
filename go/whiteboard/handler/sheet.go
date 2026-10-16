@@ -35,7 +35,6 @@ func (h *Handler) sheetRoutes(r chi.Router) {
 	r.Post("/book/{name}/sheet/{id}/remove", h.removeSheet)
 }
 
-
 func (h *Handler) sendPage(w http.ResponseWriter, r *http.Request) {
 	n, u, meta, ok := h.open(w, r, false)
 	if !ok {
@@ -148,4 +147,3 @@ func (h *Handler) removeSheet(w http.ResponseWriter, r *http.Request) {
 	}
 	ack.Saved(datastar.NewSSE(w, r), "book", "Removed")
 }
-
