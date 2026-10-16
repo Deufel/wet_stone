@@ -59,6 +59,7 @@ templ Board(d BoardData) {
 		@TodoDrawer(d.Name)
 		@BudgetMenu(d.Name)
 		@sketchMenu(d.Name)
+		@textSizeMenu()
 		@panelMenus(d.Name)
 		@clearDialog(d.Name)
 		if d.User != nil && d.Meta.OwnerID == d.User.ID {
@@ -175,6 +176,7 @@ templ toolRail(name string, student bool, u *db.User, owner bool) {
 			@railTool(4, "laser", "Laser", "5")
 			@railTool(5, "pen", "Pen", "P")
 			@railTool(6, "code", "Code or math (```go, ```math)", "C")
+			@textTool()
 		</div>
 		<!-- motion: the selection turned (left click clockwise, right click
 		     counter-clockwise); each icon turns as its button does -->
@@ -379,7 +381,7 @@ type tool struct {
 	icon, label string
 }
 
-var tools = []tool{{0, "select", "Select"}, {1, "box", "Box"}, {2, "line", "Line"}, {3, "arrow", "Arrow"}, {4, "laser", "Laser"}, {5, "pen", "Pen"}, {6, "code", "Code"}}
+var tools = []tool{{0, "select", "Select"}, {1, "box", "Box"}, {2, "line", "Line"}, {3, "arrow", "Arrow"}, {4, "laser", "Laser"}, {5, "pen", "Pen"}, {6, "code", "Code"}, {7, "type", "Text"}}
 
 // clearDialog: clearing the board asks first (the history still keeps it).
 templ clearDialog(name string) {
@@ -428,6 +430,50 @@ templ navDrawer(d BoardData) {
 		</nav>
 		<p class="fine"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
 	</aside>
+}
+
+// textTool writes words on the paper; a right click picks their size (a
+// type step, -3 … +3), which stays the size for the next, and picks the tool.
+templ textTool() {
+	<button
+		class="tool stack text-tool"
+		data-on:click={ pick(7) }
+		data-on:contextmenu="evt.preventDefault(); document.getElementById('text-size-menu').showPopover({source: el})"
+		data-attr:aria-pressed={ pressed(7) }
+		aria-label="Text"
+		title="Text: click or drag a box and type. Right click: its size"
+	>
+		@Icon("type")
+		<kbd>T</kbd>
+		<span class="badge text-size" data-show="$tsize !== 0" data-text="($tsize > 0 ? '+' : '') + $tsize"></span>
+	</button>
+}
+
+// textSizeMenu: the text tool's sizes, each in its own size.
+templ textSizeMenu() {
+	<div id="text-size-menu" class="menu text-size-menu" popover>
+		<p class="meta">Text size</p>
+		for _, n := range []int{3, 2, 1, 0, -1, -2, -3} {
+			<button
+				data-on:click={ "$tsize = " + strconv.Itoa(n) + "; $tool = 7; el.closest('[popover]').hidePopover()" }
+				data-attr:aria-pressed={ "$tsize === " + strconv.Itoa(n) }
+				style={ "--type: " + strconv.Itoa(n) }
+			>
+				<span>Aa</span>
+				<small>{ sizeWord(n) }</small>
+			</button>
+		}
+	</div>
+}
+
+func sizeWord(n int) string {
+	if n == 0 {
+		return "0 · body"
+	}
+	if n > 0 {
+		return "+" + strconv.Itoa(n)
+	}
+	return strconv.Itoa(n)
 }
 
 templ railTool(n int, icon, label, key string) {

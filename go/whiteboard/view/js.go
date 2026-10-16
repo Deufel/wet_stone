@@ -125,7 +125,8 @@ const labelOpen = "if ($edit > 0 && $edit !== el._seen) { el._seen = $edit; $_le
 	// keep being held until it has the focus (a frame later), then those too
 	"const replay = (txt) => { let save = false; const buf = $_lbuf; $_lbuf = ''; " +
 	"for (const c of buf) { if (c === '\\b') { txt = txt.slice(0, -1) } else if (c === '\\n') { if (txt.trimStart().startsWith('```')) { txt += '\\n' } else { save = true; break } } else { txt += c } } return [txt, save] }; " +
-	"$_lwait = Date.now(); let [txt, save] = replay($label); el.textContent = txt; el.classList.toggle('code', txt.trimStart().startsWith('```')); " +
+	"const fm = $label.match(/^```(title|heading|text(?:[+-][1-3])?)(\\n|$)/); el._fence = fm ? '```' + fm[1] + '\\n' : ''; el.classList.toggle('textedit', !!fm); " +
+	"$_lwait = Date.now(); let [txt, save] = replay(fm ? $label.slice(fm[0].length) : $label); el.textContent = txt; el.classList.toggle('code', txt.trimStart().startsWith('```')); " +
 	"requestAnimationFrame(() => { el.focus(); const [t2, s2] = replay(el.textContent); el.textContent = t2; save = save || s2; $_lwait = 0; " +
 	"el.classList.toggle('code', t2.trimStart().startsWith('```')); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); if (save) { el.blur() } }) }"
 
@@ -133,12 +134,12 @@ const labelOpen = "if ($edit > 0 && $edit !== el._seen) { el._seen = $edit; $_le
 // In a code block (a label that starts ```), Enter is a new line and Tab
 // indents; Ctrl Enter or leaving saves.
 const labelKeys = "evt.stopPropagation(); const code = el.innerText.trimStart().startsWith('```'); " +
-	"if (evt.key === 'Enter' && (!code || evt.ctrlKey || evt.metaKey)) { evt.preventDefault(); el.blur() } " +
+	"if (evt.key === 'Enter' && ((!code && !evt.shiftKey) || evt.ctrlKey || evt.metaKey)) { evt.preventDefault(); el.blur() } " +
 	"else if (code && evt.key === 'Tab') { evt.preventDefault(); document.execCommand('insertText', false, '    ') } " +
 	"else if (evt.key === 'Escape') { evt.preventDefault(); el._cancel = true; el.blur() }"
 
 func labelCommit(name string) string {
-	return "if ($_ledit) { $_ledit = false; const raw = el.innerText; const t = raw.trimStart().startsWith('```') ? raw.trim().slice(0, raw.trimStart().startsWith('```svg') ? 24000 : 1500) : raw.replace(/\\s+/g, ' ').trim().slice(0, 48); " +
+	return "if ($_ledit) { $_ledit = false; const raw = el.innerText; const t = el._fence ? el._fence + raw.trim().slice(0, 1400) : raw.trimStart().startsWith('```') ? raw.trim().slice(0, raw.trimStart().startsWith('```svg') ? 24000 : 1500) : raw.replace(/\\s+/g, ' ').trim().slice(0, 48); " +
 		"if (!el._cancel && t !== $label) { $label = t; " + postKept(name, "label") + " } el._cancel = false }"
 }
 
@@ -176,6 +177,7 @@ func onKey(name string) string {
 		"else if (k === 'a') { $tool = 3 }",
 		"else if (k === 'p') { $tool = 5 }",
 		"else if (k === 'c') { $tool = 6 }",
+		"else if (k === 't') { $tool = 7 }",
 		"else if (k >= '1' && k <= '7') { $tool = Number(k) - 1 }",
 	}, " ")
 }
@@ -223,7 +225,7 @@ func pageSignals(inst string, height int32) string {
 	return "{inst: " + jsString(inst) + ", _bh: " + strconv.Itoa(int(height)) + ", " + signals[1:]
 }
 
-const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, dseq: 0, lbox: [0, 0, 0, 0], _ledit: false, _drag: false, _ans: '', _beat: 0, _full: false, _todo: '', _notes: {text: '', lang: '', v: 0}, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _voice: true, _lwait: 0, _lbuf: '', _drew: 0, _upBusy: false, _editAfterUp: false, _locked: false, _lessonOn: false}"
+const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, dseq: 0, lbox: [0, 0, 0, 0], _ledit: false, _drag: false, _ans: '', _beat: 0, _full: false, _todo: '', _notes: {text: '', lang: '', v: 0}, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _voice: true, _lwait: 0, _lbuf: '', _drew: 0, _upBusy: false, _editAfterUp: false, _locked: false, _lessonOn: false, tsize: 0}"
 
 // fullToggle: the whiteboard alone on the screen. The card fills the window
 // ($_full, CSS); where the browser can, the window goes full screen too (an

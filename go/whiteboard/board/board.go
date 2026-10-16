@@ -206,6 +206,8 @@ type Drag struct {
 	Label  bool  // the press was on the shape's label text: let go here, it is a click that edits it
 	PX, PY int32 // where the press was
 	Code   bool  // the code tool's box: let go, it opens as a code block
+	Text   bool  // the text tool's: let go, it opens as words (a text block)
+	Size   int8  // the text tool's size
 }
 
 // One smoothed piece of a laser stroke: a quadratic from a through control c

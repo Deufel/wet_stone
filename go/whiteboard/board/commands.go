@@ -10,7 +10,8 @@ type Cmd struct {
 	Op     string // down move up delete clear link label nudge group ungroup locktoggle
 	UID    uint32
 	X, Y   int32
-	Tool   uint8 // 0 select, 1 box, 2 line, 3 arrow, 4 laser
+	Tool   uint8 // 0 select, 1 box, 2 line, 3 arrow, 4 laser, 5 pen, 6 code, 7 text
+	Size   int8  // the text tool's size: a type step, -3 … +3
 	NX, NY int8  // nudge: grid steps, -1..1
 	Seq    int64 // pointer commands: the page's running count
 	DSeq   int64 // pointer commands: the Seq of the down that began this stroke
@@ -226,7 +227,7 @@ func (b *Board) down(c Cmd) {
 		u.Drag = Drag{Kind: DragLaser, Shape: -1}
 		u.laserN, u.laserSeg = 0, 0
 		b.laserPoint(u, c.X, c.Y)
-	case 1, 2, 3, 6: // 6: the code tool, a box that opens as a code block
+	case 1, 2, 3, 6, 7: // 6: the code tool, a box that opens as a code block; 7: words
 		gx, gy := snapGrid(c.X), snapGrid(c.Y)
 		kind := Box
 		if c.Tool == 2 {
@@ -249,7 +250,7 @@ func (b *Board) down(c Cmd) {
 		u.Sel = [ShapesMax]bool{}
 		u.Sel[index] = true
 		u.Selected = index
-		u.Drag = Drag{Kind: DragHandle, Shape: index, HX: 1, HY: 1, Fresh: true, Code: c.Tool == 6}
+		u.Drag = Drag{Kind: DragHandle, Shape: index, HX: 1, HY: 1, Fresh: true, Code: c.Tool == 6 || c.Tool == 7, Text: c.Tool == 7, Size: max(-3, min(3, c.Size))}
 		u.Last = index
 	default:
 		if b.arrowFromPort(u, c.X, c.Y) {
@@ -480,10 +481,18 @@ func (b *Board) up(c Cmd) (change string) {
 			s.Corner[1], s.Corner[3] = s.Corner[3], s.Corner[1]
 		}
 		if drag.Code && drag.Fresh && (s.X2-s.X1 < 8 || s.Y2-s.Y1 < 8) {
-			// a click with the code tool: a block of a useful size, here
-			s.X2, s.Y2 = min(s.X1+CodeW, W), min(s.Y1+CodeH, b.Height)
+			// a click with the code tool: a block of a useful size, here; with
+			// the text tool, a line of its size
+			if drag.Text {
+				s.X2, s.Y2 = min(s.X1+TextW, W), min(s.Y1+TextLineH(drag.Size)+12, b.Height)
+			} else {
+				s.X2, s.Y2 = min(s.X1+CodeW, W), min(s.Y1+CodeH, b.Height)
+			}
 		}
-		if drag.Code && drag.Fresh && s.Label == "" {
+		if drag.Text && drag.Fresh && s.Label == "" {
+			s.Label = "```" + TextKind(drag.Size) + "\n" // its editor opens on the words, the fence hidden
+			u.EditSeq++
+		} else if drag.Code && drag.Fresh && s.Label == "" {
 			s.Label = "```" // its editor opens on the fence: the language, Enter, the code
 			u.EditSeq++
 		}

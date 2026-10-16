@@ -153,7 +153,9 @@ const stepsSpec = `STEPS (coordinates are board units: the board is a letter pag
   "text": "Why slices grow"}                              in the box: kind "title" (32 units a line, ~17 a
                                                            character), "heading" (24 units, ~13 a character)
                                                            or "text" (a paragraph: 18 units, ~9.5 a character,
-                                                           lines 26 apart). Height: title ≥ 50, heading ≥ 40,
+                                                           lines 24 apart); or a sized text, "text+1" … "text+3"
+                                                           (×1.25 a step: 22, 28, 35 units) and "text-1" …
+                                                           "text-3" (14, 11.5, 9 units) for small print. Height: title ≥ 50, heading ≥ 40,
                                                            text 26 × lines + 12 (too little and it shrinks
                                                            to fit). Headings over a figure, a
                                                            sentence of explanation beside it, a summary

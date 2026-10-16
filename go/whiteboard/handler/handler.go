@@ -116,6 +116,7 @@ type signals struct {
 	Lx     int32  `json:"lx"`
 	Ly     int32  `json:"ly"`
 	Tool   uint8  `json:"tool"`
+	Size   int8   `json:"tsize"` // the text tool's size
 	Sel    int32  `json:"sel"`
 	Label  string `json:"label"`
 	Ndx    int32  `json:"ndx"`
@@ -729,7 +730,7 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := board.Cmd{
-		Op: op, UID: s.UID, Tool: s.Tool, Seq: s.Seq, DSeq: s.DSeq,
+		Op: op, UID: s.UID, Tool: s.Tool, Size: s.Size, Seq: s.Seq, DSeq: s.DSeq,
 		X: clamp(s.X, 0, board.W), Y: clamp(s.Y, 0, height(meta)),
 		NX: int8(clamp(s.Ndx, -1, 1)), NY: int8(clamp(s.Ndy, -1, 1)),
 	}

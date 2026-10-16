@@ -196,8 +196,8 @@ func (l *Lesson) check(steps []Step, at string) error {
 			if strings.TrimSpace(s.Text) == "" || len(s.Text)+12 > board.CodeMax {
 				return bad(fmt.Sprintf("text: the words, at most %d bytes", board.CodeMax-20))
 			}
-			if s.Kind != "" && s.Kind != "title" && s.Kind != "heading" && s.Kind != "text" {
-				return bad("kind: title, heading or text")
+			if s.Kind != "" && !board.IsText("```"+s.Kind) {
+				return bad("kind: title, heading, text, or a sized text: text+1 … text+3, text-1 … text-3")
 			}
 		case "group", "ungroup", "delete":
 		case "select":

@@ -32,7 +32,52 @@ var codeLangs = map[string]bool{"css": true, "html": true, "python": true, "java
 // Text blocks: ```title, ```heading and ```text are words set on the paper,
 // frameless, left-aligned, at the paper title's face (the board's own head):
 // a page's headings and paragraphs, as a teacher would write them.
-var textKinds = map[string]bool{"title": true, "heading": true, "text": true}
+// Plain text takes a size, a type step as the page's own: ```text+2,
+// ```text-1 (-3 … +3), 18 units at 0 and 1.25 times each step.
+var textKinds = map[string]bool{"title": true, "heading": true, "text": true,
+	"text-3": true, "text-2": true, "text-1": true, "text+1": true, "text+2": true, "text+3": true}
+
+// TextW is a text block's width when the text tool is only clicked.
+const TextW = 400
+
+// TextKind is the fence word for a text size.
+func TextKind(size int8) string {
+	if size == 0 {
+		return "text"
+	}
+	return fmt.Sprintf("text%+d", size)
+}
+
+// textStyle is a text kind's face: its size in board units and weight.
+func textStyle(kind string) (float64, int) {
+	switch kind {
+	case "title":
+		return 32, 650
+	case "heading":
+		return 24, 620
+	}
+	n, _ := strconv.Atoi(strings.TrimPrefix(kind, "text"))
+	px := 18.0
+	for ; n > 0; n-- {
+		px *= 1.25
+	}
+	for ; n < 0; n++ {
+		px /= 1.25
+	}
+	w := 400
+	if px >= 28 {
+		w = 650
+	} else if px >= 22 {
+		w = 600
+	}
+	return px, w
+}
+
+// TextLineH is one line's height at a size (its line-height, 1.3).
+func TextLineH(size int8) int32 {
+	px, _ := textStyle(TextKind(size))
+	return int32(px*1.3 + 0.5)
+}
 
 // IsText: is this label a text block (title, heading or text)?
 func IsText(label string) bool {
@@ -82,8 +127,11 @@ func (w *writer) code(s *Shape, box [4]int32) {
 		w.attr("height", box[3])
 		// new with its words or its box, and shrunk (once, as it lands) until
 		// its lines fit the box: a model cannot measure its own words
-		w.s(`><div xmlns="http://www.w3.org/1999/xhtml" class="label textblock `)
-		w.s(lang)
+		px, weight := textStyle(lang)
+		w.s(`><div xmlns="http://www.w3.org/1999/xhtml" class="label textblock" style="font-size: `)
+		w.s(strconv.FormatFloat(px, 'f', 1, 64))
+		w.s(`px; font-weight: `)
+		w.s(strconv.Itoa(weight))
 		w.s(`" id="text-`)
 		w.s(strconv.FormatUint(uint64(h.Sum32()), 36))
 		w.s(`" data-ignore-morph data-init="let f = parseFloat(getComputedStyle(el).fontSize); for (let i = 0; i &lt; 24 &amp;&amp; f &gt; 7 &amp;&amp; el.scrollHeight &gt; el.clientHeight + 1; i++) { f *= 0.92; el.style.fontSize = f + 'px' }">`)

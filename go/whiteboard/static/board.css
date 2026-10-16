@@ -760,10 +760,10 @@
   :where(.send-page) > :where(svg) { inline-size: 1em; block-size: 1em; }
 
   :where(.tool-rail) { display: flex; flex-direction: column; align-items: center; gap: 0.15lh; padding: 0.2lh 0.15em; }
-  :where(.tool-rail) > :where(.tools.button-group) { flex-direction: column; }
-  :where(.tool-rail) > :where(.tools.button-group) > :where(button) { margin-inline-start: 0; margin-block-start: -1px; border-radius: 0; }
-  :where(.tool-rail) > :where(.tools.button-group) > :where(button):first-child { margin-block-start: 0; border-radius: var(--cfg-radius) var(--cfg-radius) 0 0; }
-  :where(.tool-rail) > :where(.tools.button-group) > :where(button):last-child { border-radius: 0 0 var(--cfg-radius) var(--cfg-radius); }
+  :where(.tool-rail) :where(.tools.button-group) { flex-direction: column; }
+  :where(.tool-rail) :where(.tools.button-group) > :where(button) { margin-inline-start: 0; margin-block-start: -1px; border-radius: 0; }
+  :where(.tool-rail) :where(.tools.button-group) > :where(button):first-child { margin-block-start: 0; border-radius: var(--cfg-radius) var(--cfg-radius) 0 0; }
+  :where(.tool-rail) :where(.tools.button-group) > :where(button):last-child { border-radius: 0 0 var(--cfg-radius) var(--cfg-radius); }
 
   :where(.board-page.full) > :where(.pg-header, .pg-footer) { display: none; }
   :where(.board-page.full) :where(.workspace) { grid-template: "board" minmax(0, 1fr) / minmax(0, 1fr); }
@@ -1125,9 +1125,7 @@
     display: block; text-align: start; padding: 2px 10px; background: none; white-space: pre-wrap; overflow-wrap: anywhere;
     font-family: var(--font-ui, system-ui, sans-serif); color: currentColor; overflow: hidden; pointer-events: none;
   }
-  :where(#board, .print-board) .label.textblock.title { font-size: 32px; font-weight: 650; line-height: 1.2; letter-spacing: -0.01em; }
-  :where(#board, .print-board) .label.textblock.heading { font-size: 24px; font-weight: 620; line-height: 1.25; }
-  :where(#board, .print-board) .label.textblock.text { font-size: 18px; font-weight: 400; line-height: 1.45; }
+  :where(#board, .print-board) .label.textblock { line-height: 1.3; }
 }
 
 /* the library (home): everything of yours as it looks, a shelf of paper */
@@ -1153,4 +1151,19 @@
   :where(.lib-card):where(:hover, :focus-within) > :where(.lib-rm) { opacity: 1; }
   @media (hover: none) { :where(.lib-card) > :where(.lib-rm) { opacity: 0.7; } }
   :where(.nav-list) > :where(.lib-link) { font-weight: 600; }
+}
+
+/* the text tool: its size beside it; its menu, each size in itself; and the
+   editor over a text block, typing words, not code */
+@layer block {
+  :where(.text-tool) > :where(.text-size) { justify-self: end; align-self: end; translate: 25% 25%; --hue-lock: var(--hue-inf); }
+  :where(.text-size-menu) { display: grid; gap: 0.05lh; padding: 0.3lh; min-inline-size: 9rem; }
+  :where(.text-size-menu) > :where(.meta) { margin: 0 0.4em 0.15lh; --type: -1; --fg: -0.5; }
+  :where(.text-size-menu) > :where(button) { display: flex; align-items: baseline; justify-content: space-between; gap: 1em; padding: 0.1lh 0.6em; min-block-size: 0; background: none; border: 0; box-shadow: none; border-radius: calc(var(--cfg-radius) * 0.7); }
+  :where(.text-size-menu) > :where(button[aria-pressed="true"]) { --lift: 0.12; background-color: var(--_bg); }
+  :where(.text-size-menu) > :where(button):where(:hover) { --lift: 0.08; background-color: var(--_bg); }
+  :where(.text-size-menu) > :where(button) > :where(small) { --type: -2; --fg: -0.5; font-weight: 400; }
+  :where([popovertarget="text-size-menu"], .text-tool) { anchor-name: --text-tool; }
+  :where(#text-size-menu) { position-anchor: --text-tool; top: anchor(top); left: anchor(right); margin: 0 0 0 0.4em; }
+  :where(.label-edit.textedit) { justify-content: flex-start; align-items: flex-start; text-align: start; font-family: var(--font-ui); padding: 2px 10px; }
 }
