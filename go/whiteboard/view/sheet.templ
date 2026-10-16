@@ -39,22 +39,43 @@ templ sheetPaper(b *db.Book, s db.Sheet, marks string) {
 templ PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing int) {
 	<div id="page-strip" class="page-strip">
 		if b != nil {
-			<ol class="strip-pages">
+			<ol class="strip-pages" data-signals__ifmissing="{_pdrag: 0, _pover: 0}">
 				for i, s := range sheets {
 					if i == 0 || sheets[i-1].ChapterNo != s.ChapterNo {
 						<li class="strip-chapter" title={ chapterLine(s) }>{ "Ch " + strconv.Itoa(s.ChapterNo) }</li>
 					}
-					<li data-ui-editing?={ s.No == editing }>
-						if owner {
-							<button class="strip-page" data-on:click={ "@post('/b/" + name + "/editpage/" + strconv.Itoa(s.No) + "', {payload: {inst: $inst}})" } title={ "Page " + strconv.Itoa(s.No) + ": put it back on the whiteboard to change it" }>
+					if owner {
+						<li
+							class="strip-item"
+							data-ui-editing?={ s.No == editing }
+							draggable="true"
+							data-on:dragstart={ "$_pdrag = " + id64(s.ID) + "; evt.dataTransfer.effectAllowed = 'move'; evt.dataTransfer.setData('text/plain', '" + id64(s.ID) + "')" }
+							data-on:dragover="$_pdrag && evt.preventDefault()"
+							data-on:dragenter={ "$_pover = " + id64(s.ID) }
+							data-on:dragend="$_pdrag = 0; $_pover = 0"
+							data-on:drop={ "evt.preventDefault(); if ($_pdrag && $_pdrag != " + id64(s.ID) + ") { @post('/b/" + name + "/sheet/' + $_pdrag + '/move/" + id64(s.ID) + "', {requestCancellation: 'disabled'}) }; $_pdrag = 0; $_pover = 0" }
+							data-class:drop-over={ "$_pdrag && $_pdrag != " + id64(s.ID) + " && $_pover == " + id64(s.ID) }
+							data-class:dragging={ "$_pdrag == " + id64(s.ID) }
+						>
+							<button class="strip-page" draggable="false" data-on:click={ "@post('/b/" + name + "/editpage/" + strconv.Itoa(s.No) + "', {payload: {inst: $inst}})" } title={ "Page " + strconv.Itoa(s.No) + ": put it back on the whiteboard to change it (drag to move it)" }>
 								@stripPage(s)
 							</button>
-						} else {
+							<span class="strip-acts">
+								<button class="icon" data-on:click={ "@post('/b/" + name + "/sheet/" + id64(s.ID) + "/copy', {requestCancellation: 'disabled'})" } aria-label={ "Copy page " + strconv.Itoa(s.No) } title="A copy, after it">
+									@Icon("copy")
+								</button>
+								<button class="icon dgr" data-on:click={ "$_delpage = " + strconv.Itoa(s.No) + "; $_delsheet = " + id64(s.ID) + "; document.getElementById('delete-page-confirm').showModal()" } aria-label={ "Delete page " + strconv.Itoa(s.No) } title="Delete it">
+									@Icon("trash")
+								</button>
+							</span>
+						</li>
+					} else {
+						<li>
 							<a class="strip-page" href={ templ.SafeURL("/book/" + b.Name + "/page/" + strconv.Itoa(s.No)) } title={ "Page " + strconv.Itoa(s.No) }>
 								@stripPage(s)
 							</a>
-						}
-					</li>
+						</li>
+					}
 				}
 				if owner {
 					<li class="strip-add">
@@ -76,7 +97,7 @@ templ PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing 
 			<button class="tool stack sec" data-on:click={ postKept(name, "newpage") } aria-label="New page" title={ "Leave page " + strconv.Itoa(editing) + " as it was and start a clean page" }>
 				@Icon("plus")
 			</button>
-			<button class="tool stack sec dgr" data-on:click={ "$_delpage = " + strconv.Itoa(editing) + "; document.getElementById('delete-page-confirm').showModal()" } aria-label={ "Delete page " + strconv.Itoa(editing) } title={ "Delete page " + strconv.Itoa(editing) + " from the book" }>
+			<button class="tool stack sec dgr" data-on:click={ "$_delpage = " + strconv.Itoa(editing) + "; $_delsheet = " + id64(editingID(sheets, editing)) + "; document.getElementById('delete-page-confirm').showModal()" } aria-label={ "Delete page " + strconv.Itoa(editing) } title={ "Delete page " + strconv.Itoa(editing) + " from the book" }>
 				@Icon("trash")
 			</button>
 		} else if owner {
@@ -218,12 +239,12 @@ templ mathAssets() {
 // ($_delpage names it). Outside the strip's morph target: an update never
 // closes it under the teacher's hand.
 templ deletePageDialog(name string) {
-	<dialog id="delete-page-confirm" class="modal content-1 confirm" closedby="any" aria-label="Delete the page" data-signals__ifmissing="{_delpage: 0}">
+	<dialog id="delete-page-confirm" class="modal content-1 confirm" closedby="any" aria-label="Delete the page" data-signals__ifmissing="{_delpage: 0, _delsheet: 0}">
 		<h2>Delete page <span data-text="$_delpage"></span>?</h2>
-		<p>It leaves the book, and the pages after it move up. The whiteboard turns to a clean page; its history keeps the drawing.</p>
+		<p>It leaves the book, and the pages after it move up. If it is on the whiteboard, the whiteboard turns to a clean page; its history keeps the drawing.</p>
 		<div class="row end">
 			<button data-on:click="document.getElementById('delete-page-confirm').close()" autofocus>Cancel</button>
-			<button class="dgr" data-on:click={ postKept(name, "deletepage") + "; document.getElementById('delete-page-confirm').close()" }>
+			<button class="dgr" data-on:click={ "@post('/b/" + name + "/sheet/' + $_delsheet + '/delete', {requestCancellation: 'disabled'}); document.getElementById('delete-page-confirm').close()" }>
 				@Icon("trash")
 				Delete
 			</button>

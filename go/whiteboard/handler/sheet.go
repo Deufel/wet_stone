@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"whiteboard/db"
 	"whiteboard/hub"
@@ -27,6 +28,9 @@ import (
 //	POST /b/{name}/sendpage             the owner sends (signals: uid)
 //	GET  /book/{name}/page/{no}         a page, as it prints
 //	POST /book/{name}/sheet/{id}/remove the owner takes a page out
+//	POST /b/{name}/sheet/{id}/copy      a copy of a page, after it
+//	POST /b/{name}/sheet/{id}/delete    a page out of the book
+//	POST /b/{name}/sheet/{id}/move/{to} a page dragged onto another's place
 
 // sheetVersion counts pages sent and removed anywhere: a whiteboard's stream
 // re-sends its page strip when it moves.
@@ -36,7 +40,9 @@ func (h *Handler) sheetRoutes(r chi.Router) {
 	r.Post("/b/{name}/sendpage", h.sendPage)
 	r.Post("/b/{name}/editpage/{no}", h.editPage)
 	r.Post("/b/{name}/newpage", h.newPage)
-	r.Post("/b/{name}/deletepage", h.deletePage)
+	r.Post("/b/{name}/sheet/{id}/copy", h.sheetOp)
+	r.Post("/b/{name}/sheet/{id}/delete", h.sheetOp)
+	r.Post("/b/{name}/sheet/{id}/move/{to}", h.sheetOp)
 	r.Get("/book/{name}/page/{no}", h.sheetPage)
 	r.Post("/book/{name}/sheet/{id}/remove", h.removeSheet)
 }
@@ -169,9 +175,8 @@ func (h *Handler) editPage(w http.ResponseWriter, r *http.Request) {
 	ack.Saved(datastar.NewSSE(w, r), "sheet", "Page "+strconv.Itoa(no)+" is back on the whiteboard")
 }
 
-// deletePage takes the page on the whiteboard out of the book, and turns
-// to a clean page.
-func (h *Handler) deletePage(w http.ResponseWriter, r *http.Request) {
+// sheetOp copies, deletes or moves a page from the strip (by its id).
+func (h *Handler) sheetOp(w http.ResponseWriter, r *http.Request) {
 	n, _, meta, s, ok := h.teacher(w, r)
 	if !ok {
 		return
@@ -182,19 +187,35 @@ func (h *Handler) deletePage(w http.ResponseWriter, r *http.Request) {
 		ack.Bad(datastar.NewSSE(w, r), "sheet", "No book here")
 		return
 	}
-	id, no := h.DB.Editing(ctx, book.ID)
-	if id == 0 {
-		ack.Bad(datastar.NewSSE(w, r), "sheet", "No page on the whiteboard")
+	id, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	path := r.URL.Path
+	editing, _ := h.DB.Editing(ctx, book.ID)
+	msg := ""
+	switch {
+	case strings.HasSuffix(path, "/copy"):
+		err, msg = h.DB.CopySheet(ctx, book.ID, id), "Page copied"
+	case strings.HasSuffix(path, "/delete"):
+		if id == editing {
+			h.stopRun(n) // its lesson, if it was playing
+		}
+		err, msg = h.DB.RemoveSheet(ctx, book.ID, id), "Page deleted"
+	default:
+		to, _ := strconv.ParseInt(chi.URLParam(r, "to"), 10, 64)
+		err, msg = h.DB.MoveSheet(ctx, book.ID, id, to), "Page moved"
+	}
+	if err != nil {
+		slog.Error("page", "board", n, "path", path, "err", err)
+		ack.Bad(datastar.NewSSE(w, r), "sheet", "Not done: "+err.Error())
 		return
 	}
-	h.stopRun(n) // its lesson, if it was playing
-	if err := h.DB.RemoveSheet(ctx, book.ID, id); err != nil {
-		slog.Error("delete page", "board", n, "err", err)
-		ack.Bad(datastar.NewSSE(w, r), "sheet", "Not deleted")
-		return
+	if strings.HasSuffix(path, "/delete") && id == editing {
+		h.turnPage(r, n, s.UID, book.ID) // it was on the whiteboard: a clean page
+	} else {
+		sheetVersion.Add(1)
+		h.Hub.Publish(n)
+		_ = h.Bus.Publish(bus.BookSubject(book.ID), nil)
 	}
-	h.turnPage(r, n, s.UID, book.ID)
-	ack.Saved(datastar.NewSSE(w, r), "sheet", "Page "+strconv.Itoa(no)+" deleted")
+	ack.Saved(datastar.NewSSE(w, r), "sheet", msg)
 }
 
 // newPage leaves a page being changed as it was, and turns to a clean one.

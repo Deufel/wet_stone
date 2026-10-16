@@ -46,11 +46,12 @@
   :where(.workspace) {
     block-size: 100%; display: grid; gap: 0.25lh 0.4em; max-inline-size: 110rem; margin-inline: auto;
     padding: 0.2lh max(0.3em, env(safe-area-inset-right)) max(0.2lh, env(safe-area-inset-bottom)) max(0.3em, env(safe-area-inset-left));
-    grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.7fr) minmax(7lh, 1fr); grid-template-areas: "board" "notes";
+    grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.7fr) minmax(7lh, 1fr) auto; grid-template-areas: "board" "notes" "pages";
   }
   :where(.workspace) > :where(.board-card) { grid-area: board; }
   :where(.workspace) > :where(.todo-card) { grid-area: todo; }
   :where(.workspace) > :where(.notes-card) { grid-area: notes; }
+  :where(.workspace) > :where(.page-strip) { grid-area: pages; }
   :where(.workspace) > :where(.card) { display: grid; align-content: start; gap: 0.25lh; padding: 0.45lh 0.7em; min-inline-size: 0; min-block-size: 0; overflow: hidden; }
   :where(.workspace) > :where(.board-card) { grid-template-rows: minmax(0, 1fr); align-content: stretch; }
   :where(.workspace) > :where(.todo-card) { grid-template-rows: auto minmax(0, 1fr) auto; align-content: stretch; }
@@ -61,14 +62,14 @@
   :where(.workspace) > :where(.todo-card) { display: none; }
   /* a phone on its side (short): the board and the notes side by side */
   @container work (max-height: 30rem) and (min-aspect-ratio: 1/1) {
-    :where(.workspace) { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-template-areas: "board notes"; }
+    :where(.workspace) { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "board notes" "board pages"; }
   }
   /* a tall screen with room (a tablet upright): the board on top, the
      checklist and notes side by side under it */
   @container work (min-width: 40rem) and (max-aspect-ratio: 1/1) {
     /* the board's row is the paper's height at the full width: the
        checklist and notes take the rest */
-    :where(.workspace) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, calc((100cqi - 2.6em - 0.8rem - 4px) * var(--ar, 1) + 0.9lh + 0.8rem + 4px)) minmax(8lh, 1fr); grid-template-areas: "board board" "todo notes"; }
+    :where(.workspace) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, calc((100cqi - 2.6em - 0.8rem - 4px) * var(--ar, 1) + 0.9lh + 0.8rem + 4px)) minmax(8lh, 1fr) auto; grid-template-areas: "board board" "todo notes" "pages pages"; }
     :where(.workspace) > :where(.todo-card) { display: grid; }
     :where(.workspace) :where(.todo-open) { display: none; }
   }
@@ -77,7 +78,7 @@
     /* the board's column is the paper's width at the full height (its
        height over --ar, the paper's shape): no dead space beside it; the
        checklist and notes take the rest */
-    :where(.workspace) { max-inline-size: none; grid-template-columns: minmax(0, calc((100cqb - 1.9lh - 0.8rem - 4px) / var(--ar, 1) + 1.4em + 0.8rem + 4px)) minmax(17rem, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1.3fr); grid-template-areas: "board todo" "board notes"; }
+    :where(.workspace) { max-inline-size: none; grid-template-columns: minmax(0, calc((100cqb - 1.9lh - 0.8rem - 4px) / var(--ar, 1) + 1.4em + 0.8rem + 4px)) minmax(17rem, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1.3fr) auto; grid-template-areas: "board todo" "board notes" "board pages"; }
     :where(.workspace) > :where(.todo-card) { display: grid; }
     :where(.workspace) :where(.todo-open) { display: none; }
   }
@@ -696,6 +697,17 @@
   :where(.strip-add) > :where(button) { display: inline-flex; align-items: center; gap: 0.3em; --type: -1; padding: 0.2lh 0.6em; }
   :where(.strip-add) :where(svg) { inline-size: 0.9em; block-size: 0.9em; }
   :where(.strip-pages) :where(a:hover) :where(.mini) { outline: 2px solid var(--focus, currentColor); }
+  /* the pages sit under the notes, a card of their own */
+  :where(.workspace) > :where(.page-strip) { border: 1px solid var(--border); border-radius: var(--cfg-radius); --lift: 0.04; background-color: var(--_bg); padding: 0.25lh 0.5em; }
+  /* the teacher's page: drag it to move it; copy and delete on hover */
+  :where(.strip-item) { position: relative; cursor: grab; }
+  :where(.strip-item.dragging) { opacity: 0.4; }
+  :where(.strip-item.drop-over) :where(.mini) { outline: 2px dashed var(--focus, currentColor); outline-offset: 2px; }
+  :where(.strip-acts) { position: absolute; inset-block-start: 2px; inset-inline-end: 2px; display: flex; flex-direction: column; gap: 2px; opacity: 0; pointer-events: none; transition: opacity calc(var(--cfg-motion) * 0.12s); }
+  :where(.strip-item):where(:hover, :focus-within) > :where(.strip-acts) { opacity: 1; pointer-events: auto; }
+  :where(.strip-acts) > :where(button) { inline-size: 1.35em; block-size: 1.35em; min-block-size: 0; padding: 0; display: grid; place-items: center; border-radius: 4px; --lift: 0.1; background-color: var(--_bg); --type: -2; }
+  :where(.strip-acts) > :where(button) > :where(svg) { inline-size: 0.8em; block-size: 0.8em; }
+  @media (hover: none) { :where(.strip-item[data-ui-editing]) > :where(.strip-acts) { opacity: 1; pointer-events: auto; } }
 }
 
 /* a page prints as itself: the leaf, edge to edge, nothing else */
@@ -727,7 +739,7 @@
 }
 
 /* the board page's regions: the teaching bar (pg-subheader), the tool rail
-   (pg-toolbar), the pages (pg-footer); full screen keeps the bar and the rail
+   (pg-toolbar), the pages (under the notes); full screen keeps the bar and the rail
    and gives the paper everything else */
 @layer block {
   :where(.teach-bar) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25lh 0.4em; padding: 0.3lh max(0.8em, env(safe-area-inset-right)) 0.3lh max(0.8em, env(safe-area-inset-left)); border-block-end: 1px solid var(--border); }
@@ -745,8 +757,7 @@
 
   :where(.board-page.full) > :where(.pg-header, .pg-footer) { display: none; }
   :where(.board-page.full) :where(.workspace) { grid-template: "board" minmax(0, 1fr) / minmax(0, 1fr); }
-  :where(.board-page.full) :where(.workspace) > :where(.todo-card, .notes-card) { display: none; }
-  :where(.board-page) > :where(.pg-footer):has(> :where(#page-strip:empty)) { display: none; }
+  :where(.board-page.full) :where(.workspace) > :where(.todo-card, .notes-card, .page-strip) { display: none; }
 }
 
 /* a math block (```math: LaTeX, typeset by Temml as MathML), on the board
@@ -960,10 +971,11 @@
 /* the lesson's player: fabs over the paper's top-right corner, the finer
    controls in their popover */
 @layer block {
-  .board-card > .lesson-fabs { position: absolute; inset-block-start: 0.6lh; inset-inline-end: 0.6lh; z-index: 5; display: flex; align-items: center; gap: 0.25em; }
+  .board-card > .lesson-fabs { position: absolute; inset-block-start: 0.4lh; inset-inline-end: 0.4lh; z-index: 5; display: flex; align-items: center; gap: 0.25em; }
   .board-card > .lesson-fabs:empty { display: none; }
-  .lesson-fabs > :where(.fab-1, .fab-2) { margin: 0; display: grid; place-items: center; inline-size: 2.4lh; block-size: 2.4lh; padding: 0; }
-  .lesson-fabs > .fab-1 { inline-size: 1.8lh; block-size: 1.8lh; }
+  .lesson-fabs > :where(.fab-1, .fab-2) { margin: 0; display: grid; place-items: center; inline-size: 1.6lh; block-size: 1.6lh; min-block-size: 0; padding: 0; font-size: 0.85rem; }
+  .lesson-fabs > :where(.fab-1, .fab-2) > :where(svg) { inline-size: 1em; block-size: 1em; }
+  .lesson-fabs > .fab-1 { inline-size: 1.3lh; block-size: 1.3lh; }
   :where([popovertarget="lesson-menu"]) { anchor-name: --lesson-more; }
   :where(#lesson-menu) { position-anchor: --lesson-more; left: auto; right: anchor(right); min-inline-size: 15rem; }
   :where(.lesson-menu) > :where(button) { display: flex; align-items: center; gap: 0.5em; }

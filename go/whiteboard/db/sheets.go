@@ -209,3 +209,77 @@ func (d *DB) SaveDrawing(ctx context.Context, sheetID int64, drawing board.Snaps
 	_, err = d.sql.ExecContext(ctx, `UPDATE book_sheets SET snapshot = ? WHERE id = ?`, string(snap), sheetID)
 	return err
 }
+
+// CopySheet puts a copy of a page (its drawing and lesson) right after it,
+// in its chapter.
+func (d *DB) CopySheet(ctx context.Context, bookID, sheetID int64) error {
+	tx, err := d.sql.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var chapter, pos int64
+	if err := tx.QueryRowContext(ctx, `SELECT chapter_id, position FROM book_sheets WHERE id = ? AND book_id = ?`, sheetID, bookID).Scan(&chapter, &pos); err != nil {
+		return errors.New("no such page")
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE book_sheets SET position = position + 1 WHERE book_id = ? AND position > ?`, bookID, pos); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO book_sheets (book_id, chapter_id, position, snapshot, x1, y1, x2, y2, lesson)
+		SELECT book_id, chapter_id, position + 1, snapshot, x1, y1, x2, y2, lesson FROM book_sheets WHERE id = ?`, sheetID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// MoveSheet puts a page where another is: before it when moving back, after
+// it when moving on, in that page's chapter.
+func (d *DB) MoveSheet(ctx context.Context, bookID, sheetID, targetID int64) error {
+	if sheetID == targetID {
+		return nil
+	}
+	tx, err := d.sql.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	rows, err := tx.QueryContext(ctx, `SELECT s.id, s.chapter_id FROM book_sheets s JOIN book_chapters c ON c.id = s.chapter_id
+		WHERE s.book_id = ? ORDER BY c.position, c.id, s.position`, bookID)
+	if err != nil {
+		return err
+	}
+	type row struct{ id, chapter int64 }
+	var order []row
+	from, to := -1, -1
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.id, &r.chapter); err != nil {
+			rows.Close()
+			return err
+		}
+		if r.id == sheetID {
+			from = len(order)
+		}
+		if r.id == targetID {
+			to = len(order)
+		}
+		order = append(order, r)
+	}
+	rows.Close()
+	if from < 0 || to < 0 {
+		return errors.New("no such page")
+	}
+	moved := order[from]
+	moved.chapter = order[to].chapter
+	order = append(order[:from], order[from+1:]...)
+	// removing it shifted the pages after it back one: inserting at the
+	// target's old index lands it after the target when moving on, before
+	// it when moving back
+	order = append(order[:to], append([]row{moved}, order[to:]...)...)
+	for i, r := range order {
+		if _, err := tx.ExecContext(ctx, `UPDATE book_sheets SET chapter_id = ?, position = ? WHERE id = ?`, r.chapter, i+1, r.id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}

@@ -67,6 +67,31 @@ func TestBooks(t *testing.T) {
 	if sheets, _ = d.Sheets(ctx, b.ID); len(sheets) != 1 || sheets[0].No != 1 {
 		t.Fatalf("after remove: %+v", sheets)
 	}
+	// copied (right after it), then reordered across chapters
+	if err := d.CopySheet(ctx, b.ID, sheets[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	snap.Shapes[0].Label = "z"
+	if _, _, err := d.AddSheet(ctx, b.ID, snap, box); err != nil {
+		t.Fatal(err)
+	}
+	labels := func() string {
+		sheets, _ = d.Sheets(ctx, b.ID)
+		out := ""
+		for _, s := range sheets {
+			out += s.Drawing.Shapes[0].Label
+		}
+		return out
+	}
+	if got := labels(); got != "yyz" {
+		t.Fatalf("after copy: %s", got)
+	}
+	if err := d.MoveSheet(ctx, b.ID, sheets[2].ID, sheets[0].ID); err != nil || labels() != "zyy" {
+		t.Fatalf("move back: %s %v", labels(), err)
+	}
+	if err := d.MoveSheet(ctx, b.ID, sheets[0].ID, sheets[2].ID); err != nil || labels() != "yyz" {
+		t.Fatalf("move on: %s %v", labels(), err)
+	}
 }
 
 // A lesson book: a whiteboard, and pages that carry their lessons.

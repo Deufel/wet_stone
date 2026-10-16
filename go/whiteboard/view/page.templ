@@ -62,12 +62,10 @@ templ Board(d BoardData) {
 					@boardCard(d.Name, boardHeight(d.Meta))
 					@TodoCard(d.Name)
 					@NotesCard(d.Name)
+					<!-- the book this is the whiteboard of: its pages -->
+					<div id="page-strip"></div>
 				</div>
 			</main>
-			<!-- the book this is the whiteboard of: its pages -->
-			<footer class="pg-footer">
-				<div id="page-strip"></div>
-			</footer>
 		</div>
 		<!-- the teacher's voice (a lesson's or Claude's): captions as toasts,
 		     a question and its answers, in the bottom-right corner -->

@@ -255,3 +255,15 @@ func navSecToggle(label string) string {
 	return "const sec = el.parentElement, closed = sec.toggleAttribute('data-closed'); el.setAttribute('aria-expanded', String(!closed)); " +
 		"try { localStorage.setItem('nav:" + label + "', closed ? 'closed' : 'open') } catch {}"
 }
+
+func id64(id int64) string { return strconv.FormatInt(id, 10) }
+
+// editingID is the id of the page numbered no (0: none).
+func editingID(sheets []db.Sheet, no int) int64 {
+	for _, s := range sheets {
+		if s.No == no {
+			return s.ID
+		}
+	}
+	return 0
+}
