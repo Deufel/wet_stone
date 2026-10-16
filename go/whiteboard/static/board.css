@@ -912,7 +912,7 @@
 /* the teaching bar on a wider screen: only while a lesson plays, or it is
    saying something; else it takes no room */
 @media (width >= 576px) {
-  .board-page > .teach-bar:has(> #lesson-bar:empty):not(.acking) { display: none; }
+  .board-page > .teach-bar:has(> #lesson-bar:empty):has(> #lesson-say:empty):has(> #lesson-ask:empty):not(.acking) { display: none; }
 }
 @layer block {
   :where(.free-draw) { gap: 0.4em; --type: -1; cursor: pointer; }
@@ -930,4 +930,19 @@
   :where(.vis-menu) > :where(button) > :where(span) { display: grid; }
   :where(.vis-menu) :where(small) { --type: -1; --fg: -0.5; }
   :where(.vis-menu) > :where(button[aria-pressed="true"]) { --lift: 0.14; background-color: var(--_bg); }
+}
+
+@layer block {
+  .teach-bar > .lesson-say { margin: 0; flex: 1 1 20rem; min-inline-size: 0; --fg: -1; font-weight: 500; line-height: 1.35; white-space: normal; overflow: visible; text-overflow: clip; }
+  :where(.lesson-say):where(:empty) { display: none; }
+}
+
+/* the teacher's voice, in the teaching bar: a question (or the end of a
+   page) is a compact panel in the bar's flow, not a card over the board */
+@layer block {
+  .teach-bar > .lesson-ask { position: static; inset: auto; display: contents; padding: 0; }
+  .teach-bar > .lesson-ask:empty { display: none; }
+  .teach-bar .ask-card { pointer-events: auto; inline-size: auto; flex: 1 1 26rem; max-inline-size: 48rem; box-shadow: none; padding: 0.2lh 0.6em; gap: 0.15lh; grid-auto-flow: row; }
+  .teach-bar .ask-card > .q { --type: 0; }
+  .teach-bar .ask-card.done { flex: 0 1 auto; grid-auto-flow: column; }
 }

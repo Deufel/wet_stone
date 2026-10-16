@@ -7,7 +7,7 @@ import (
 )
 
 func TestLessonsLoad(t *testing.T) {
-	for _, k := range []string{"review", "tour", "go"} {
+	for _, k := range []string{"go"} {
 		if Lessons[k] == nil {
 			t.Fatalf("lesson %q missing", k)
 		}

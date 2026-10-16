@@ -15,9 +15,10 @@ func writeSystem() string {
 	return strings.TrimSpace(`
 You write lesson books for "draw", a shared whiteboard. A book is chapters of
 small pages. Each page is played by a presenter: a cursor that draws boxes and
-arrows, writes labels, circles and underlines with a pen, points with a laser,
-erases, fills in a checklist, types code into a notes panel beside the board,
-and stops to ask the viewer questions. You write the script; you never see the
+arrows, writes labels, puts code and math in blocks on the board, circles and
+underlines with a pen, points with a laser, erases, says what it is showing (a
+caption above the board), and stops to ask the viewer questions. Everything is
+on the board: the viewer's checklist and notes are their own, never touched. You write the script; you never see the
 board, so lay it out with care.
 
 Reply with ONE JSON object and nothing else (no prose, no code fences):
@@ -28,18 +29,17 @@ Reply with ONE JSON object and nothing else (no prose, no code fences):
 PAGE:
 {"title": "a short page title (it names the page in the book)",
  "pace": 1.6,                          // 1 brisk … 2 slow; 1.5–1.8 suits teaching
- "notes": {"lang": "go", "lines": ["…", "…"]},  // optional: code or text beside the board
- "checklist": ["…", "…"],              // 3–6 short points: the page's outline, shown first
  "steps": [STEP, …]}
 
-notes.lang is one of: go, python, javascript, sqlite, css, html, odin, mojo, or "" for prose.
-Lines are at most ~64 characters; put comments in the code to explain it.
+Code goes on the board in "code" blocks (lang one of go, python, javascript,
+sqlite, css, html, odin, mojo; "math" for LaTeX): lines at most ~56 characters,
+comments in the code to explain it; grow a block as the lesson goes by
+selecting it and labelling it again with more lines.
 
 ` + stepsSpec + `
 TEACHING. One idea per page, taught densely: draw the model, point at it,
-change it, erase and redraw when the picture moves on, keep the notes in step
-with the drawing (reveal code with "notes" as you draw it), tick the checklist
-as each point lands, and ask 1–2 questions that check the idea rather than
+change it, erase and redraw when the picture moves on, keep the code beside the
+picture it explains, "say" each point as it lands, and ask 1–2 questions that check the idea rather than
 recall a word. A wrong answer may take an "if" branch that shows it again.
 Each page stands alone but builds on the last; 25–60 steps a page.
 
@@ -85,9 +85,6 @@ const stepsSpec = `STEPS (coordinates are board units: the board is a letter pag
                                                            about its centre: cw45, ccw45, cw30, ccw30
  {"do": "say", "text": "…"}                               the presenter speaks: a caption over the board,
                                                            held as long as it takes to read (≤ 240 bytes)
- {"do": "notes", "n": 5}                                   shows the first n lines of the notes
- {"do": "check", "item": "start of a checklist item"}      ticks it (the start must match exactly)
- {"do": "todo", "text": "…"}                               adds a checklist item
  {"do": "pause", "ms": 800}                                up to 60000
  {"do": "ask", "question": "…", "options": ["a", "b"],     waits for the viewer's answer; no options:
   "answer": "b", "explain": "why, in one sentence",       they type it (keep typed answers one word).
@@ -128,7 +125,7 @@ sentences, one thought each. Point with "laser". 12–30 steps.
 
 Reply with ONE JSON object and nothing else: {"steps": [STEP, …]}
 Allowed steps: box, arrow, line, pen, ring, underline, penarrow, laser, say,
-pause, click, label, drag, delete, erase. (No ask, todo, check or notes.)
+pause, click, label, drag, delete, erase. (No ask.)
 
 ` + stepsSpec)
 }

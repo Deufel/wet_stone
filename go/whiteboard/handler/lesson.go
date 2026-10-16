@@ -307,13 +307,12 @@ func (h *Handler) play(ctx context.Context, l *Lesson, name string, user db.User
 		h.Hub.Publish(name)
 	}()
 	p := &presenter{h: h, ctx: ctx, name: name, b: b, uid: demoUID, x: 500, y: 950, pace: l.Pace, run: run, fast: from > 0}
-	pl := &player{h: h, p: p, l: l, user: user, id: meta.ID}
+	pl := &player{h: h, p: p, l: l, user: user, id: meta.ID, notesID: -1}
 
 	p.pause(1200 * time.Millisecond) // the page lands and its stream opens
-	for _, item := range l.Checklist {
-		p.todo(user, pl.id, item)
-		p.pause(300 * time.Millisecond)
-	}
+	// a lesson's checklist is its own business: the viewer's checklist and
+	// notes are theirs, and a lesson writes to neither (its code notes show
+	// on the board, notes())
 	for i, s := range l.Steps {
 		if p.err != nil {
 			break
@@ -337,11 +336,12 @@ func (h *Handler) play(ctx context.Context, l *Lesson, name string, user db.User
 
 // player is one lesson being played: its presenter, its script, its viewer.
 type player struct {
-	h    *Handler
-	p    *presenter
-	l    *Lesson
-	user db.User
-	id   int64 // the board
+	h       *Handler
+	p       *presenter
+	l       *Lesson
+	user    db.User
+	id      int64 // the board
+	notesID int32 // the code block the lesson's notes show in, -1 before the first
 }
 
 func (pl *player) run(steps []Step) {
@@ -408,10 +408,7 @@ func (pl *player) run(steps []Step) {
 			p.act(s.Do, 0, 0)
 		case "nudge":
 			p.act("nudge", s.By[0], s.By[1])
-		case "todo":
-			p.todo(pl.user, pl.id, s.Text)
-		case "check":
-			p.check(pl.user, pl.id, s.Item)
+		case "todo", "check": // the viewer's checklist is theirs: no longer touched
 		case "notes":
 			pl.notes(s.N)
 		case "pause":
@@ -443,12 +440,21 @@ func (p *presenter) style() {
 // notes shows the first n lines of the lesson's notes in the viewer's notebook.
 func (pl *player) notes(n int) {
 	l, p := pl.l, pl.p
-	if p.err != nil || l.Notes == nil {
+	if p.err != nil || l.Notes == nil || n == 0 {
 		return
 	}
-	if pl.h.DB.SaveNote(p.ctx, pl.user.ID, pl.id, strings.Join(l.Notes.Lines[:n], "\n"), l.Notes.Lang) == nil {
-		pl.h.Hub.PublishUser(pl.user.ID)
+	text := "```" + l.Notes.Lang + "\n" + strings.Join(l.Notes.Lines[:n], "\n")
+	if pl.notesID < 0 { // the first lines: a code block across the page's foot
+		top := int32(1000)
+		if p.b.Height <= board.H {
+			top = board.H - 300
+		}
+		p.box(40, top, 960, p.b.Height-24, text)
+		pl.notesID = p.b.SelectedBy(p.uid)
+		return
 	}
+	p.cmd(board.Cmd{Op: "pick", IDs: []int32{pl.notesID}})
+	p.label(text)
 }
 
 // helpsPerQuestion: how many times "I don't get it" is offered on one question.

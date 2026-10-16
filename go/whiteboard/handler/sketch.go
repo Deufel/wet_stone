@@ -128,7 +128,7 @@ func (h *Handler) sketchOn(ctx context.Context, name string, key apiKey, ask str
 		return
 	}
 	h.Hub.Settle(name, nil)
-	pl := &player{h: h, p: p, l: &Lesson{Title: "sketch"}}
+	pl := &player{h: h, p: p, l: &Lesson{Title: "sketch"}, notesID: -1}
 	pl.run(steps)
 	p.pause(500 * time.Millisecond)
 	p.click(980, 980)

@@ -123,6 +123,9 @@ templ teachBar(name string, owner bool) {
 			</button>
 		</div>
 		<div id="lesson-bar"></div>
+		<!-- the teacher's voice (a lesson's or Claude's): its captions, its
+		     questions and their answers, here and never over the drawing -->
+		@AskCard(name, nil, nil)
 		<div class="row oneline ends">
 			@Saved("sheet")
 			@Saved("sketch")
@@ -262,7 +265,6 @@ templ turnTool(name string, deg int) {
 // boardCard is the whiteboard: the paper, and a lesson's question over it.
 templ boardCard(name string, h int32) {
 	<section class="card board-card" data-init={ fullSync } aria-label="Whiteboard">
-		@AskCard(name, nil, nil)
 		<div class="stage-box">
 			<div class="stage-frame">
 				<div

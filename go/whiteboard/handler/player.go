@@ -133,12 +133,6 @@ func (h *Handler) startRun(l *Lesson, name string, boardID int64, user db.User, 
 	if err := h.Hub.Apply(ctx, name, board.Cmd{Op: "clear", UID: demoUID}); err != nil {
 		slog.Error("lesson wipe", "board", name, "err", err)
 	}
-	if h.DB.ClearTodos(ctx, boardID) == nil {
-		h.Hub.TodoChanged(ctx, name)
-	}
-	if l.Notes != nil && h.DB.SaveNote(ctx, user.ID, boardID, "", l.Notes.Lang) == nil {
-		h.Hub.PublishUser(user.ID)
-	}
 	var end *hub.Ask
 	go func() {
 		defer close(r.done)
