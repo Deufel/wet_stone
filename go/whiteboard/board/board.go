@@ -64,6 +64,30 @@ type Shape struct {
 	Group          int32    // -1 = none; members share a color and are selected together
 	Label          string
 	Points         []int32 // pen: x, y pairs in board units; X1..Y2 hold their extent
+	Ink            Ink     // a teacher's ink (hue, strength, meaning); zero: the board's own
+}
+
+// Ink is a shape's ink as the engine reads it (mike.css): an absolute hue
+// (--hue-lock, degrees + 1; 0 = the board's own hue), a strength (--fg in
+// tenths, -10..10; 0 = the resting ink) and a meaning (one of the semantic
+// classes: .inf .suc .wrn .dgr, which lock their own hue).
+type Ink struct {
+	Hue int16 `json:",omitempty"`
+	Fg  int8  `json:",omitempty"`
+	Sem uint8 `json:",omitempty"`
+}
+
+// Semantics are the semantic classes, by Ink.Sem (0: none).
+var Semantics = [...]string{"", "inf", "suc", "wrn", "dgr"}
+
+// SemOf is a semantic class's Ink.Sem, or 0.
+func SemOf(class string) uint8 {
+	for i, s := range Semantics {
+		if s != "" && s == class {
+			return uint8(i)
+		}
+	}
+	return 0
 }
 
 // PenPointsMax caps one stroke (pairs).
@@ -155,6 +179,7 @@ type User struct {
 	Hue      uint8
 	X, Y     int32
 	Selected int32 // the selection's primary, the label target, or -1
+	Last     int32 // the shape they drew last (a pen stroke is not selected), or -1
 	Drag     Drag
 	Sel      [ShapesMax]bool // the selection
 	EditSeq  uint32          // bumped to put the page in the label editor
@@ -517,7 +542,7 @@ func (b *Board) userFor(uid uint32) *User {
 		u := &b.Users[i]
 		if !u.Active {
 			*u = User{
-				Active: true, UID: uid, Hue: b.nextHue, Selected: -1,
+				Active: true, UID: uid, Hue: b.nextHue, Selected: -1, Last: -1,
 				GuideVX: -1, GuideHY: -1, LastSeen: now,
 			}
 			b.nextHue = (b.nextHue + 1) % 6

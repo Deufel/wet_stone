@@ -40,6 +40,27 @@ func (w *writer) attr(name string, v int32) {
 	w.s(`"`)
 }
 
+// ink is a shape's group: its hue shift, and a teacher's ink over it (an
+// absolute hue, a strength, a semantic class), as the engine reads them.
+func (w *writer) ink(h uint8, k Ink) {
+	if k.Sem > 0 && int(k.Sem) < len(Semantics) {
+		w.s(` class="`)
+		w.s(Semantics[k.Sem])
+		w.s(`"`)
+	}
+	w.s(` style="--hue-shift:`)
+	w.i(int32(h) * HueStep)
+	if k.Hue > 0 {
+		w.s(`;--hue-lock:`)
+		w.i(int32(k.Hue) - 1)
+	}
+	if k.Fg != 0 {
+		w.s(`;--fg:`)
+		w.s(strconv.FormatFloat(float64(k.Fg)/10, 'f', -1, 64))
+	}
+	w.s(`"`)
+}
+
 func (w *writer) hue(h uint8) {
 	w.s(` style="--hue-shift:`)
 	w.i(int32(h) * HueStep)
@@ -393,7 +414,7 @@ func (b *Board) drawShapes(w *writer, v *User) {
 			continue
 		}
 		w.s("<g")
-		w.hue(b.shapeHue(s))
+		w.ink(b.shapeHue(s), s.Ink)
 		if v != nil && v.Sel[i] {
 			w.s(" data-ui-selected")
 		}

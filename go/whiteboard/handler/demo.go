@@ -69,6 +69,7 @@ type presenter struct {
 
 	run  *lessonRun // the player's control (pause), or nil
 	fast bool       // seeking: draw at once, no pauses, no laser, no captions
+	ink  board.Ink  // the step's ink: each shape it draws takes it
 }
 
 func (p *presenter) cmd(c board.Cmd) {
@@ -132,6 +133,9 @@ func (p *presenter) stroke(tool uint8, x1, y1, x2, y2 int32) {
 	p.glide(tool, x2, y2, down)
 	p.seq++
 	p.cmd(board.Cmd{Op: "up", Tool: tool, Seq: p.seq, DSeq: down, X: x2, Y: y2})
+	if tool != 0 && tool != 4 { // a shape drawn (not a click, a drag, the laser)
+		p.style()
+	}
 }
 
 // box draws a box and labels it.

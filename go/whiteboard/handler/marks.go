@@ -78,7 +78,7 @@ func (h *Handler) markCommand(w http.ResponseWriter, r *http.Request, n string, 
 			st := v.(*stroke)
 			st.mu.Lock()
 			p := st.points
-			if k := len(p); k < 2 || (x-p[k-2])*(x-p[k-2])+(y-p[k-1])*(y-p[k-1]) >= 16 {
+			if k := len(p); k < 2 || (x-p[k-2])*(x-p[k-2])+(y-p[k-1])*(y-p[k-1]) >= board.LaserStep*board.LaserStep {
 				st.points = append(p, x, y)
 			}
 			st.mu.Unlock()

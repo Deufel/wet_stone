@@ -19,6 +19,7 @@ type SavedShape struct {
 	Group          int32
 	Label          string
 	Points         []int32 `json:",omitempty"` // pen
+	Ink            Ink     `json:",omitempty"` // a teacher's ink
 }
 
 type SavedJoint struct {
@@ -53,7 +54,7 @@ func (b *Board) snapshot(mask *[ShapesMax]bool) Snapshot {
 			Idx: int32(i), Kind: s.Kind, Hue: s.Hue,
 			X1: s.X1, Y1: s.Y1, X2: s.X2, Y2: s.Y2,
 			Joint: s.Joint, Corner: s.Corner, Group: s.Group, Label: s.Label,
-			Points: append([]int32(nil), s.Points...),
+			Points: append([]int32(nil), s.Points...), Ink: s.Ink,
 		})
 		if s.Group >= 0 {
 			used[s.Group] = true
@@ -84,7 +85,7 @@ func (b *Board) Restore(snap Snapshot) {
 		b.Shapes[s.Idx] = Shape{
 			Kind: s.Kind, Hue: s.Hue, X1: s.X1, Y1: s.Y1, X2: s.X2, Y2: s.Y2,
 			Joint: s.Joint, Corner: s.Corner, Group: s.Group, Label: s.Label,
-			Points: append([]int32(nil), s.Points...),
+			Points: append([]int32(nil), s.Points...), Ink: s.Ink,
 		}
 	}
 	for _, j := range snap.Joints {

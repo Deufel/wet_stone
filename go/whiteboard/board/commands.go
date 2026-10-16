@@ -16,6 +16,7 @@ type Cmd struct {
 	DSeq   int64 // pointer commands: the Seq of the down that began this stroke
 	Shape  int32 // label: the shape the text was typed for
 	Label  string
+	Ink    Ink // style: the ink for the selection (or the shape drawn last)
 }
 
 // Apply runs one command. It returns what changed the drawing, for the
@@ -29,6 +30,8 @@ func (b *Board) Apply(c Cmd) (change string) {
 		return b.pointer(c)
 	}
 	switch c.Op {
+	case "style": // a teacher's ink: the selection, or what they drew last
+		return b.style(c)
 	case "down":
 		b.down(c)
 	case "move":
@@ -210,6 +213,7 @@ func (b *Board) down(c Cmd) {
 		u.Sel = [ShapesMax]bool{}
 		u.Selected = -1
 		u.Drag = Drag{Kind: DragPen, Shape: index, Fresh: true}
+		u.Last = index
 	case 4:
 		u.Drag = Drag{Kind: DragLaser, Shape: -1}
 		u.laserN, u.laserSeg = 0, 0
@@ -238,6 +242,7 @@ func (b *Board) down(c Cmd) {
 		u.Sel[index] = true
 		u.Selected = index
 		u.Drag = Drag{Kind: DragHandle, Shape: index, HX: 1, HY: 1, Fresh: true, Code: c.Tool == 6}
+		u.Last = index
 	default:
 		if b.arrowFromPort(u, c.X, c.Y) {
 			return
@@ -730,8 +735,8 @@ func (b *Board) penPoint(index int32, x, y int32) {
 		return
 	}
 	n := len(s.Points)
-	if n >= 2 && dist2(x, y, s.Points[n-2], s.Points[n-1]) < 16 {
-		return // under 4 units: keep the path light
+	if n >= 2 && dist2(x, y, s.Points[n-2], s.Points[n-1]) < LaserStep*LaserStep {
+		return // the laser's spacing: the midpoint curve then rides over the hand's jitter
 	}
 	s.Points = append(s.Points, x, y)
 	penBounds(s)
@@ -746,4 +751,27 @@ func (b *Board) SelectedBy(uid uint32) int32 {
 		return u.Selected
 	}
 	return -1
+}
+
+// style inks the user's selection, or with none the shape they drew last.
+func (b *Board) style(c Cmd) string {
+	u := b.userFor(c.UID)
+	if u == nil {
+		return ""
+	}
+	n := 0
+	for i := range b.Shapes {
+		if (u.Sel[i] || int32(i) == u.Selected) && b.Shapes[i].Kind != None {
+			b.Shapes[i].Ink = c.Ink
+			n++
+		}
+	}
+	if n == 0 && u.Last >= 0 && b.Shapes[u.Last].Kind != None {
+		b.Shapes[u.Last].Ink = c.Ink
+		n++
+	}
+	if n == 0 {
+		return ""
+	}
+	return "style"
 }

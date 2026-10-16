@@ -80,6 +80,7 @@ const stepsSpec = `STEPS (coordinates are board units: the board is a letter pag
   "text": "s := []int{1, 2}\ns = append(s, 3)"}          highlighted (monospace, 15 units a line,
                                                            ~9 units a character): size the box to fit;
                                                            "lang": "math" typesets LaTeX ("text": "\\frac{a}{b}")
+ {"do": "style", "hue": 210, "fg": 0.8, "sem": "inf"}       inks the selection (click a shape first)
  {"do": "say", "text": "…"}                               the presenter speaks: a caption over the board,
                                                            held as long as it takes to read (≤ 240 bytes)
  {"do": "notes", "n": 5}                                   shows the first n lines of the notes
@@ -90,6 +91,13 @@ const stepsSpec = `STEPS (coordinates are board units: the board is a letter pag
   "answer": "b", "explain": "why, in one sentence",       they type it (keep typed answers one word).
   "if": {"a": [STEP…], "*": [STEP…]}}                      "if" is optional: steps to run for an answer
                                                            ("*" any other), e.g. to draw the idea again
+
+INK. Any drawing step (box, code, arrow, line, pen, ring, underline,
+penarrow) may carry "hue" (1–360, an absolute hue), "fg" (-1–1: the ink's
+strength; 0.8 vivid, -0.5 quiet) and "sem" ("inf" blue, "suc" green, "wrn"
+amber, "dgr" red: a meaning, its own hue). Use it to mean something: one hue
+per idea, "sem": "dgr" for a mistake, "suc" for the right answer, quiet ink for
+context; most shapes need none.
 
 LAYOUT. Labels are 26 units high and about 14 units wide per character; a box
 needs width ≥ 14 × characters + 40 and height 70–90. Keep labels under 28

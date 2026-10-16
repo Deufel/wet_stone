@@ -75,9 +75,15 @@ type Step struct {
 	Label  string     `json:"label,omitempty"`
 	Text   string     `json:"text,omitempty"`
 	Lang   string     `json:"lang,omitempty"` // a code block's language
-	Item   string     `json:"item,omitempty"`
-	N      int        `json:"n,omitempty"`
-	Ms     int        `json:"ms,omitempty"`
+
+	// a teacher's ink, on any drawing step (or a "style" step, on the
+	// selection): an absolute hue (1..360), a strength (-1..1), a meaning
+	Hue  int     `json:"hue,omitempty"`
+	Fg   float64 `json:"fg,omitempty"`
+	Sem  string  `json:"sem,omitempty"`
+	Item string  `json:"item,omitempty"`
+	N    int     `json:"n,omitempty"`
+	Ms   int     `json:"ms,omitempty"`
 
 	// ask: the lesson waits for the viewer's answer, says how it went, and
 	// may take a branch (If, by the answer, "*" for any other)
@@ -126,6 +132,9 @@ func (l *Lesson) check(steps []Step, at string) error {
 	}
 	for i, s := range steps {
 		bad := func(why string) error { return fmt.Errorf("step %s%d (%s): %s", at, i+1, s.Do, why) }
+		if s.Hue < 0 || s.Hue > 360 || s.Fg < -1 || s.Fg > 1 || (s.Sem != "" && board.SemOf(s.Sem) == 0) {
+			return bad("ink: hue 1..360, fg -1..1, sem one of inf, suc, wrn, dgr")
+		}
 		switch s.Do {
 		case "box":
 			if !in(s.At, 4) {
@@ -175,6 +184,10 @@ func (l *Lesson) check(steps []Step, at string) error {
 				return bad("lang: one of css, html, python, javascript, go, sqlite, odin, mojo, or math (LaTeX)")
 			}
 		case "group", "ungroup", "delete":
+		case "style":
+			if s.Hue == 0 && s.Fg == 0 && s.Sem == "" {
+				return bad("hue, fg or sem: the ink for the selection")
+			}
 		case "nudge":
 			if len(s.By) != 2 {
 				return bad("by: [dx, dy], each -1, 0 or 1")
@@ -307,7 +320,10 @@ func (pl *player) run(steps []Step) {
 		if p.err != nil {
 			return
 		}
+		p.ink = s.ink() // drawn shapes take it as they are drawn
 		switch s.Do {
+		case "style":
+			p.style()
 		case "box":
 			p.box(s.At[0], s.At[1], s.At[2], s.At[3], s.Label)
 		case "code":
@@ -353,7 +369,24 @@ func (pl *player) run(steps []Step) {
 		case "ask":
 			pl.run(pl.ask(s))
 		}
+		p.ink = board.Ink{}
 		p.pause(250 * time.Millisecond) // a beat between steps
+	}
+}
+
+// ink is the step's ink as the board keeps it.
+func (s Step) ink() board.Ink {
+	k := board.Ink{Sem: board.SemOf(s.Sem), Fg: int8(math.Round(s.Fg * 10))}
+	if s.Hue > 0 {
+		k.Hue = int16(s.Hue%360) + 1
+	}
+	return k
+}
+
+// style inks the selection (or what was drawn last) with the pending ink.
+func (p *presenter) style() {
+	if p.ink != (board.Ink{}) {
+		p.cmd(board.Cmd{Op: "style", Ink: p.ink})
 	}
 }
 
@@ -505,6 +538,7 @@ func (p *presenter) pen(points [][2]int32) {
 	}
 	p.seq++
 	p.cmd(board.Cmd{Op: "up", Tool: 5, Seq: p.seq, DSeq: down, X: p.x, Y: p.y})
+	p.style()
 }
 
 // The presenter's pen: a sample every penStep board units, one every penBeat
