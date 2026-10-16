@@ -9,11 +9,11 @@ package view
 type WriterState struct {
 	KeyEnd    string // the key's last four characters; "" for no key
 	Workspace string // the workspace its requests name, if it needs one
-	State  string // "", "writing", "ready" or "failed"
-	Topic  string
-	Title  string // the book, once ready
-	Board  string // its first page
-	Err    string
+	State     string // "", "writing", "ready" or "failed"
+	Topic     string
+	Title     string // the book, once ready
+	Board     string // its first page
+	Err       string
 }
 
 // openWriter: from the drawer, the dialog where there is one (home, a
@@ -50,7 +50,8 @@ templ WriteDialog() {
 			</button>
 		</div>
 		@Saved("write")
-		<p class="meta">Each page teaches one idea, drawn on its own board, with notes, a checklist and a question or two. It takes a minute or two; it lands in Your books, and here.</p>
+		<div id="writer-progress" class="writer-status"></div>
+		<p class="meta">Each page teaches one idea, drawn on its own board, with notes, a checklist and a question or two. It takes a minute or two; the line above says when it is ready, with the way to it.</p>
 	</dialog>
 }
 
@@ -77,16 +78,24 @@ templ WriterParts(s WriterState) {
 		@Saved("key")
 	</div>
 	<div id="writer-status" class="writer-status">
-		switch s.State {
-			case "writing":
-				<p class="meta" aria-live="polite">{ "Writing “" + s.Topic + "”…" }</p>
-			case "ready":
-				<a href={ templ.SafeURL("/b/" + s.Board) }>
-					@Icon("book")
-					{ "Ready: " + s.Title }
-				</a>
-			case "failed":
-				<p class="meta dgr">{ "Not written: " + s.Err }</p>
-		}
+		@writerLine(s)
 	</div>
+	<div id="writer-progress" class="writer-status">
+		@writerLine(s)
+	</div>
+}
+
+// writerLine: being written, ready (the way to it), or why not.
+templ writerLine(s WriterState) {
+	switch s.State {
+		case "writing":
+			<p class="meta" aria-live="polite">{ "Writing “" + s.Topic + "”…" }</p>
+		case "ready":
+			<a href={ templ.SafeURL("/b/" + s.Board) }>
+				@Icon("book")
+				{ "Ready: " + s.Title }
+			</a>
+		case "failed":
+			<p class="meta dgr">{ "Not written: " + s.Err }</p>
+	}
 }

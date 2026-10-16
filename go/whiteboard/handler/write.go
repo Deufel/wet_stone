@@ -132,7 +132,7 @@ func (h *Handler) write(w http.ResponseWriter, r *http.Request) {
 	h.writing.Store(u.ID, job)
 	h.Hub.PublishUser(u.ID)
 	go h.writeBook(*u, apiKey{key, ws}, topic, pages, job)
-	ack.Saved(datastar.NewSSE(w, r), "write", "Writing: it lands in Learn, in the menu")
+	ack.Saved(datastar.NewSSE(w, r), "write", "Writing…")
 }
 
 func short(s string, n int) string {
