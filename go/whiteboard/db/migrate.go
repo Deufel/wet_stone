@@ -174,6 +174,14 @@ var migrations = []string{
 	DROP TABLE IF EXISTS book_pages;
 	ALTER TABLE book_sheets ADD COLUMN lesson TEXT NOT NULL DEFAULT '';
 	`,
+
+	// 11: time on a checklist item: what has been spent, the clock running
+	// (since, in ms; NULL stopped), and a budget (seconds; 0 none)
+	`
+	ALTER TABLE todos ADD COLUMN spent_ms INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE todos ADD COLUMN started_ms INTEGER;
+	ALTER TABLE todos ADD COLUMN budget_s INTEGER NOT NULL DEFAULT 0;
+	`,
 }
 
 func migrate(db *sql.DB) error {

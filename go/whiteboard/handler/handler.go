@@ -812,11 +812,15 @@ func (h *Handler) todoOp(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	var s signals
+	var s payload
 	if err := datastar.ReadSignals(r, &s); err == nil && h.moved(w, r, s.Inst) {
 		return
 	}
 	switch chi.URLParam(r, "op") {
+	case "track":
+		err = h.DB.TrackTodo(r.Context(), meta.ID, id)
+	case "budget":
+		err = h.DB.BudgetTodo(r.Context(), meta.ID, id, int64(min(max(s.N, 0), 400*86400)))
 	case "toggle":
 		err = h.DB.ToggleTodo(r.Context(), meta.ID, id, u.ID)
 	case "delete":

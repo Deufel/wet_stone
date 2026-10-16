@@ -1,6 +1,7 @@
 package view
 
 import (
+	"strings"
 	"strconv"
 	"whiteboard/db"
 )
@@ -27,10 +28,10 @@ templ TodoCard(name string) {
 }
 
 // TodoDrawer is the same checklist again, explicitly: on a phone the card has
-// no room in the workspace, and it opens from the board's panel as a bottom
-// drawer. Its list has its own id; the stream sends both.
+// no room in the workspace, and it opens from the top (a phone's keyboard
+// rises from the bottom, and would cover a bottom drawer's input). Its list has its own id; the stream sends both.
 templ TodoDrawer(name string) {
-	<aside id="todo-drawer" class="drawer bottom todo-drawer" popover aria-label="Checklist">
+	<aside id="todo-drawer" class="drawer top todo-drawer" popover aria-label="Checklist">
 		<header class="drawer-head">
 			<h2>Checklist</h2>
 			@Saved("todo")
@@ -80,6 +81,7 @@ templ Todos(name, id string, list []db.Todo) {
 					if t.Done {
 						<time class="when num" datetime={ t.DoneISO }>{ doneLine(t) }</time>
 					}
+					@todoTime(name, t)
 					<button class="icon del" data-on:click={ postKept(name, "todo/"+strconv.FormatInt(t.ID, 10)+"/delete") } aria-label={ "Delete " + t.Text } title="Delete">
 						@Icon("x")
 					</button>
@@ -90,6 +92,112 @@ templ Todos(name, id string, list []db.Todo) {
 			<p class="hint">Nothing on the list yet.</p>
 		}
 	</div>
+}
+
+// todoTime is an item's time: its clock (start, stop), what it has taken
+// (counting on while the clock runs), its budget, and a meter against it.
+templ todoTime(name string, t db.Todo) {
+	<span class="todo-time" data-ui-running?={ t.Running() } data-ui-over?={ t.BudgetS > 0 && t.Elapsed() > t.BudgetS*1000 }>
+		if !t.Done {
+			<button class="icon clock" data-on:click={ postKept(name, "todo/"+strconv.FormatInt(t.ID, 10)+"/track") } aria-pressed={ strconv.FormatBool(t.Running()) } aria-label={ clockLabel(t) } title={ clockLabel(t) }>
+				if t.Running() {
+					@templ.Raw(clockRunning)
+				} else {
+					@Icon("clock")
+				}
+			</button>
+		}
+		if t.Elapsed() > 0 || t.Running() {
+			<span class="spent num" data-ms={ strconv.FormatInt(t.Elapsed(), 10) } if t.Running() { data-on-interval__duration.1s={ tickJS } }>{ Duration(t.Elapsed()) }</span>
+		}
+		if t.BudgetS > 0 {
+			<meter min="0" max={ strconv.FormatInt(t.BudgetS, 10) } value={ strconv.FormatInt(t.Elapsed()/1000, 10) } high={ strconv.FormatInt(t.BudgetS*9/10, 10) } optimum="0" title={ Duration(t.Elapsed()) + " of " + budgetWord(t.BudgetS) }></meter>
+		}
+		if !t.Done {
+			<button class="icon budget" data-on:click={ "$_budgetFor = " + strconv.FormatInt(t.ID, 10) + "; document.getElementById('budget-menu').showPopover({source: el})" } aria-label={ budgetLabel(t) } title={ budgetLabel(t) }>
+				@templ.Raw(budgetIcon)
+			</button>
+		}
+	</span>
+}
+
+func clockLabel(t db.Todo) string {
+	if t.Running() {
+		return "Stop the clock on " + t.Text
+	}
+	return "Start the clock on " + t.Text
+}
+
+func budgetLabel(t db.Todo) string {
+	if t.BudgetS > 0 {
+		return "Budget: " + budgetWord(t.BudgetS)
+	}
+	return "Give it a time budget"
+}
+
+// budgetWord is a budget, short: 15m, 1hr 30m, 2d (no zero parts).
+func budgetWord(s int64) string {
+	parts := []string{}
+	for _, u := range []struct {
+		n int64
+		w string
+	}{{86400, "d"}, {3600, "hr"}, {60, "m"}, {1, "s"}} {
+		if s >= u.n {
+			parts = append(parts, strconv.FormatInt(s/u.n, 10)+u.w)
+			s %= u.n
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// Duration reads a time as the checklist shows it: 42s, 3m 5s, 2hr 10m,
+// 1d 4hr.
+func Duration(ms int64) string {
+	s := ms / 1000
+	d, h, m, x := s/86400, s%86400/3600, s%3600/60, s%60
+	switch {
+	case d > 0:
+		return strconv.FormatInt(d, 10) + "d " + strconv.FormatInt(h, 10) + "hr"
+	case h > 0:
+		return strconv.FormatInt(h, 10) + "hr " + strconv.FormatInt(m, 10) + "m"
+	case m > 0:
+		return strconv.FormatInt(m, 10) + "m " + strconv.FormatInt(x, 10) + "s"
+	}
+	return strconv.FormatInt(x, 10) + "s"
+}
+
+// tickJS counts a running clock on, each second, from what the server last
+// said (data-ms): the same format as Duration, and its meter with it.
+const tickJS = "if (el._ms !== el.dataset.ms) { el._ms = el.dataset.ms; el._t0 = Date.now() } " +
+	"const ms = +el.dataset.ms + Date.now() - el._t0, s = Math.floor(ms / 1000), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; " +
+	"el.textContent = d ? d + 'd ' + h + 'hr' : h ? h + 'hr ' + m + 'm' : m ? m + 'm ' + x + 's' : x + 's'; " +
+	"const mt = el.parentElement.querySelector('meter'); if (mt) { mt.value = s; el.parentElement.toggleAttribute('data-ui-over', s > +mt.max) }"
+
+// BudgetMenu sets the budget of the item $_budgetFor names; one for the
+// page, opened at the item's button.
+templ BudgetMenu(name string) {
+	<div id="budget-menu" class="menu budget-menu" popover data-signals__ifmissing="{_budgetFor: 0, _budgetMin: ''}">
+		<p class="meta">Time budget</p>
+		<div class="budget-picks">
+			for _, b := range budgets {
+				<button data-on:click={ budgetPost(name, strconv.Itoa(b.s)) }>{ b.label }</button>
+			}
+		</div>
+		<div class="row oneline">
+			<input type="number" min="1" max="10000" placeholder="minutes" aria-label="Budget in minutes" data-bind:_budget-min data-on:keydown={ "evt.stopPropagation(); if (evt.key === 'Enter' && +$_budgetMin > 0) { " + budgetPost(name, "Math.round(+$_budgetMin * 60)") + " }" }/>
+			<button data-on:click={ "+$_budgetMin > 0 && " + budgetPost(name, "Math.round(+$_budgetMin * 60)") }>Set</button>
+			<button class="sec" data-on:click={ budgetPost(name, "0") }>Clear</button>
+		</div>
+	</div>
+}
+
+var budgets = []struct {
+	label string
+	s     int
+}{{"15m", 900}, {"30m", 1800}, {"1hr", 3600}, {"2hr", 7200}, {"4hr", 14400}, {"1d", 86400}}
+
+func budgetPost(name, seconds string) string {
+	return "@post('/b/" + name + "/todo/' + $_budgetFor + '/budget', {payload: {n: " + seconds + ", inst: $inst}, requestCancellation: 'disabled'}); document.getElementById('budget-menu').hidePopover()"
 }
 
 func todoAdd(name string) string {

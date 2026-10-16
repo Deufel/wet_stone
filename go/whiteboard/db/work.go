@@ -20,6 +20,23 @@ type Todo struct {
 	DoneAt  string // "14:03" or "10/14 09:12"; "" while open
 	DoneBy  string // the first name of who checked it
 	DoneISO string // for <time datetime>
+
+	// time on it: spent before the clock's last start, the clock's start
+	// (unix ms; 0 stopped), the budget (seconds; 0 none), and SQLite's now
+	// (unix ms) as the list was read, so a page counts on from the same clock
+	SpentMs, StartedMs, NowMs int64
+	BudgetS                   int64
+}
+
+// Running: is its clock going?
+func (t Todo) Running() bool { return t.StartedMs != 0 }
+
+// Elapsed is the time on it as the list was read, in ms.
+func (t Todo) Elapsed() int64 {
+	if t.StartedMs != 0 {
+		return t.SpentMs + max(t.NowMs-t.StartedMs, 0)
+	}
+	return t.SpentMs
 }
 
 const whenSQL = `CASE WHEN date(%[1]s, 'unixepoch', 'localtime') = date('now', 'localtime')
@@ -34,7 +51,8 @@ func (d *DB) Todos(ctx context.Context, boardID int64) ([]Todo, error) {
 	rows, err := d.rd.QueryContext(ctx, `SELECT t.id, t.text, t.done_at IS NOT NULL,
 		COALESCE(`+sprintf(whenSQL, "t.done_at")+`, ''),
 		COALESCE(substr(u.name, 1, instr(u.name || ' ', ' ') - 1), ''),
-		COALESCE(strftime('%Y-%m-%dT%H:%M:%SZ', t.done_at, 'unixepoch'), '')
+		COALESCE(strftime('%Y-%m-%dT%H:%M:%SZ', t.done_at, 'unixepoch'), ''),
+		t.spent_ms, COALESCE(t.started_ms, 0), t.budget_s, CAST(unixepoch('subsec') * 1000 AS INTEGER)
 		FROM todos t LEFT JOIN users u ON u.id = t.done_by
 		WHERE t.board_id = ?
 		ORDER BY t.done_at IS NOT NULL, CASE WHEN t.done_at IS NULL THEN t.id ELSE -t.done_at END`, boardID)
@@ -45,7 +63,7 @@ func (d *DB) Todos(ctx context.Context, boardID int64) ([]Todo, error) {
 	var out []Todo
 	for rows.Next() {
 		var t Todo
-		if err := rows.Scan(&t.ID, &t.Text, &t.Done, &t.DoneAt, &t.DoneBy, &t.DoneISO); err != nil {
+		if err := rows.Scan(&t.ID, &t.Text, &t.Done, &t.DoneAt, &t.DoneBy, &t.DoneISO, &t.SpentMs, &t.StartedMs, &t.BudgetS, &t.NowMs); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -60,7 +78,11 @@ func (d *DB) AddTodo(ctx context.Context, boardID, userID int64, text string) er
 
 // ToggleTodo checks an item (stamping now and who) or unchecks it.
 func (d *DB) ToggleTodo(ctx context.Context, boardID, id, userID int64) error {
+	// done stops its clock (the time spent kept)
 	_, err := d.sql.ExecContext(ctx, `UPDATE todos SET
+		spent_ms = spent_ms + CASE WHEN done_at IS NULL AND started_ms IS NOT NULL
+			THEN CAST(unixepoch('subsec') * 1000 AS INTEGER) - started_ms ELSE 0 END,
+		started_ms = CASE WHEN done_at IS NULL THEN NULL ELSE started_ms END,
 		done_at = CASE WHEN done_at IS NULL THEN unixepoch() END,
 		done_by = CASE WHEN done_at IS NULL THEN ? END
 		WHERE id = ? AND board_id = ?`, userID, id, boardID)
@@ -108,4 +130,19 @@ func (d *DB) Now(ctx context.Context) string {
 	var s string
 	_ = d.rd.QueryRowContext(ctx, `SELECT strftime('%Y-%m-%d %H:%M', 'now', 'localtime')`).Scan(&s)
 	return s
+}
+
+// TrackTodo starts an item's clock, or stops it and keeps the time spent.
+func (d *DB) TrackTodo(ctx context.Context, boardID, id int64) error {
+	_, err := d.sql.ExecContext(ctx, `UPDATE todos SET
+		spent_ms = spent_ms + CASE WHEN started_ms IS NOT NULL THEN CAST(unixepoch('subsec') * 1000 AS INTEGER) - started_ms ELSE 0 END,
+		started_ms = CASE WHEN started_ms IS NULL THEN CAST(unixepoch('subsec') * 1000 AS INTEGER) END
+		WHERE id = ? AND board_id = ? AND done_at IS NULL`, id, boardID)
+	return err
+}
+
+// BudgetTodo sets the time an item should take (seconds; 0 none).
+func (d *DB) BudgetTodo(ctx context.Context, boardID, id, seconds int64) error {
+	_, err := d.sql.ExecContext(ctx, `UPDATE todos SET budget_s = ? WHERE id = ? AND board_id = ?`, max(seconds, 0), id, boardID)
+	return err
 }

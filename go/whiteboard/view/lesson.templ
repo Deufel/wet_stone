@@ -90,9 +90,8 @@ func playTitle(st LessonState) string {
 templ SketchStop(name string, drawing bool) {
 	<div id="sketch-stop" class="sketch-stop">
 		if drawing {
-			<button class="dgr sec" data-on:click={ "@post('/b/" + name + "/sketch/stop', {requestCancellation: 'disabled'})" } aria-label="Stop Claude drawing" title="Stop Claude drawing">
+			<button class="tool stack dgr" data-on:click={ "@post('/b/" + name + "/sketch/stop', {requestCancellation: 'disabled'})" } aria-label="Stop Claude drawing" title="Stop Claude drawing">
 				@Icon("square")
-				Stop
 			</button>
 		}
 	</div>

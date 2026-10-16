@@ -71,6 +71,7 @@ templ Board(d BoardData) {
 		</div>
 		@navDrawer(d)
 		@TodoDrawer(d.Name)
+		@BudgetMenu(d.Name)
 		@panelMenus(d.Name)
 		@clearDialog(d.Name)
 		if d.User != nil && d.Meta.OwnerID == d.User.ID {
@@ -121,41 +122,23 @@ templ teachBar(name string, owner bool) {
 			</button>
 		</div>
 		<div id="lesson-bar"></div>
-		<!-- the teacher's save: a new page, or the page back on the whiteboard
-		     (the board's stream fills it) -->
-		<div id="page-save" class="page-save"></div>
-		@Saved("sheet")
-		<div id="sketch-stop"></div>
-		<button class="icon" popovertarget="sketch-menu" aria-label="Ask Claude to draw" title="Ask Claude to draw (beta)">
-			@Icon("sparkles")
-		</button>
-		<div id="sketch-menu" class="menu sketch-menu" popover data-signals__ifmissing="{_sketch: ''}">
-			<p class="meta">Claude draws it on this board, around what is there. <span class="tag">beta</span></p>
-			<div class="row oneline">
-				<input type="text" maxlength="800" placeholder="Sketch how a hash map finds a key" aria-label="What should Claude draw?" data-bind:_sketch data-on:keydown={ "evt.stopPropagation(); if (evt.key === 'Enter' && $_sketch.trim()) { " + sketchPost(name) + " }" }/>
-				<button class="suc" data-on:click={ "$_sketch.trim() && " + sketchPost(name) }>Draw</button>
-			</div>
-			@Saved("sketch")
-		</div>
 		<div class="row oneline ends">
+			@Saved("sheet")
+			@Saved("sketch")
 			@Saved("label")
-			<!-- a phone: the checklist opens as a bottom drawer -->
-			<span class="mobile">
+			<!-- a phone: no toolbar; the checklist (a top drawer), the history
+			     and full screen here -->
+			<span class="mobile row oneline">
 				<button class="icon todo-open" popovertarget="todo-drawer" aria-label="Checklist" title="Checklist">
 					@Icon("list")
 				</button>
-			</span>
-			<button class="icon" popovertarget="history-drawer" aria-label="History" title="History (⇧H)">
-				@Icon("history")
-			</button>
-			<button class="icon" data-on:click={ fullToggle } aria-label="Full screen" title="Full screen (F)">
-				<span data-show="!$_full">
+				<button class="icon" popovertarget="history-drawer" aria-label="History" title="History">
+					@Icon("history")
+				</button>
+				<button class="icon" data-on:click={ fullToggle } aria-label="Full screen" title="Full screen">
 					@Icon("maximize")
-				</span>
-				<span data-show="$_full">
-					@Icon("minimize")
-				</span>
-			</button>
+				</button>
+			</span>
 		</div>
 	</nav>
 }
@@ -203,6 +186,23 @@ templ toolRail(name string, student bool) {
 				@Icon("eraser")
 			</button>
 		</div>
+		<!-- the page: send the whiteboard to the book, or save the page back
+		     on it (the board's stream fills it) -->
+		<div id="page-save" class="button-group tools page-save"></div>
+		<!-- Claude: ask it to draw, and stop it -->
+		<div class="button-group tools" role="toolbar" aria-label="Claude">
+			<button class="tool stack" popovertarget="sketch-menu" aria-label="Ask Claude to draw" title="Ask Claude to draw (beta)">
+				@Icon("sparkles")
+			</button>
+			<div id="sketch-stop" class="sketch-stop"></div>
+		</div>
+		<div id="sketch-menu" class="menu sketch-menu" popover data-signals__ifmissing="{_sketch: ''}">
+			<p class="meta">Claude draws it on this board, around what is there. <span class="tag">beta</span></p>
+			<div class="row oneline">
+				<input type="text" maxlength="800" placeholder="Sketch how a hash map finds a key" aria-label="What should Claude draw?" data-bind:_sketch data-on:keydown={ "evt.stopPropagation(); if (evt.key === 'Enter' && $_sketch.trim()) { " + sketchPost(name) + " }" }/>
+				<button class="suc" data-on:click={ "$_sketch.trim() && " + sketchPost(name) }>Draw</button>
+			</div>
+		</div>
 		<div class="button-group tools" role="toolbar" aria-label="Undo">
 			<button class="tool stack" data-on:click={ postKept(name, "undo") } aria-label="Undo" title="Undo (Ctrl Z)">
 				@Icon("undo")
@@ -211,6 +211,21 @@ templ toolRail(name string, student bool) {
 			<button class="tool stack" data-on:click={ postKept(name, "redo") } aria-label="Redo" title="Redo (Ctrl R)">
 				@Icon("redo")
 				<kbd>⌃R</kbd>
+			</button>
+		</div>
+		<div class="button-group tools" role="toolbar" aria-label="View">
+			<button class="tool stack" popovertarget="history-drawer" aria-label="History" title="History (⇧H)">
+				@Icon("history")
+				<kbd>⇧H</kbd>
+			</button>
+			<button class="tool stack" data-on:click={ fullToggle } aria-label="Full screen" title="Full screen (F)">
+				<span data-show="!$_full">
+					@Icon("maximize")
+				</span>
+				<span data-show="$_full">
+					@Icon("minimize")
+				</span>
+				<kbd>F</kbd>
 			</button>
 		</div>
 	</nav>

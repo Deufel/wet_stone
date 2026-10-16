@@ -27,6 +27,7 @@ var icons = map[string]string{
 	"line":     `<path d="M5 19 19 5"/>`,
 	"arrow":    `<path d="M7 7h10v10"/><path d="M7 17 17 7"/>`,
 	"laser":    `<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>`,
+	"clock":    `<circle cx="12" cy="12" r="10"/><path d="M12 6v6l3 2"/>`,
 	"chevron":  `<path d="m6 9 6 6 6-6"/>`,
 	"code":     `<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>`,
 	"undo":     `<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>`,
@@ -78,3 +79,13 @@ func Mark() templ.Component {
 
 // Raw writes trusted, server-built markup (thumbnail SVG).
 func Raw(s string) templ.Component { return templ.Raw(s) }
+
+// ClockRunning is the clock of an item being timed: its hands go round
+// (svg-spinners:clock).
+const clockRunning = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12,1A11,11,0,1,0,23,12,11,11,0,0,0,12,1Zm0,20a9,9,0,1,1,9-9A9,9,0,0,1,12,21Z"/>` +
+	`<rect width="2" height="7" x="11" y="6" fill="currentColor" rx="1"><animateTransform attributeName="transform" dur="9s" repeatCount="indefinite" type="rotate" values="0 12 12;360 12 12"/></rect>` +
+	`<rect width="2" height="9" x="11" y="11" fill="currentColor" rx="1"><animateTransform attributeName="transform" dur="0.75s" repeatCount="indefinite" type="rotate" values="0 12 12;360 12 12"/></rect></svg>`
+
+// budgetIcon is the way to give an item a time budget (a clock and a plus).
+const budgetIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">` +
+	`<path d="M12 7v5l3 2m3.995-12v6M22 4.995h-6"/><path d="M21.8 10q.198.97.2 2c0 5.523-4.477 10-10 10S2 17.523 2 12S6.477 2 12 2q1.03.002 2 .2"/></g></svg>`
