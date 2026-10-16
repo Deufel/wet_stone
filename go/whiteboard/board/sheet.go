@@ -14,8 +14,8 @@ func (b *Board) Page() (snap Snapshot, box [4]int32, ok bool) {
 }
 
 // Drawing draws a saved drawing as an SVG showing box (the page scales it
-// to fit, top centred).
-func Drawing(snap Snapshot, box [4]int32, class string) string {
+// to fit, top centred); extra is markup laid over it (a reader's own marks).
+func Drawing(snap Snapshot, box [4]int32, class string, extra ...string) string {
 	b := New()
 	b.Height = 1 << 20 // a drawing from any board
 	b.Restore(snap)
@@ -32,6 +32,9 @@ func Drawing(snap Snapshot, box [4]int32, class string) string {
 	w.i(max(box[3]-box[1], 1))
 	w.s(`">`)
 	b.drawShapes(w, nil)
+	for _, e := range extra {
+		w.s(e)
+	}
 	w.s(`</svg>`)
 	return string(w.buf)
 }

@@ -24,8 +24,8 @@ const (
 	SnapAxis    = 10 // px: snap a dragged point to its own shape's other end
 	HandleR     = 9  // px: hit radius for corners, endpoints and link targets
 	LineHit     = 7  // px: hit distance for a line's body
-	ArrowLen    = 16
-	ArrowHalf   = 6
+	ArrowLen    = 30 // an arrow head: open, a triangle this long
+	ArrowHalf   = 13 // and half this wide
 	ShapesMax   = 400
 	JointsMax   = 400
 	JointEps    = 2 // px: nodes this close count as the same coordinate

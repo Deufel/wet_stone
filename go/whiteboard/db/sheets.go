@@ -74,31 +74,31 @@ func (d *DB) CreateWhiteboardBook(ctx context.Context, owner *User, title, visib
 }
 
 // AddSheet adds a page to the end of the book's last chapter; it returns its
-// number.
-func (d *DB) AddSheet(ctx context.Context, bookID int64, drawing board.Snapshot, box [4]int32) (int, error) {
+// number and id.
+func (d *DB) AddSheet(ctx context.Context, bookID int64, drawing board.Snapshot, box [4]int32) (int, int64, error) {
 	snap, err := json.Marshal(drawing)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	tx, err := d.sql.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	defer tx.Rollback()
-	var chapter int64
+	var chapter, id int64
 	if err := tx.QueryRowContext(ctx, `SELECT id FROM book_chapters WHERE book_id = ? ORDER BY position DESC, id DESC LIMIT 1`, bookID).Scan(&chapter); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO book_sheets (book_id, chapter_id, position, snapshot, x1, y1, x2, y2)
-		VALUES (?, ?, COALESCE((SELECT max(position) FROM book_sheets WHERE book_id = ?), 0) + 1, ?, ?, ?, ?, ?)`,
-		bookID, chapter, bookID, string(snap), box[0], box[1], box[2], box[3]); err != nil {
-		return 0, err
+	if err := tx.QueryRowContext(ctx, `INSERT INTO book_sheets (book_id, chapter_id, position, snapshot, x1, y1, x2, y2)
+		VALUES (?, ?, COALESCE((SELECT max(position) FROM book_sheets WHERE book_id = ?), 0) + 1, ?, ?, ?, ?, ?) RETURNING id`,
+		bookID, chapter, bookID, string(snap), box[0], box[1], box[2], box[3]).Scan(&id); err != nil {
+		return 0, 0, err
 	}
 	var n int
 	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM book_sheets WHERE book_id = ?`, bookID).Scan(&n); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return n, tx.Commit()
+	return n, id, tx.Commit()
 }
 
 // Sheets is the book's pages in order: by chapter, then as sent.
@@ -139,4 +139,61 @@ func (d *DB) RemoveSheet(ctx context.Context, bookID, sheetID int64) error {
 		return errors.New("no such page")
 	}
 	return nil
+}
+
+// Editing is the page back on the book's whiteboard to be changed (its id
+// and number), or 0, 0.
+func (d *DB) Editing(ctx context.Context, bookID int64) (int64, int) {
+	ctx, cancel := reading(ctx)
+	defer cancel()
+	var id int64
+	if err := d.rd.QueryRowContext(ctx, `SELECT COALESCE(editing_sheet, 0) FROM books WHERE id = ?`, bookID).Scan(&id); err != nil || id == 0 {
+		return 0, 0
+	}
+	sheets, err := d.Sheets(ctx, bookID)
+	if err != nil {
+		return 0, 0
+	}
+	for _, s := range sheets {
+		if s.ID == id {
+			return id, s.No
+		}
+	}
+	return 0, 0
+}
+
+// SetEditing marks a page as back on the whiteboard (0: none).
+func (d *DB) SetEditing(ctx context.Context, bookID, sheetID int64) error {
+	var v any
+	if sheetID != 0 {
+		v = sheetID
+	}
+	_, err := d.sql.ExecContext(ctx, `UPDATE books SET editing_sheet = ? WHERE id = ?`, v, bookID)
+	return err
+}
+
+// UpdateSheet saves a page again from the whiteboard (its place and
+// chapter stay), and ends its editing.
+func (d *DB) UpdateSheet(ctx context.Context, bookID, sheetID int64, drawing board.Snapshot, box [4]int32) error {
+	snap, err := json.Marshal(drawing)
+	if err != nil {
+		return err
+	}
+	tx, err := d.sql.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, `UPDATE book_sheets SET snapshot = ?, x1 = ?, y1 = ?, x2 = ?, y2 = ? WHERE id = ? AND book_id = ?`,
+		string(snap), box[0], box[1], box[2], box[3], sheetID, bookID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return errors.New("no such page")
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE books SET editing_sheet = NULL WHERE id = ?`, bookID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

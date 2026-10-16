@@ -13,7 +13,7 @@ import (
 
 // sheetPaper is one page. Its type is in container units, so it reads the
 // same at any size, a thumbnail to the printed sheet.
-templ sheetPaper(b *db.Book, s db.Sheet) {
+templ sheetPaper(b *db.Book, s db.Sheet, marks string) {
 	<article class="leaf" aria-label={ "Page " + strconv.Itoa(s.No) }>
 		<div class="leaf-in">
 		<header class="leaf-head">
@@ -21,7 +21,7 @@ templ sheetPaper(b *db.Book, s db.Sheet) {
 			<span>{ chapterLine(s) }</span>
 		</header>
 		<div class="leaf-body">
-			@templ.Raw(board.Drawing(s.Drawing, s.Box, "print-board leaf-drawing"))
+			@templ.Raw(board.Drawing(s.Drawing, s.Box, "print-board leaf-drawing", marks))
 		</div>
 		<footer class="leaf-foot">
 			<span>{ b.Author }</span>
@@ -32,37 +32,68 @@ templ sheetPaper(b *db.Book, s db.Sheet) {
 	</article>
 }
 
-// PageStrip is the whiteboard's footer: the book's pages, small, each the
-// way to it. A morph target on the board's stream, empty with no book.
-templ PageStrip(name string, b *db.Book, sheets []db.Sheet) {
+// PageStrip is the whiteboard's footer, the book's pages, small; and the
+// teacher's save in the teaching bar. For the teacher a page is the way to
+// put it back on the whiteboard (its save then replaces it); for anyone else
+// the way to read it. A morph target pair on the board's stream.
+templ PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing int) {
 	<div id="page-strip" class="page-strip">
 		if b != nil {
-			<a class="strip-book" href={ templ.SafeURL("/book/" + b.Name) } title="The book's contents">
-				@Icon("book")
-				<span>{ b.Title }</span>
-			</a>
 			<ol class="strip-pages">
 				for _, s := range sheets {
-					<li>
-						<a href={ templ.SafeURL("/book/" + b.Name + "/page/" + strconv.Itoa(s.No)) } title={ "Page " + strconv.Itoa(s.No) + " · " + s.ChapterTitle }>
-							<span class="mini">
-								@templ.Raw(board.Drawing(s.Drawing, s.Box, "print-board leaf-drawing"))
-							</span>
-							<span class="no">{ strconv.Itoa(s.No) }</span>
-						</a>
+					<li data-ui-editing?={ s.No == editing }>
+						if owner {
+							<button class="strip-page" data-on:click={ "@post('/b/" + name + "/editpage/" + strconv.Itoa(s.No) + "', {payload: {inst: $inst}})" } title={ "Page " + strconv.Itoa(s.No) + ": put it back on the whiteboard to change it" }>
+								@stripPage(s)
+							</button>
+						} else {
+							<a class="strip-page" href={ templ.SafeURL("/book/" + b.Name + "/page/" + strconv.Itoa(s.No)) } title={ "Page " + strconv.Itoa(s.No) }>
+								@stripPage(s)
+							</a>
+						}
 					</li>
 				}
 			</ol>
-			if len(sheets) == 0 {
-				<span class="meta">No pages yet: draw, then send the whiteboard to a page.</span>
-			}
+		}
+	</div>
+	<div id="page-save" class="page-save">
+		if owner && editing > 0 {
+			<button class="send-page suc" data-on:click={ postKept(name, "sendpage") } title={ "Save the whiteboard as page " + strconv.Itoa(editing) + " again" }>
+				@Icon("book")
+				<span>{ "Save page " + strconv.Itoa(editing) }</span>
+			</button>
+			<button class="sec" data-on:click={ postKept(name, "newpage") } title={ "Leave page " + strconv.Itoa(editing) + " as it was and start a clean page" }>New page</button>
+		} else if owner {
+			<button class="send-page" data-on:click={ postKept(name, "sendpage") } title="Save the whole whiteboard as the book's next page, and turn to a clean one">
+				@Icon("book")
+				<span>Send to page</span>
+			</button>
 		}
 	</div>
 }
 
+templ stripPage(s db.Sheet) {
+	<span class="mini">
+		@templ.Raw(sheetDrawing(s))
+	</span>
+	<span class="no">{ strconv.Itoa(s.No) }</span>
+}
+
+// Marks is a student's own layer over the whiteboard: their marks, and the
+// one being drawn. A morph target on their stream only.
+templ Marks(marks [][]int32, height int32) {
+	<svg id="marks" class="marks" xmlns="http://www.w3.org/2000/svg" viewBox={ "0 0 1000 " + strconv.Itoa(int(height)) }>
+		for _, m := range marks {
+			if len(m) >= 4 {
+				<path class="mark" d={ board.PenPath(m) }></path>
+			}
+		}
+	</svg>
+}
+
 // SheetView is a page on its own: the page, the way to the pages beside it,
 // and printing it (only the page prints, letter, edge to edge).
-templ SheetView(u *db.User, b *db.Book, sheets []db.Sheet, no int) {
+templ SheetView(u *db.User, b *db.Book, sheets []db.Sheet, no int, marks string) {
 	@Doc(b.Title+" · p. "+strconv.Itoa(no)+" · draw", nil) {
 		<div class="page leaf-page">
 			<header class="pg-header app-header leaf-bar">
@@ -90,7 +121,7 @@ templ SheetView(u *db.User, b *db.Book, sheets []db.Sheet, no int) {
 				</div>
 			</header>
 			<main class="pg-main scroll-y leaf-main">
-				@sheetPaper(b, sheets[no-1])
+				@sheetPaper(b, sheets[no-1], marks)
 			</main>
 		</div>
 		<script src="/static/highlight.js"></script>
@@ -128,7 +159,7 @@ func sheetDrawing(s db.Sheet) string {
 
 // SheetsPrint is a whiteboard's book for paper: every page, a letter sheet
 // each, edge to edge.
-templ SheetsPrint(b *db.Book, sheets []db.Sheet) {
+templ SheetsPrint(b *db.Book, sheets []db.Sheet, marks map[int64]string) {
 	@Doc(b.Title+" · print · draw", nil) {
 		<div class="page leaf-page">
 			<header class="pg-header app-header leaf-bar">
@@ -146,7 +177,7 @@ templ SheetsPrint(b *db.Book, sheets []db.Sheet) {
 			</header>
 			<main class="pg-main scroll-y leaf-main">
 				for _, s := range sheets {
-					@sheetPaper(b, s)
+					@sheetPaper(b, s, marks[s.ID])
 				}
 			</main>
 		</div>

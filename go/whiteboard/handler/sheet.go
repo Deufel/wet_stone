@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 	"sync/atomic"
+	"whiteboard/db"
+	"whiteboard/hub"
 
 	"whiteboard/ack"
 	"whiteboard/board"
@@ -31,25 +33,15 @@ var sheetVersion atomic.Int64
 
 func (h *Handler) sheetRoutes(r chi.Router) {
 	r.Post("/b/{name}/sendpage", h.sendPage)
+	r.Post("/b/{name}/editpage/{no}", h.editPage)
+	r.Post("/b/{name}/newpage", h.newPage)
 	r.Get("/book/{name}/page/{no}", h.sheetPage)
 	r.Post("/book/{name}/sheet/{id}/remove", h.removeSheet)
 }
 
 func (h *Handler) sendPage(w http.ResponseWriter, r *http.Request) {
-	n, u, meta, ok := h.open(w, r, false)
+	n, u, meta, s, ok := h.teacher(w, r)
 	if !ok {
-		return
-	}
-	var s signals
-	if err := datastar.ReadSignals(r, &s); err != nil {
-		http.Error(w, "bad signals", http.StatusBadRequest)
-		return
-	}
-	if h.moved(w, r, s.Inst) {
-		return
-	}
-	if meta.OwnerID != u.ID {
-		ack.Bad(datastar.NewSSE(w, r), "sheet", "Only the teacher sends pages")
 		return
 	}
 	b, _, err := h.Hub.Board(r.Context(), n)
@@ -65,6 +57,7 @@ func (h *Handler) sendPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	bookName := h.DB.WhiteboardBook(ctx, meta.ID)
 	if bookName == "" {
+		h.whiteboards.Store(meta.ID, true)
 		if bookName, err = h.DB.CreateBookFor(ctx, u, meta.ID, meta.Title, meta.Visibility); err != nil {
 			slog.Error("send page: book", "board", n, "err", err)
 			ack.Bad(datastar.NewSSE(w, r), "sheet", "Not sent")
@@ -77,34 +70,125 @@ func (h *Handler) sendPage(w http.ResponseWriter, r *http.Request) {
 		ack.Bad(datastar.NewSSE(w, r), "sheet", "Not sent")
 		return
 	}
-	no, err := h.DB.AddSheet(ctx, book.ID, snap, box)
+	// a page back on the whiteboard is saved again; otherwise a new one
+	sheetID, no := h.DB.Editing(ctx, book.ID)
+	if sheetID != 0 {
+		err = h.DB.UpdateSheet(ctx, book.ID, sheetID, snap, box)
+	} else {
+		no, sheetID, err = h.DB.AddSheet(ctx, book.ID, snap, box)
+	}
 	if err != nil {
 		slog.Error("send page", "board", n, "err", err)
 		ack.Bad(datastar.NewSSE(w, r), "sheet", "Not sent")
 		return
 	}
-	// the page is turned: a clean whiteboard (its history keeps the old one)
-	if err := h.Hub.Apply(ctx, n, board.Cmd{Op: "clear", UID: s.UID}); err != nil {
-		slog.Error("send page: clear", "board", n, "err", err)
+	// the students' marks go with the page they were made on
+	if who, err := h.DB.MarksToSheet(ctx, meta.ID, sheetID); err == nil {
+		for _, id := range who {
+			h.marksChanged(n, id)
+		}
 	}
-	sheetVersion.Add(1)
-	h.Hub.Publish(n)
-	_ = h.Bus.Publish(bus.BookSubject(book.ID), nil)
+	h.turnPage(r, n, s.UID, book.ID)
 	ack.Saved(datastar.NewSSE(w, r), "sheet", "Page "+strconv.Itoa(no))
 }
 
-// pageStrip is the whiteboard's footer: its book's pages, or nothing.
-func (h *Handler) pageStrip(r *http.Request, boardID int64, name string) string {
-	bookName := h.DB.WhiteboardBook(r.Context(), boardID)
+// turnPage: a clean whiteboard (its history keeps the old one), and the
+// strip and the book told.
+func (h *Handler) turnPage(r *http.Request, n string, uid uint32, bookID int64) {
+	if err := h.Hub.Apply(r.Context(), n, board.Cmd{Op: "clear", UID: uid}); err != nil {
+		slog.Error("turn page", "board", n, "err", err)
+	}
+	sheetVersion.Add(1)
+	h.Hub.Publish(n)
+	_ = h.Bus.Publish(bus.BookSubject(bookID), nil)
+}
+
+// teacher resolves a whiteboard command only its owner may give; on false it
+// has answered.
+func (h *Handler) teacher(w http.ResponseWriter, r *http.Request) (string, *db.User, *hub.Meta, signals, bool) {
+	var s signals
+	n, u, meta, ok := h.open(w, r, false)
+	if !ok {
+		return n, u, meta, s, false
+	}
+	if err := datastar.ReadSignals(r, &s); err != nil {
+		http.Error(w, "bad signals", http.StatusBadRequest)
+		return n, u, meta, s, false
+	}
+	if h.moved(w, r, s.Inst) {
+		return n, u, meta, s, false
+	}
+	if meta.OwnerID != u.ID {
+		ack.Bad(datastar.NewSSE(w, r), "sheet", "Only the teacher changes pages")
+		return n, u, meta, s, false
+	}
+	return n, u, meta, s, true
+}
+
+// editPage puts a page back on the whiteboard to be changed: the next save
+// replaces it.
+func (h *Handler) editPage(w http.ResponseWriter, r *http.Request) {
+	n, _, meta, _, ok := h.teacher(w, r)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	book, err := h.DB.Book(ctx, h.DB.WhiteboardBook(ctx, meta.ID))
+	if err != nil {
+		ack.Bad(datastar.NewSSE(w, r), "sheet", "No book here")
+		return
+	}
+	sheets, err := h.DB.Sheets(ctx, book.ID)
+	no, _ := strconv.Atoi(chi.URLParam(r, "no"))
+	if err != nil || no < 1 || no > len(sheets) {
+		ack.Bad(datastar.NewSSE(w, r), "sheet", "No such page")
+		return
+	}
+	s := sheets[no-1]
+	if err := h.Hub.Redraw(ctx, n, s.Drawing); err != nil {
+		ack.Bad(datastar.NewSSE(w, r), "sheet", "Not opened")
+		return
+	}
+	if err := h.DB.SetEditing(ctx, book.ID, s.ID); err != nil {
+		slog.Error("edit page", "board", n, "err", err)
+	}
+	sheetVersion.Add(1)
+	h.Hub.Publish(n)
+	ack.Saved(datastar.NewSSE(w, r), "sheet", "Page "+strconv.Itoa(no)+" is back on the whiteboard")
+}
+
+// newPage leaves a page being changed as it was, and turns to a clean one.
+func (h *Handler) newPage(w http.ResponseWriter, r *http.Request) {
+	n, _, meta, s, ok := h.teacher(w, r)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	book, err := h.DB.Book(ctx, h.DB.WhiteboardBook(ctx, meta.ID))
+	if err != nil {
+		datastar.NewSSE(w, r)
+		return
+	}
+	_ = h.DB.SetEditing(ctx, book.ID, 0)
+	h.turnPage(r, n, s.UID, book.ID)
+	ack.Saved(datastar.NewSSE(w, r), "sheet", "A clean page")
+}
+
+// pageStrip is the whiteboard's footer (its book's pages) and its save
+// button (a new page, or the page back on it), for this viewer.
+func (h *Handler) pageStrip(r *http.Request, u *db.User, meta *hub.Meta, name string) string {
+	owner := u != nil && u.ID == meta.OwnerID
+	bookName := h.DB.WhiteboardBook(r.Context(), meta.ID)
 	if bookName == "" {
-		return renderString(r, view.PageStrip(name, nil, nil))
+		return renderString(r, view.PageStrip(name, nil, nil, owner, 0))
 	}
 	book, err := h.DB.Book(r.Context(), bookName)
 	if err != nil {
-		return renderString(r, view.PageStrip(name, nil, nil))
+		return renderString(r, view.PageStrip(name, nil, nil, owner, 0))
 	}
 	sheets, _ := h.DB.Sheets(r.Context(), book.ID)
-	return renderString(r, view.PageStrip(name, book, sheets))
+	_, editing := h.DB.Editing(r.Context(), book.ID)
+	return renderString(r, view.PageStrip(name, book, sheets, owner, editing))
 }
 
 func (h *Handler) sheetPage(w http.ResponseWriter, r *http.Request) {
@@ -122,8 +206,9 @@ func (h *Handler) sheetPage(w http.ResponseWriter, r *http.Request) {
 		h.notFound(w, r, true)
 		return
 	}
+	mine, _ := h.DB.Marks(r.Context(), 0, u.ID, sheets[no-1].ID)
 	html(w)
-	_ = view.SheetView(u, b, sheets, no).Render(r.Context(), w)
+	_ = view.SheetView(u, b, sheets, no, marksOver(mine)).Render(r.Context(), w)
 }
 
 func (h *Handler) removeSheet(w http.ResponseWriter, r *http.Request) {

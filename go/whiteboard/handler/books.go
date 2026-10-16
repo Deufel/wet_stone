@@ -269,8 +269,14 @@ func (h *Handler) bookPrint(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "book unavailable", http.StatusServiceUnavailable)
 			return
 		}
+		mine := map[int64]string{}
+		for _, s := range sheets {
+			if m, _ := h.DB.Marks(r.Context(), 0, u.ID, s.ID); len(m) > 0 {
+				mine[s.ID] = marksOver(m)
+			}
+		}
 		html(w)
-		_ = view.SheetsPrint(b, sheets).Render(r.Context(), w)
+		_ = view.SheetsPrint(b, sheets, mine).Render(r.Context(), w)
 		return
 	}
 	d := view.PrintData{Back: "/book/" + b.Name, BackLabel: "Back to the book", Title: b.Title, Book: b, Printed: h.DB.Now(r.Context())}

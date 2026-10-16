@@ -147,6 +147,22 @@ var migrations = []string{
 	);
 	CREATE INDEX IF NOT EXISTS book_sheets_book ON book_sheets (book_id, position);
 	`,
+
+	// 9: a student's own pencil marks on a book's whiteboard (comments,
+	// questions, notes: only they see them); a page sent takes them with it
+	`
+	CREATE TABLE IF NOT EXISTS board_marks (
+		id         INTEGER PRIMARY KEY,
+		board_id   INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+		user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		sheet_id   INTEGER REFERENCES book_sheets(id) ON DELETE CASCADE, -- NULL: still on the whiteboard
+		points     TEXT NOT NULL, -- [x, y, x, y, …] in board units
+		created_at INTEGER NOT NULL DEFAULT (unixepoch())
+	);
+	CREATE INDEX IF NOT EXISTS board_marks_board ON board_marks (board_id, user_id, sheet_id);
+	-- the page back on the whiteboard to be changed: its save replaces it
+	ALTER TABLE books ADD COLUMN editing_sheet INTEGER REFERENCES book_sheets(id) ON DELETE SET NULL;
+	`,
 }
 
 func migrate(db *sql.DB) error {

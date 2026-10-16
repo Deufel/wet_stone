@@ -239,7 +239,7 @@
   :where(#board) line { stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
   :where(#board) .pen { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
   :where(#board) [data-ui-selected] .pen { stroke-width: 4.5; }
-  :where(#board) .head { fill: currentColor; stroke: none; }
+  :where(#board) .head { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; } /* open: the line stops at its base */
   :where(#board) .node { fill: color-mix(in oklch, currentColor 10%, Canvas); stroke: currentColor; stroke-width: 1.5; }
   :where(#board) .node[data-ui-linked] { fill: currentColor; }
   :where(#board) [data-ui-selected] { --fg: 1; }
@@ -488,7 +488,7 @@
   :where(.print-board) { display: block; inline-size: 100%; max-inline-size: 7.5in; aspect-ratio: 1; margin-inline: auto; border: 0.5pt solid silver; }
   :where(.print-board) rect { fill: none; stroke: black; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
   :where(.print-board) line { stroke: black; stroke-width: 1.5; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-  :where(.print-board) .head { fill: black; stroke: none; }
+  :where(.print-board) .head { fill: none; stroke: black; stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
   :where(.print-board) .pen { fill: none; stroke: black; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
   :where(.print-board) .node { fill: black; stroke: none; }
   :where(.print-board) .label { display: flex; align-items: center; justify-content: center; block-size: 100%; inline-size: 100%; text-align: center; padding: 0.2em; overflow: hidden; font-size: 22px; color: black; }
@@ -740,4 +740,18 @@
 @layer print {
   .print-board .label.math { display: grid; place-items: center; padding: 8px; overflow: hidden; font-size: 40px; }
   .print-board .label.math > .tex { font-size: inherit; white-space: pre-wrap; }
+}
+
+/* a student's own marks: a pencil of their own, over the board and on pages */
+@layer block {
+  :where(#stage) > :where(svg.marks) { pointer-events: none; }
+  :where(.marks) .mark, :where(.marks) :where(path) { fill: none; stroke: oklch(0.62 calc(0.17 * var(--chroma, 1)) 35); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+  :where(.page-save) { display: inline-flex; align-items: center; gap: 0.4em; }
+  :where(.page-save):where(:empty) { display: none; }
+  :where(.strip-page) { display: grid; justify-items: center; gap: 0.1lh; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; text-decoration: none; cursor: pointer; min-block-size: 0; }
+  :where(.strip-page):where(:hover) :where(.mini) { outline: 2px solid var(--focus, currentColor); }
+  :where(.strip-pages) > :where(li[data-ui-editing]) :where(.mini) { outline: 3px solid var(--focus, currentColor); }
+}
+@layer print {
+  .print-board .marks path { fill: none; stroke: #c2410c; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 }

@@ -58,6 +58,14 @@ func (w *writer) circle(cx, cy, r int32, extra string) {
 // a label as a foreignObject the engine types, centered in the given box
 // penPath writes a pen stroke as path data, smoothed: a quadratic through
 // each point to the midpoint of the next (the laser's smoothing).
+// PenPath is a stroke's smoothed path data ("M … Q …"), as the board draws a
+// pen stroke: for marks drawn outside the board (a student's own).
+func PenPath(p []int32) string {
+	w := &writer{}
+	w.penPath(p)
+	return string(w.buf)
+}
+
 func (w *writer) penPath(p []int32) {
 	if len(p) < 2 {
 		return

@@ -66,9 +66,11 @@ type Handler struct {
 	// and reloads when it reaches another.
 	Instance string
 
-	runs      sync.Map // board name → *lessonRun, its lesson playing (or paused, or done)
-	writing   sync.Map // user id → *writeJob, their lesson being written
-	sketching sync.Map // board name → Claude drawing there
+	runs        sync.Map // board name → *lessonRun, its lesson playing (or paused, or done)
+	writing     sync.Map // user id → *writeJob, their lesson being written
+	sketching   sync.Map // board name → Claude drawing there
+	marking     sync.Map // markKey → *stroke, a student's mark being drawn
+	whiteboards sync.Map // board id → true: a book's whiteboard
 }
 
 // reloadJS reloads the page, at most once in 10 s (two processes answering
@@ -155,6 +157,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/b/{name}/lesson/{op}", h.lessonControl)
 	r.Post("/b/{name}/help", h.help)
 	h.sheetRoutes(r)
+	r.Post("/b/{name}/marks/clear", h.clearMarks)
 	r.Post("/b/{name}/sketch", h.sketch)
 	r.Post("/b/{name}/sketch/stop", h.sketchStop)
 	r.Post("/course/{kind}", h.course)
@@ -392,7 +395,7 @@ func (h *Handler) page(w http.ResponseWriter, r *http.Request) {
 		slog.Error("tabs", "err", err)
 	}
 	html(w)
-	if err := view.Board(view.BoardData{Lesson: h.DB.HasLesson(r.Context(), meta.ID), Nav: h.bookNav(r, meta.ID, n), Inst: h.Instance, Name: n, Link: h.Auth.BaseURL + "/b/" + n, User: u, Meta: meta, Hist: hist, Tabs: tabs}).Render(r.Context(), w); err != nil {
+	if err := view.Board(view.BoardData{Student: h.student(meta, u), Lesson: h.DB.HasLesson(r.Context(), meta.ID), Nav: h.bookNav(r, meta.ID, n), Inst: h.Instance, Name: n, Link: h.Auth.BaseURL + "/b/" + n, User: u, Meta: meta, Hist: hist, Tabs: tabs}).Render(r.Context(), w); err != nil {
 		slog.Error("page", "err", err)
 	}
 }
@@ -433,6 +436,19 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer uunsub()
+
+	// a student's own marks: their own wake, their own layer
+	var mwake <-chan struct{}
+	student := h.student(meta0, u)
+	if student {
+		mw, munsub, err := h.wakeOn(bus.MarksSubject(n, u.ID))
+		if err != nil {
+			http.Error(w, "bus unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		defer munsub()
+		mwake = mw
+	}
 
 	sse := datastar.NewSSE(w, r, h.sseOptions()...)
 	b.Join(s.UID, u.First())
@@ -523,7 +539,7 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 		}
 		// the book's pages, along the foot of its whiteboard
 		if v := sheetVersion.Load(); v != sentSheets {
-			if sse.PatchElements(h.pageStrip(r, meta0.ID, n)) != nil {
+			if sse.PatchElements(h.pageStrip(r, u, meta0, n)) != nil {
 				return false
 			}
 			sentSheets = v
@@ -589,7 +605,10 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 
 	// the tab strip once on connect, too: a page landed before a change on
 	// another device (or a reconnect) catches up
-	if !push() || !tabs() {
+	marks := func() bool {
+		return sse.PatchElements(h.marksSVG(r, n, meta0.ID, u, height(meta0))) == nil
+	}
+	if !push() || !tabs() || (student && !marks()) {
 		return
 	}
 	for {
@@ -602,6 +621,10 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 			}
 		case <-uwake:
 			if !tabs() {
+				return
+			}
+		case <-mwake:
+			if !marks() {
 				return
 			}
 		case <-histLater.C:
@@ -618,7 +641,7 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) command(w http.ResponseWriter, r *http.Request) {
-	n, _, meta, ok := h.open(w, r, false)
+	n, u, meta, ok := h.open(w, r, false)
 	if !ok {
 		return
 	}
@@ -633,6 +656,10 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.moved(w, r, s.Inst) {
+		return
+	}
+	if h.student(meta, u) { // a book's whiteboard, not theirs: their own pencil
+		h.markCommand(w, r, n, u, meta, op, s)
 		return
 	}
 	if histOps[op] {

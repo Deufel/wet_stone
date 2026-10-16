@@ -29,8 +29,12 @@ import (
 const sketchUID = 0xC1A0 // Claude's viewer id on the board
 
 func (h *Handler) sketch(w http.ResponseWriter, r *http.Request) {
-	n, u, _, ok := h.open(w, r, false)
+	n, u, meta, ok := h.open(w, r, false)
 	if !ok {
+		return
+	}
+	if h.student(meta, u) {
+		ack.Bad(datastar.NewSSE(w, r), "sketch", "Only the teacher draws on this whiteboard")
 		return
 	}
 	var p payload

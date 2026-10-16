@@ -84,3 +84,9 @@ func UserSubject(id int64) string { return "user." + strconv.FormatInt(id, 10) +
 
 // BookSubject is the subject for a change to one book's contents.
 func BookSubject(id int64) string { return "book." + strconv.FormatInt(id, 10) + ".changed" }
+
+// MarksSubject: a student's own marks on a board changed (only their
+// streams of that board listen).
+func MarksSubject(board string, user int64) string {
+	return "marks." + board + "." + strconv.FormatInt(user, 10)
+}
