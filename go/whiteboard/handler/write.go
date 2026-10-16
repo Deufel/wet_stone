@@ -190,6 +190,45 @@ func writeCourse(ctx context.Context, key apiKey, topic string, pages int) (*Cou
 	return nil, errors.New("the lesson did not come out right; try again")
 }
 
+// explainSteps asks Claude for another way to show the idea behind a
+// question, checked like any lesson's steps (one round of repair).
+func explainSteps(ctx context.Context, key apiKey, l *Lesson, q Step) ([]Step, error) {
+	msgs := []message{{Role: "user", Content: explainPrompt(l, q)}}
+	for try := 0; try < 2; try++ {
+		text, err := claude(ctx, key, explainSystem(), msgs)
+		if err != nil {
+			return nil, err
+		}
+		var out struct{ Steps []Step }
+		err = json.Unmarshal([]byte(jsonOf(text)), &out)
+		if err == nil {
+			err = checkAside(out.Steps)
+		}
+		if err == nil {
+			return out.Steps, nil
+		}
+		msgs = append(msgs, message{Role: "assistant", Content: text},
+			message{Role: "user", Content: "That does not pass the checker: " + err.Error() + "\nSend the whole corrected JSON, and nothing else."})
+	}
+	return nil, errors.New("the drawing did not come out right")
+}
+
+// checkAside: an explanation's steps draw and speak; they never ask, nor
+// touch the checklist or the notes.
+func checkAside(steps []Step) error {
+	if len(steps) > 60 {
+		return errors.New("at most 60 steps")
+	}
+	for i, s := range steps {
+		switch s.Do {
+		case "ask", "todo", "check", "notes", "group", "ungroup", "nudge", "dblclick":
+			return fmt.Errorf("step %d (%s): not in an explanation", i+1, s.Do)
+		}
+	}
+	aside := Lesson{Title: "aside", Steps: steps}
+	return aside.Validate()
+}
+
 // jsonOf takes the JSON object out of a reply (fences and words around it aside).
 func jsonOf(s string) string {
 	i, j := strings.Index(s, "{"), strings.LastIndex(s, "}")

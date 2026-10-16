@@ -53,3 +53,35 @@ func TestClaudeWritesAndRepairs(t *testing.T) {
 		t.Fatalf("a refused key: %v", err)
 	}
 }
+
+// "I don't get it": the explainer's steps come back checked, and an aside
+// that tries to ask (or touch the checklist) is sent back for repair.
+func TestExplainSteps(t *testing.T) {
+	good := `{"steps": [{"do": "say", "text": "Think of it as a phone book."},
+		{"do": "ring", "at": [300, 300], "r": 100}, {"do": "penarrow", "from": [420, 300], "to": [640, 300]}]}`
+	bad := `{"steps": [{"do": "ask", "question": "ok?"}]}`
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		var req struct {
+			System   string
+			Messages []message
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		if !strings.Contains(req.System, "I don't get it") || !strings.Contains(req.Messages[0].Content, "What is cap(s)?") {
+			t.Errorf("the explainer was not told the question")
+		}
+		reply := bad
+		if len(req.Messages) == 3 {
+			reply = good
+		}
+		piece, _ := json.Marshal(reply)
+		fmt.Fprintf(w, "data: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", piece)
+	}))
+	defer srv.Close()
+	anthropicURL = srv.URL
+	steps, err := explainSteps(context.Background(), apiKey{"sk-ant-test", ""}, Lessons["go"], Step{Do: "ask", Question: "What is cap(s)?", Answer: "4"})
+	if err != nil || calls != 2 || len(steps) != 3 || steps[0].Do != "say" {
+		t.Fatalf("calls %d, steps %+v, err %v", calls, steps, err)
+	}
+}

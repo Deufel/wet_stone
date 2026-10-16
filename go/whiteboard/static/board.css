@@ -604,3 +604,10 @@
   :where(.writer-status) > :where(p) { margin: 0; --type: -1; }
   :where(.writer-status) > :where(.dgr) { --fg: 0.85; }
 }
+
+/* the presenter speaking, and "I don't get it" */
+@layer block {
+  :where(.ask-card.say) { inline-size: auto; max-inline-size: min(34rem, 100%); padding-block: 0.45lh; }
+  :where(.ask-card.say) > :where(p) { margin: 0; font-style: italic; }
+  :where(.ask-card) > :where(.help) { justify-self: start; --type: -1; }
+}

@@ -18,6 +18,10 @@ type Ask struct {
 	Answered string // the answer given, "" while waiting
 	Result   string // the feedback once answered
 	Correct  bool
+	Help     bool // "I don't get it" is offered (the viewer has a key to ask with)
+
+	// Say: no question, the presenter speaking (a caption over the board)
+	Say string
 
 	// a book page's lesson, done: the card stays with the way on
 	Done      bool
@@ -28,6 +32,10 @@ type Ask struct {
 }
 
 var askVersion atomic.Int64
+
+// HelpAnswer is the answer "I don't get it" gives: a control character, so no
+// typed answer (cleaned of those) can be it.
+const HelpAnswer = "\x00help"
 
 // ErrNoAsk: no question is waiting on that board for that person.
 var ErrNoAsk = errors.New("no question waiting")
@@ -69,7 +77,7 @@ func (h *Hub) Answer(ctx context.Context, name string, userID int64, text string
 		return err
 	}
 	q := l.ask.Load()
-	if q == nil || q.ByID != userID || q.Answered != "" {
+	if q == nil || q.ByID != userID || q.Answered != "" || q.Say != "" || text == HelpAnswer && !q.Help {
 		return ErrNoAsk
 	}
 	l.mu.Lock()

@@ -237,6 +237,21 @@ func (h *Hub) Apply(ctx context.Context, name string, c board.Cmd) error {
 	return nil
 }
 
+// Redraw puts a saved drawing back on the board, and saves it.
+func (h *Hub) Redraw(ctx context.Context, name string, snap board.Snapshot) error {
+	l, err := h.live(ctx, name)
+	if err != nil {
+		return err
+	}
+	l.b.Replace(snap)
+	h.Publish(name)
+	l.mu.Lock()
+	l.pending = "restore"
+	l.mu.Unlock()
+	l.poke()
+	return nil
+}
+
 // Hist queues a history command for the keeper.
 func (h *Hub) Hist(ctx context.Context, name string, op HistOp) error {
 	l, err := h.live(ctx, name)

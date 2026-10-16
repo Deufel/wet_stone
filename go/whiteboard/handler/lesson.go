@@ -32,6 +32,8 @@ import (
 //	    {"do": "ring", "at": [cx, cy], "r": 120, "ry": 60}, // a pen loop round something
 //	    {"do": "underline", "from": [x, y], "to": [x, y]},   // a pen stroke under it
 //	    {"do": "erase", "at": [x, y]},                     // the shape there; no at: the whole board
+//	    {"do": "penarrow", "from": [x, y], "to": [x, y]},  // an arrow by hand
+//	    {"do": "say", "text": "…"},                        // a caption over the board
 //	    {"do": "laser", "at": [cx, cy], "r": 120},
 //	    {"do": "click", "at": [x, y]},  {"do": "dblclick", "at": [x, y]},
 //	    {"do": "drag", "from": [x, y], "to": [x, y]},     // select tool
@@ -125,7 +127,7 @@ func (l *Lesson) check(steps []Step, at string) error {
 			if !in(s.At, 4) {
 				return bad("at: [x1, y1, x2, y2] on the board")
 			}
-		case "arrow", "line", "drag", "underline":
+		case "arrow", "line", "drag", "underline", "penarrow":
 			if !in(s.From, 2) || !in(s.To, 2) {
 				return bad("from and to: [x, y] on the board")
 			}
@@ -141,6 +143,10 @@ func (l *Lesson) check(steps []Step, at string) error {
 		case "laser", "ring":
 			if !in(s.At, 2) || s.R <= 0 || s.R > board.W || s.Ry < 0 || s.Ry > board.W {
 				return bad("at: [cx, cy] and r")
+			}
+		case "say":
+			if strings.TrimSpace(s.Text) == "" || len(s.Text) > 240 {
+				return bad("text: 1 to 240 bytes")
 			}
 		case "erase":
 			if len(s.At) != 0 && !in(s.At, 2) {
@@ -244,75 +250,20 @@ func (h *Handler) play(l *Lesson, name string, user db.User, end *hub.Ask) {
 		b.Leave(demoUID)
 		if end != nil && ctx.Err() == nil {
 			h.Hub.Settle(name, end)
+		} else {
+			h.Hub.Settle(name, nil) // a last caption goes with the presenter
 		}
 		h.Hub.Publish(name)
 	}()
-	p := &presenter{h: h, ctx: ctx, name: name, b: b, x: 500, y: 950, pace: l.Pace}
-	id := meta.ID
-	notes := func(n int) {
-		if p.err != nil || l.Notes == nil {
-			return
-		}
-		if h.DB.SaveNote(ctx, user.ID, id, strings.Join(l.Notes.Lines[:n], "\n"), l.Notes.Lang) == nil {
-			h.Hub.PublishUser(user.ID)
-		}
-	}
+	pl := &player{h: h, p: &presenter{h: h, ctx: ctx, name: name, b: b, x: 500, y: 950, pace: l.Pace}, l: l, user: user, id: meta.ID}
+	p := pl.p
 
 	p.pause(2000 * time.Millisecond) // the page lands and its stream opens
 	for _, item := range l.Checklist {
-		p.todo(user, id, item)
+		p.todo(user, pl.id, item)
 		p.pause(300 * time.Millisecond)
 	}
-	var run func(steps []Step)
-	run = func(steps []Step) {
-		for _, s := range steps {
-			if p.err != nil {
-				return
-			}
-			switch s.Do {
-			case "box":
-				p.box(s.At[0], s.At[1], s.At[2], s.At[3], s.Label)
-			case "arrow":
-				p.stroke(3, s.From[0], s.From[1], s.To[0], s.To[1])
-			case "line":
-				p.stroke(2, s.From[0], s.From[1], s.To[0], s.To[1])
-			case "pen":
-				p.pen(s.Points)
-			case "ring":
-				p.ring(s.At[0], s.At[1], s.R, s.Ry)
-			case "underline":
-				p.underline(s.From[0], s.From[1], s.To[0], s.To[1])
-			case "erase":
-				p.erase(s.At)
-			case "laser":
-				p.laser(s.At[0], s.At[1], s.R)
-			case "click":
-				p.click(s.At[0], s.At[1])
-			case "dblclick":
-				p.dblclick(s.At[0], s.At[1])
-			case "drag":
-				p.stroke(0, s.From[0], s.From[1], s.To[0], s.To[1])
-			case "label":
-				p.label(s.Text)
-			case "group", "ungroup", "delete":
-				p.act(s.Do, 0, 0)
-			case "nudge":
-				p.act("nudge", s.By[0], s.By[1])
-			case "todo":
-				p.todo(user, id, s.Text)
-			case "check":
-				p.check(user, id, s.Item)
-			case "notes":
-				notes(s.N)
-			case "pause":
-				p.pause(time.Duration(s.Ms) * time.Millisecond)
-			case "ask":
-				run(h.ask(p, name, user, s))
-			}
-			p.pause(250 * time.Millisecond) // a beat between steps
-		}
-	}
-	run(l.Steps)
+	pl.run(l.Steps)
 	p.pause(600 * time.Millisecond)
 	p.click(980, 980) // deselect, park the cursor, and leave
 	if p.err != nil {
@@ -320,21 +271,113 @@ func (h *Handler) play(l *Lesson, name string, user db.User, end *hub.Ask) {
 	}
 }
 
+// player is one lesson being played: its presenter, its script, its viewer.
+type player struct {
+	h    *Handler
+	p    *presenter
+	l    *Lesson
+	user db.User
+	id   int64 // the board
+}
+
+func (pl *player) run(steps []Step) {
+	p := pl.p
+	for _, s := range steps {
+		if p.err != nil {
+			return
+		}
+		switch s.Do {
+		case "box":
+			p.box(s.At[0], s.At[1], s.At[2], s.At[3], s.Label)
+		case "arrow":
+			p.stroke(3, s.From[0], s.From[1], s.To[0], s.To[1])
+		case "line":
+			p.stroke(2, s.From[0], s.From[1], s.To[0], s.To[1])
+		case "pen":
+			p.pen(s.Points)
+		case "ring":
+			p.ring(s.At[0], s.At[1], s.R, s.Ry)
+		case "underline":
+			p.underline(s.From[0], s.From[1], s.To[0], s.To[1])
+		case "penarrow":
+			p.penarrow(s.From[0], s.From[1], s.To[0], s.To[1])
+		case "erase":
+			p.erase(s.At)
+		case "say":
+			p.say(s.Text)
+		case "laser":
+			p.laser(s.At[0], s.At[1], s.R)
+		case "click":
+			p.click(s.At[0], s.At[1])
+		case "dblclick":
+			p.dblclick(s.At[0], s.At[1])
+		case "drag":
+			p.stroke(0, s.From[0], s.From[1], s.To[0], s.To[1])
+		case "label":
+			p.label(s.Text)
+		case "group", "ungroup", "delete":
+			p.act(s.Do, 0, 0)
+		case "nudge":
+			p.act("nudge", s.By[0], s.By[1])
+		case "todo":
+			p.todo(pl.user, pl.id, s.Text)
+		case "check":
+			p.check(pl.user, pl.id, s.Item)
+		case "notes":
+			pl.notes(s.N)
+		case "pause":
+			p.pause(time.Duration(s.Ms) * time.Millisecond)
+		case "ask":
+			pl.run(pl.ask(s))
+		}
+		p.pause(250 * time.Millisecond) // a beat between steps
+	}
+}
+
+// notes shows the first n lines of the lesson's notes in the viewer's notebook.
+func (pl *player) notes(n int) {
+	l, p := pl.l, pl.p
+	if p.err != nil || l.Notes == nil {
+		return
+	}
+	if pl.h.DB.SaveNote(p.ctx, pl.user.ID, pl.id, strings.Join(l.Notes.Lines[:n], "\n"), l.Notes.Lang) == nil {
+		pl.h.Hub.PublishUser(pl.user.ID)
+	}
+}
+
+// helpsPerQuestion: how many times "I don't get it" is offered on one question.
+const helpsPerQuestion = 2
+
 // ask puts the step's question on the board, waits for the viewer's answer,
-// shows how it went, and returns the branch the answer takes (or none).
-func (h *Handler) ask(p *presenter, name string, user db.User, s Step) []Step {
+// shows how it went, and returns the branch the answer takes (or none). "I
+// don't get it" (when the viewer has a key to ask with) sets the page aside,
+// has the idea shown another way, puts the page back, and asks again.
+func (pl *player) ask(s Step) []Step {
+	h, p, user, name := pl.h, pl.p, pl.user, pl.p.name
 	if p.err != nil {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(p.ctx, 10*time.Minute)
 	defer cancel()
-	q := hub.Ask{Question: s.Question, Options: s.Options, By: user.First(), ByID: user.ID}
-	answer, err := h.Hub.Ask(ctx, name, q)
-	if err != nil {
-		p.err = err // nobody answered: the lesson stops here
-		return nil
+	var answer string
+	for helps := 0; ; helps++ {
+		key, ws, _ := h.DB.AnthropicKey(ctx, user.ID)
+		q := hub.Ask{Question: s.Question, Options: s.Options, By: user.First(), ByID: user.ID, Help: key != "" && helps < helpsPerQuestion}
+		a, err := h.Hub.Ask(ctx, name, q)
+		if err != nil {
+			p.err = err // nobody answered: the lesson stops here
+			return nil
+		}
+		if a != hub.HelpAnswer {
+			answer = a
+			break
+		}
+		pl.explainAgain(s, apiKey{key, ws})
+		if p.err != nil {
+			return nil
+		}
 	}
-	q.Answered = answer
+	q := hub.Ask{Question: s.Question, Options: s.Options, By: user.First(), ByID: user.ID, Answered: answer}
 	q.Correct = s.Answer == "" || same(answer, s.Answer)
 	switch {
 	case s.Answer == "":
@@ -353,6 +396,60 @@ func (h *Handler) ask(p *presenter, name string, user db.User, s Step) []Step {
 		}
 	}
 	return s.If["*"]
+}
+
+// explainAgain: Claude writes another way to show the idea behind the
+// question (by hand, mostly: the pen), played on a cleared board; then the
+// page comes back as it was.
+func (pl *player) explainAgain(s Step, key apiKey) {
+	h, p := pl.h, pl.p
+	h.Hub.Settle(p.name, &hub.Ask{Say: "Let me show that another way…"})
+	ctx, cancel := context.WithTimeout(p.ctx, 3*time.Minute)
+	steps, err := explainSteps(ctx, key, pl.l, s)
+	cancel()
+	if err != nil {
+		slog.Error("explain again", "board", p.name, "err", err)
+		p.say("I couldn't draw it another way just now (" + err.Error() + ").")
+		return
+	}
+	page := p.b.Snapshot()
+	p.erase(nil)
+	p.pause(400 * time.Millisecond)
+	pl.run(steps)
+	p.pause(1500 * time.Millisecond)
+	if p.err != nil {
+		return
+	}
+	p.say("Back to the page.")
+	if err := h.Hub.Redraw(p.ctx, p.name, page); err != nil {
+		p.err = err
+	}
+	p.pause(800 * time.Millisecond)
+}
+
+// say puts a caption over the board, for as long as it takes to read.
+func (p *presenter) say(text string) {
+	if p.err != nil {
+		return
+	}
+	p.h.Hub.Settle(p.name, &hub.Ask{Say: text})
+	p.pause(time.Duration(1200+45*len(text)) * time.Millisecond)
+}
+
+// penarrow draws an arrow by hand: the shaft, then the head.
+func (p *presenter) penarrow(x1, y1, x2, y2 int32) {
+	p.underline(x1, y1, x2, y2)
+	dx, dy := float64(x2-x1), float64(y2-y1)
+	n := math.Hypot(dx, dy)
+	if n == 0 {
+		return
+	}
+	ux, uy := dx/n, dy/n
+	const head = 28
+	wing := func(side float64) [2]int32 {
+		return onBoard(x2-int32(head*(ux*0.87-side*uy*0.5)), y2-int32(head*(uy*0.87+side*ux*0.5)))
+	}
+	p.pen([][2]int32{wing(1), {x2, y2}, wing(-1)})
 }
 
 // same compares answers loosely: case and surrounding space aside.

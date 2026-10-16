@@ -152,6 +152,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/b/{name}/notes", h.notes)
 	r.Post("/b/{name}/answer", h.answer)
 	r.Post("/b/{name}/replay", h.replay)
+	r.Post("/b/{name}/help", h.help)
 	r.Post("/course/{kind}", h.course)
 	r.Post("/me/key", h.setKey)
 	r.Post("/me/workspace", h.setWorkspace)
@@ -826,6 +827,25 @@ func (h *Handler) answer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.Hub.Answer(r.Context(), n, u.ID, text); err != nil {
+		ack.Bad(datastar.NewSSE(w, r), "ask", "That question is not waiting for you")
+		return
+	}
+	datastar.NewSSE(w, r)
+}
+
+// help is "I don't get it": the lesson shows the idea another way, then
+// asks again.
+func (h *Handler) help(w http.ResponseWriter, r *http.Request) {
+	n, u, _, ok := h.open(w, r, false)
+	if !ok {
+		return
+	}
+	var p payload
+	_ = datastar.ReadSignals(r, &p)
+	if h.moved(w, r, p.Inst) {
+		return
+	}
+	if err := h.Hub.Answer(r.Context(), n, u.ID, hub.HelpAnswer); err != nil {
 		ack.Bad(datastar.NewSSE(w, r), "ask", "That question is not waiting for you")
 		return
 	}

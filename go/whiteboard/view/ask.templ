@@ -22,6 +22,10 @@ templ AskCard(name string, u *db.User, q *hub.Ask) {
 					}
 				</div>
 			</div>
+		} else if q != nil && q.Say != "" {
+			<div class="ask-card card say" role="status" aria-live="polite">
+				<p>{ q.Say }</p>
+			</div>
 		} else if q != nil {
 			<div class="ask-card card" role="dialog" aria-label="Question" data-ui-answered?={ q.Answered != "" } data-ui-correct?={ q.Answered != "" && q.Correct }>
 				<p class="q">{ q.Question }</p>
@@ -45,6 +49,9 @@ templ AskCard(name string, u *db.User, q *hub.Ask) {
 						<input type="text" maxlength="200" placeholder="Your answer" aria-label="Your answer" data-bind:_ans data-on:keydown={ "evt.stopPropagation(); if (evt.key === 'Enter' && $_ans.trim()) { " + answerPost(name, "$_ans") + " }" }/>
 						<button data-on:click={ "$_ans.trim() && " + answerPost(name, "$_ans") }>Answer</button>
 					</div>
+				}
+				if q.Help && q.Answered == "" && u != nil && u.ID == q.ByID {
+					<button class="sec help" data-on:click={ "@post('/b/" + name + "/help', {payload: {inst: $inst}})" } title="Show me another way">I don't get it</button>
 				}
 				@Saved("ask")
 			</div>
