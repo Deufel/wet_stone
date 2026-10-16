@@ -1014,8 +1014,8 @@
   :where(.board-page.full) :where(.board-head) { display: none; }
 
   /* you: the rail's last stack, on a surface of its own */
-  :where(.tool-rail) :where(.rail-me) { display: grid; place-items: center; margin-block-start: 0.25lh; padding: 0.25lh 0.2em; border-radius: var(--cfg-radius); --bg: -0.25; background-color: var(--_bg); border: 1px solid var(--border); }
-  :where(.rail-me) > :where(.avatar) { inline-size: 2em; block-size: 2em; }
+  :where(.tool-rail) :where(.rail-me) { display: grid; place-items: center; margin: 0; padding: 0; overflow: hidden; border-radius: var(--cfg-radius); --bg: -0.25; background-color: var(--_bg); border: 1px solid var(--border); }
+  :where(.rail-me) > :where(.avatar) { inline-size: 2em; block-size: 2em; margin: 0; padding: 0; border: 0; border-radius: inherit; }
   /* your profile opens beside you: from the rail's foot, out to the right;
      on a phone, under the avatar at the bar's end */
   @supports (top: anchor(bottom)) {
