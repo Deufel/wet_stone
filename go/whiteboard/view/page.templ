@@ -29,7 +29,7 @@ templ Board(d BoardData) {
 		<!-- the board's wiring sits on .page, in a fixed order: the signals are
 		     declared before data-init reads them (a map of body attributes has no
 		     order, and $uid once lost that race) -->
-		<div class="page board-page" data-signals={ pageSignals(d.Inst, boardHeight(d.Meta)) } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
+		<div class="page board-page" data-class:full="$_full" data-signals={ pageSignals(d.Inst, boardHeight(d.Meta)) } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
 			<header class="pg-header app-header">
 				<button class="brand" popovertarget="nav-drawer" aria-label="Menu" title="Your boards">
 					@Mark()
@@ -52,11 +52,16 @@ templ Board(d BoardData) {
 					@avatarButton(d.User)
 				</div>
 			</header>
+			<!-- the teaching controls: the lesson, the page, Claude; then the
+			     history and full screen (a phone: its tool menus first) -->
+			@teachBar(d.Name, d.User != nil && d.Meta.OwnerID == d.User.ID)
+			<!-- the tools, the selection's actions, undo: a rail at the left -->
+			@toolRail(d.Name)
 			<!-- the workspace: the board, its checklist and your notes, laid out
 			     by container queries on the space they get -->
 			<main class="pg-main workspace-wrap">
-				<div class="workspace">
-					@boardCard(d.Name, boardHeight(d.Meta), d.User != nil && d.Meta.OwnerID == d.User.ID)
+				<div class="workspace" style={ "--ar: " + aspect(boardHeight(d.Meta)) }>
+					@boardCard(d.Name, boardHeight(d.Meta))
 					@TodoCard(d.Name)
 					@NotesCard(d.Name)
 				</div>
@@ -96,103 +101,113 @@ templ Board(d BoardData) {
 	}
 }
 
-// boardCard is the whiteboard with its controls on its own frame: the tools,
-// what to do with the selection, its label, the history and full screen.
-templ boardCard(name string, h int32, owner bool) {
-	<section class="card board-card" data-class:full="$_full" data-init={ fullSync } aria-label="Whiteboard">
-		<div class="board-panel">
-			<!-- a phone: the tools and the selection's actions as two small menus -->
-			<div class="row oneline panel-menus mobile">
-				<button class="icon tool-now" popovertarget="tools-menu" aria-label="Tools" title="Tools">
-					for _, t := range tools {
-						<span data-show={ "$tool === " + strconv.Itoa(t.n) }>
-							@Icon(t.icon)
-						</span>
-					}
-				</button>
-				<button class="icon" popovertarget="acts-menu" aria-label="Selection" title="Selection">
-					@Icon("more")
-				</button>
+// teachBar is the subheader: the teaching controls (the lesson's player,
+// sending the whiteboard to a page, Claude), then the history and full
+// screen. A phone has its tool menus here too.
+templ teachBar(name string, owner bool) {
+	<nav class="pg-subheader teach-bar" aria-label="Teaching">
+		<div class="row oneline panel-menus mobile">
+			<button class="icon tool-now" popovertarget="tools-menu" aria-label="Tools" title="Tools">
+				for _, t := range tools {
+					<span data-show={ "$tool === " + strconv.Itoa(t.n) }>
+						@Icon(t.icon)
+					</span>
+				}
+			</button>
+			<button class="icon" popovertarget="acts-menu" aria-label="Selection" title="Selection">
+				@Icon("more")
+			</button>
+		</div>
+		<div id="lesson-bar"></div>
+		if owner {
+			<button class="send-page" data-on:click={ postKept(name, "sendpage") } title="Save the whole whiteboard as the book's next page, and turn to a clean one">
+				@Icon("book")
+				<span>Send to page</span>
+			</button>
+			@Saved("sheet")
+		}
+		<div id="sketch-stop"></div>
+		<button class="icon" popovertarget="sketch-menu" aria-label="Ask Claude to draw" title="Ask Claude to draw (beta)">
+			@Icon("sparkles")
+		</button>
+		<div id="sketch-menu" class="menu sketch-menu" popover data-signals__ifmissing="{_sketch: ''}">
+			<p class="meta">Claude draws it on this board, around what is there. <span class="tag">beta</span></p>
+			<div class="row oneline">
+				<input type="text" maxlength="800" placeholder="Sketch how a hash map finds a key" aria-label="What should Claude draw?" data-bind:_sketch data-on:keydown={ "evt.stopPropagation(); if (evt.key === 'Enter' && $_sketch.trim()) { " + sketchPost(name) + " }" }/>
+				<button class="suc" data-on:click={ "$_sketch.trim() && " + sketchPost(name) }>Draw</button>
 			</div>
-			<div class="button-group acts tablet desktop">
-				<button class="tool stack" data-on:click={ post(name, "group") } data-attr:disabled="$nsel < 2" aria-label="Group" title="Group">
-					@Icon("group")
-					<kbd>G</kbd>
-				</button>
-				<button class="tool stack" data-on:click={ post(name, "ungroup") } data-attr:disabled="!$grouped" aria-label="Ungroup" title="Ungroup">
-					@Icon("ungroup")
-					<kbd>⇧G</kbd>
-				</button>
-				<button class="tool stack" data-on:click={ post(name, "delete") } data-attr:disabled="$nsel < 1" aria-label="Delete" title="Delete">
-					@Icon("trash")
-					<kbd>Del</kbd>
-				</button>
-				<button class="tool stack dgr" data-on:click="document.getElementById('clear-confirm').showModal()" aria-label="Clear the board" title="Clear the board">
-					@Icon("eraser")
-				</button>
-			</div>
-			<div id="lesson-bar"></div>
-			<div class="row oneline ends">
-				@Saved("label")
-				<!-- a phone: the checklist opens as a bottom drawer -->
+			@Saved("sketch")
+		</div>
+		<div class="row oneline ends">
+			@Saved("label")
+			<!-- a phone: the checklist opens as a bottom drawer -->
+			<span class="mobile">
 				<button class="icon todo-open" popovertarget="todo-drawer" aria-label="Checklist" title="Checklist">
 					@Icon("list")
 				</button>
-				if owner {
-					<button class="send-page" data-on:click={ postKept(name, "sendpage") } title="Save the whole whiteboard as the book's next page, and turn to a clean one">
-						@Icon("book")
-						<span>Send to page</span>
-					</button>
-					@Saved("sheet")
-				}
-				<div id="sketch-stop"></div>
-				<button class="icon" popovertarget="sketch-menu" aria-label="Ask Claude to draw" title="Ask Claude to draw (beta)">
-					@Icon("sparkles")
-				</button>
-				<div id="sketch-menu" class="menu sketch-menu" popover data-signals__ifmissing="{_sketch: ''}">
-					<p class="meta">Claude draws it on this board, around what is there. <span class="tag">beta</span></p>
-					<div class="row oneline">
-						<input type="text" maxlength="800" placeholder="Sketch how a hash map finds a key" aria-label="What should Claude draw?" data-bind:_sketch data-on:keydown={ "evt.stopPropagation(); if (evt.key === 'Enter' && $_sketch.trim()) { " + sketchPost(name) + " }" }/>
-						<button class="suc" data-on:click={ "$_sketch.trim() && " + sketchPost(name) }>Draw</button>
-					</div>
-					@Saved("sketch")
-				</div>
-				<div class="button-group undo-redo">
-					<button class="icon" data-on:click={ postKept(name, "undo") } aria-label="Undo" title="Undo (Ctrl Z)">
-						@Icon("undo")
-					</button>
-					<button class="icon" data-on:click={ postKept(name, "redo") } aria-label="Redo" title="Redo (Ctrl R)">
-						@Icon("redo")
-					</button>
-				</div>
-				<button class="icon" popovertarget="history-drawer" aria-label="History" title="History (⇧H)">
-					@Icon("history")
-				</button>
-				<button class="icon" data-on:click={ fullToggle } aria-label="Full screen" title="Full screen (F)">
-					<span data-show="!$_full">
-						@Icon("maximize")
-					</span>
-					<span data-show="$_full">
-						@Icon("minimize")
-					</span>
-				</button>
-			</div>
+			</span>
+			<button class="icon" popovertarget="history-drawer" aria-label="History" title="History (⇧H)">
+				@Icon("history")
+			</button>
+			<button class="icon" data-on:click={ fullToggle } aria-label="Full screen" title="Full screen (F)">
+				<span data-show="!$_full">
+					@Icon("maximize")
+				</span>
+				<span data-show="$_full">
+					@Icon("minimize")
+				</span>
+			</button>
 		</div>
-		<!-- the body: the tools in a column at the paper's left (a phone has them
-		     in the panel's menu), then the paper. The paper sits a few pixels in
-		     from its frame, and the grid runs on under that margin, so its edge
-		     marks show whole -->
+	</nav>
+}
+
+// toolRail is the toolbar: the drawing tools, then what to do with the
+// selection, then undo and redo; square buttons, each key on hover.
+templ toolRail(name string) {
+	<nav class="pg-toolbar tool-rail tablet desktop" aria-label="Tools">
+		<div class="button-group tools" role="toolbar" aria-label="Drawing tools">
+			@railTool(0, "select", "Select", "Esc")
+			@railTool(1, "box", "Box", "R")
+			@railTool(2, "line", "Line", "L")
+			@railTool(3, "arrow", "Arrow", "A")
+			@railTool(4, "laser", "Laser", "5")
+			@railTool(5, "pen", "Pen", "P")
+		</div>
+		<div class="button-group tools" role="toolbar" aria-label="The selection">
+			<button class="tool stack" data-on:click={ post(name, "group") } data-attr:disabled="$nsel < 2" aria-label="Group" title="Group">
+				@Icon("group")
+				<kbd>G</kbd>
+			</button>
+			<button class="tool stack" data-on:click={ post(name, "ungroup") } data-attr:disabled="!$grouped" aria-label="Ungroup" title="Ungroup">
+				@Icon("ungroup")
+				<kbd>⇧G</kbd>
+			</button>
+			<button class="tool stack" data-on:click={ post(name, "delete") } data-attr:disabled="$nsel < 1" aria-label="Delete" title="Delete">
+				@Icon("trash")
+				<kbd>Del</kbd>
+			</button>
+			<button class="tool stack dgr" data-on:click="document.getElementById('clear-confirm').showModal()" aria-label="Clear the board" title="Clear the board">
+				@Icon("eraser")
+			</button>
+		</div>
+		<div class="button-group tools" role="toolbar" aria-label="Undo">
+			<button class="tool stack" data-on:click={ postKept(name, "undo") } aria-label="Undo" title="Undo (Ctrl Z)">
+				@Icon("undo")
+				<kbd>⌃Z</kbd>
+			</button>
+			<button class="tool stack" data-on:click={ postKept(name, "redo") } aria-label="Redo" title="Redo (Ctrl R)">
+				@Icon("redo")
+				<kbd>⌃R</kbd>
+			</button>
+		</div>
+	</nav>
+}
+
+// boardCard is the whiteboard: the paper, and a lesson's question over it.
+templ boardCard(name string, h int32) {
+	<section class="card board-card" data-init={ fullSync } aria-label="Whiteboard">
 		@AskCard(name, nil, nil)
-		<div class="board-body">
-			<div class="button-group tools tablet desktop" role="toolbar" aria-label="Tools">
-				@railTool(0, "select", "Select", "Esc")
-				@railTool(1, "box", "Box", "R")
-				@railTool(2, "line", "Line", "L")
-				@railTool(3, "arrow", "Arrow", "A")
-				@railTool(4, "laser", "Laser", "5")
-				@railTool(5, "pen", "Pen", "P")
-			</div>
-		<div class="stage-box" style={ "--ar: " + aspect(h) }>
+		<div class="stage-box">
 			<div class="stage-frame">
 				<div
 					id="stage"
@@ -226,7 +241,6 @@ templ boardCard(name string, h int32, owner bool) {
 				></div>
 				</div>
 			</div>
-		</div>
 		</div>
 	</section>
 }
