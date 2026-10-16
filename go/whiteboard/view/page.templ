@@ -127,12 +127,21 @@ templ boardCard(name string) {
 					@Icon("eraser")
 				</button>
 			</div>
+			<div id="lesson-bar"></div>
 			<div class="row oneline ends">
 				@Saved("label")
 				<!-- a phone: the checklist opens as a bottom drawer -->
 				<button class="icon todo-open" popovertarget="todo-drawer" aria-label="Checklist" title="Checklist">
 					@Icon("list")
 				</button>
+				<div class="button-group undo-redo">
+					<button class="icon" data-on:click={ postKept(name, "undo") } aria-label="Undo" title="Undo (Ctrl Z)">
+						@Icon("undo")
+					</button>
+					<button class="icon" data-on:click={ postKept(name, "redo") } aria-label="Redo" title="Redo (Ctrl R)">
+						@Icon("redo")
+					</button>
+				</div>
 				<button class="icon" popovertarget="history-drawer" aria-label="History" title="History (⇧H)">
 					@Icon("history")
 				</button>
@@ -283,13 +292,6 @@ templ navDrawer(d BoardData) {
 			@learnSection()
 			<section class="nav-sec" aria-label="This board">
 				<h3>This board</h3>
-				if d.Lesson && d.User != nil && d.Meta.OwnerID == d.User.ID {
-					<button data-on:click={ "@post('/b/" + d.Name + "/replay')" } title="Wipe the board and play its lesson again">
-						@Icon("play")
-						Play the lesson again
-					</button>
-					@Saved("lesson")
-				}
 				<a href={ templ.SafeURL("/b/" + d.Name + "/print") }>
 					@Icon("printer")
 					Print
@@ -369,6 +371,8 @@ templ keysDialog() {
 		<dl class="keylist">
 			<dt><kbd>R</kbd> <kbd>L</kbd> <kbd>A</kbd> <kbd>5</kbd> <kbd>P</kbd></dt>
 			<dd>box, line, arrow, laser, pen</dd>
+			<dt><kbd>Ctrl</kbd> <kbd>Z</kbd> · <kbd>Ctrl</kbd> <kbd>R</kbd></dt>
+			<dd>undo · redo</dd>
 			<dt><kbd>Esc</kbd></dt>
 			<dd>the select tool</dd>
 			<dt><kbd>H</kbd> <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd></dt>

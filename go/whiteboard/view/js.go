@@ -130,6 +130,8 @@ func onKey(name string) string {
 		"const k = evt.key, t = evt.target;",
 		"const d = {ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], h: [-1, 0], j: [0, 1], k: [0, -1], l: [1, 0]}[k];",
 		"if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.isContentEditable) {}",
+		"else if ((evt.ctrlKey || evt.metaKey) && !evt.altKey && (k === 'z' || k === 'Z')) { evt.preventDefault(); " + postKept(name, "undo") + " }",
+		"else if ((evt.ctrlKey || evt.metaKey) && !evt.altKey && (k === 'r' || k === 'y')) { evt.preventDefault(); " + postKept(name, "redo") + " }",
 		"else if (evt.ctrlKey || evt.metaKey || evt.altKey) {}",
 		"else if (t.tagName === 'BUTTON' && k === 'Enter') {}",
 		"else if (k === '?') { evt.preventDefault(); document.getElementById('keys').showModal() }",
@@ -190,7 +192,7 @@ func newBoard(vis string) string { return "@post('/new/" + vis + "')" }
 // pageSignals: the board page's signals, with the server process it landed on.
 func pageSignals(inst string) string { return "{inst: " + jsString(inst) + ", " + signals[1:] }
 
-const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, dseq: 0, lbox: [0, 0, 0, 0], _ledit: false, _drag: false, _ans: '', _beat: 0, _full: false, _todo: '', _notes: {text: '', lang: '', v: 0}, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: ''}"
+const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, dseq: 0, lbox: [0, 0, 0, 0], _ledit: false, _drag: false, _ans: '', _beat: 0, _full: false, _todo: '', _notes: {text: '', lang: '', v: 0}, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _voice: true}"
 
 // fullToggle: the whiteboard alone on the screen. The card fills the window
 // ($_full, CSS); where the browser can, the window goes full screen too (an

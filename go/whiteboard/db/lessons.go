@@ -60,6 +60,13 @@ func (d *DB) CreateCourse(ctx context.Context, owner *User, title, visibility st
 	return name, first, tx.Commit()
 }
 
+// AttachLesson gives a board a lesson, to play when its owner opens it.
+func (d *DB) AttachLesson(ctx context.Context, board, script string) error {
+	_, err := d.sql.ExecContext(ctx, `INSERT INTO board_lessons (board_id, script) SELECT id, ? FROM boards WHERE name = ?
+		ON CONFLICT (board_id) DO UPDATE SET script = excluded.script, played_at = NULL`, script, board)
+	return err
+}
+
 // HasLesson: does the board carry a lesson script?
 func (d *DB) HasLesson(ctx context.Context, boardID int64) bool {
 	ctx, cancel := reading(ctx)

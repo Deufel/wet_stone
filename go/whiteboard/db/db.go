@@ -247,6 +247,18 @@ func (d *DB) Checkout(ctx context.Context, p Pos, rev int64) (Pos, error) {
 	return p, setPos(ctx, d.sql, p)
 }
 
+// Parent is the revision a revision was made from (0: it is the first).
+func (d *DB) Parent(ctx context.Context, rev int64) (int64, error) {
+	ctx, cancel := reading(ctx)
+	defer cancel()
+	var parent sql.NullInt64
+	err := d.rd.QueryRowContext(ctx, `SELECT parent_id FROM revisions WHERE id = ?`, rev).Scan(&parent)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return parent.Int64, err
+}
+
 // Switch checks out a branch at its head.
 func (d *DB) Switch(ctx context.Context, p Pos, branch int64) (Pos, error) {
 	var head int64

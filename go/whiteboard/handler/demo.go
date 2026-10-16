@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"math"
 	"net/http"
@@ -45,9 +46,12 @@ func (h *Handler) demo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not make the demo board", http.StatusInternalServerError)
 		return
 	}
+	script, _ := json.Marshal(l)
+	if err := h.DB.AttachLesson(r.Context(), name, string(script)); err != nil {
+		slog.Error("demo", "err", err)
+	}
 	h.Hub.PublishUser(u.ID)
-	go h.play(l, name, *u, nil)
-	_ = datastar.NewSSE(w, r).Redirect("/b/" + name)
+	_ = datastar.NewSSE(w, r).Redirect("/b/" + name) // it plays as the page lands
 }
 
 // presenter drives one viewer on a board, at a human pace (pace stretches
@@ -57,22 +61,35 @@ type presenter struct {
 	ctx  context.Context
 	name string
 	b    *board.Board
+	uid  uint32 // its viewer id on the board
 	seq  int64
 	x, y int32
 	pace float64
 	err  error
+
+	run  *lessonRun // the player's control (pause), or nil
+	fast bool       // seeking: draw at once, no pauses, no laser, no captions
 }
 
 func (p *presenter) cmd(c board.Cmd) {
 	if p.err != nil {
 		return
 	}
-	c.UID = demoUID
+	c.UID = p.uid
 	p.err = p.h.Hub.Apply(p.ctx, p.name, c)
 }
 
 func (p *presenter) pause(d time.Duration) {
 	if p.err != nil {
+		return
+	}
+	if p.run != nil {
+		if err := p.run.hold(p.ctx); err != nil {
+			p.err = err
+			return
+		}
+	}
+	if p.fast {
 		return
 	}
 	if p.pace > 0 {
@@ -87,10 +104,13 @@ func (p *presenter) pause(d time.Duration) {
 
 // glide moves the cursor to (x, y) in small steps, as a hand would.
 func (p *presenter) glide(tool uint8, x, y int32, dseq int64) {
-	const steps = 14
+	steps := 14
+	if p.fast {
+		steps = 1
+	}
 	x0, y0 := p.x, p.y
 	for i := 1; i <= steps; i++ {
-		t := float64(i) / steps
+		t := float64(i) / float64(steps)
 		t = t * t * (3 - 2*t) // ease in and out
 		p.seq++
 		p.cmd(board.Cmd{Op: "move", Tool: tool, Seq: p.seq, DSeq: dseq,
@@ -119,8 +139,12 @@ func (p *presenter) box(x1, y1, x2, y2 int32, label string) {
 }
 
 func (p *presenter) label(text string) {
-	sel := p.b.SelectedBy(demoUID)
+	sel := p.b.SelectedBy(p.uid)
 	if sel < 0 {
+		return
+	}
+	if p.fast {
+		p.cmd(board.Cmd{Op: "label", Shape: sel, Label: text})
 		return
 	}
 	// typed a few letters at a time, as the label field sends them
@@ -133,6 +157,9 @@ func (p *presenter) label(text string) {
 
 // laser circles (cx, cy) once.
 func (p *presenter) laser(cx, cy, r int32) {
+	if p.fast {
+		return
+	}
 	p.glide(4, cx+r, cy, 0)
 	p.seq++
 	down := p.seq

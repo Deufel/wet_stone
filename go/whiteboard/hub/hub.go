@@ -338,6 +338,8 @@ type keeper struct {
 	lastRev int64
 
 	thumbs map[int64]thumb // a revision's thumbnail, kept until it is amended
+
+	redo []int64 // revisions undone, newest last; a new change forgets them
 }
 
 type thumb struct {
@@ -400,13 +402,37 @@ func (k *keeper) save(ctx context.Context, change string) bool {
 	}
 	k.pos, k.saved = pos, key
 	k.lastOp, k.lastAt, k.lastRev = change, time.Now(), pos.Rev
+	k.redo = nil
 	return true
 }
 
 func (k *keeper) apply(ctx context.Context, op HistOp) error {
 	k.lastOp = "" // never fold across a history move
 	switch op.Kind {
+	case "undo": // back to the revision before this one
+		parent, err := k.h.db.Parent(ctx, k.pos.Rev)
+		if err != nil || parent == 0 {
+			return err
+		}
+		pos, err := k.h.db.Checkout(ctx, k.pos, parent)
+		if err != nil {
+			return err
+		}
+		k.redo = append(k.redo, k.pos.Rev)
+		return k.load(ctx, pos)
+	case "redo": // forward to the revision last undone
+		if len(k.redo) == 0 {
+			return nil
+		}
+		rev := k.redo[len(k.redo)-1]
+		k.redo = k.redo[:len(k.redo)-1]
+		pos, err := k.h.db.Checkout(ctx, k.pos, rev)
+		if err != nil {
+			return err
+		}
+		return k.load(ctx, pos)
 	case "checkout":
+		k.redo = nil
 		if !k.l.hist.Load().has(op.ID) {
 			return nil
 		}
@@ -416,6 +442,7 @@ func (k *keeper) apply(ctx context.Context, op HistOp) error {
 		}
 		return k.load(ctx, pos)
 	case "switch":
+		k.redo = nil
 		pos, err := k.h.db.Switch(ctx, k.pos, op.ID)
 		if err != nil {
 			return err

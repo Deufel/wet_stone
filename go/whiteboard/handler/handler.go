@@ -66,7 +66,7 @@ type Handler struct {
 	// and reloads when it reaches another.
 	Instance string
 
-	playing sync.Map // board name → a lesson playing there
+	runs    sync.Map // board name → *lessonRun, its lesson playing (or paused, or done)
 	writing sync.Map // user id → *writeJob, their lesson being written
 }
 
@@ -100,7 +100,7 @@ var ops = map[string]bool{
 	"label": true, "editsel": true, "nudge": true, "group": true, "ungroup": true, "locktoggle": true,
 }
 
-var histOps = map[string]bool{"checkout": true, "switch": true, "delbranch": true, "mainbranch": true}
+var histOps = map[string]bool{"undo": true, "redo": true, "checkout": true, "switch": true, "delbranch": true, "mainbranch": true}
 
 // Signals as Datastar posts them. Unknown keys (theme, hue, counts) are ignored.
 type signals struct {
@@ -151,7 +151,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/b/{name}/todo/{id}/{op}", h.todoOp)
 	r.Post("/b/{name}/notes", h.notes)
 	r.Post("/b/{name}/answer", h.answer)
-	r.Post("/b/{name}/replay", h.replay)
+	r.Post("/b/{name}/lesson/{op}", h.lessonControl)
 	r.Post("/b/{name}/help", h.help)
 	r.Post("/course/{kind}", h.course)
 	r.Post("/me/key", h.setKey)
@@ -501,7 +501,8 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 		return true
 	}
 	var sentTodo int64
-	sentAsk := int64(-1)
+	sentAsk, sentRun := int64(-1), int64(-1)
+	hasLesson := h.DB.HasLesson(r.Context(), meta0.ID)
 	push := func() bool {
 		ctx := r.Context()
 		// a lesson's question, when it comes, is answered, or goes
@@ -515,6 +516,13 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 				return false
 			}
 			sentAsk = v
+		}
+		// the lesson's player bar, when the run moves
+		if st := h.lessonState(n, u, meta0.OwnerID, hasLesson); st.Version != sentRun {
+			if sse.PatchElements(renderString(r, view.LessonBar(n, st))) != nil {
+				return false
+			}
+			sentRun = st.Version
 		}
 		if v := h.Hub.TodoVersion(ctx, n); v != sentTodo {
 			list, err := h.DB.Todos(ctx, meta0.ID)

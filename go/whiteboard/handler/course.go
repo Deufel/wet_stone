@@ -6,9 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"whiteboard/ack"
 	"whiteboard/auth"
-	"whiteboard/board"
 	"whiteboard/db"
 	"whiteboard/hub"
 
@@ -21,7 +19,8 @@ import (
 // a card pointing at the next page; the owner can play it again.
 //
 //	POST /course/{kind}     a built-in course (courses/{kind}.json), as a new book
-//	POST /b/{name}/replay   the board's lesson again, on a wiped board
+//
+// (Playing, pausing and seeking a page: player.go.)
 
 func (h *Handler) course(w http.ResponseWriter, r *http.Request) {
 	u := auth.User(r.Context())
@@ -82,7 +81,7 @@ func (h *Handler) startLesson(script string, boardID int64, name string, u db.Us
 		slog.Error("lesson script", "board", name, "err", err)
 		return false
 	}
-	go h.play(&l, name, u, h.pageEnd(context.Background(), boardID, name))
+	h.startRun(&l, name, boardID, u, 0)
 	return true
 }
 
@@ -108,38 +107,4 @@ func (h *Handler) pageEnd(ctx context.Context, boardID int64, name string) *hub.
 		return end
 	}
 	return nil
-}
-
-// replay wipes the board and its checklist and plays its lesson again.
-func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
-	n, u, meta, ok := h.open(w, r, false)
-	if !ok {
-		return
-	}
-	sse := func() *datastar.ServerSentEventGenerator { return datastar.NewSSE(w, r) }
-	if meta.OwnerID != u.ID {
-		ack.Bad(sse(), "lesson", "Only the page's owner can play it")
-		return
-	}
-	if _, busy := h.playing.Load(n); busy {
-		ack.Bad(sse(), "lesson", "It is playing")
-		return
-	}
-	script := h.DB.LessonScript(r.Context(), meta.ID)
-	if script == "" {
-		ack.Bad(sse(), "lesson", "No lesson on this board")
-		return
-	}
-	ctx := r.Context()
-	if err := h.Hub.Apply(ctx, n, board.Cmd{Op: "clear", UID: demoUID}); err != nil {
-		slog.Error("replay clear", "board", n, "err", err)
-	}
-	if h.DB.ClearTodos(ctx, meta.ID) == nil {
-		h.Hub.TodoChanged(ctx, n)
-	}
-	if !h.startLesson(script, meta.ID, n, *u) {
-		ack.Bad(sse(), "lesson", "The lesson would not play")
-		return
-	}
-	ack.Saved(sse(), "lesson", "Playing")
 }

@@ -1,6 +1,8 @@
 package view
 
 import (
+	"strconv"
+	"strings"
 	"whiteboard/db"
 	"whiteboard/hub"
 )
@@ -11,6 +13,10 @@ import (
 // answered it says how it went, for a moment.
 templ AskCard(name string, u *db.User, q *hub.Ask) {
 	<div id="lesson-ask" class="lesson-ask">
+		if t := spoken(q); t != "" {
+			<!-- narration: a new id per card, so it speaks once, as it lands -->
+			<span id={ "speak-" + strconv.FormatInt(q.Version, 10) } hidden data-init="$_voice && speechSynthesis.speak(Object.assign(new SpeechSynthesisUtterance(el.textContent), {rate: 1.02}))">{ t }</span>
+		}
 		if q != nil && q.Done {
 			<div class="ask-card card done" role="status" aria-label="Page done">
 				<p class="q">That's this page.</p>
@@ -61,4 +67,20 @@ templ AskCard(name string, u *db.User, q *hub.Ask) {
 
 func answerPost(name, text string) string {
 	return "@post('/b/" + name + "/answer', {payload: {text: " + text + ", inst: $inst}})"
+}
+
+// spoken is what narration reads of a card: the caption, the question (and
+// its choices), or how the answer went.
+func spoken(q *hub.Ask) string {
+	switch {
+	case q == nil || q.Done:
+		return ""
+	case q.Say != "":
+		return q.Say
+	case q.Answered != "":
+		return q.Result
+	case len(q.Options) > 0:
+		return q.Question + " " + strings.Join(q.Options, ", or ") + "?"
+	}
+	return q.Question
 }

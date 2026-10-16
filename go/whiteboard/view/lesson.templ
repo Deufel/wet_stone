@@ -1,0 +1,71 @@
+package view
+
+import "strconv"
+
+// LessonState is the lesson player on a board, as the bar shows it.
+type LessonState struct {
+	Has     bool // the board carries a lesson
+	Owner   bool // this viewer drives it
+	Running bool // playing or paused
+	Paused  bool
+	Done    bool
+	Step    int
+	Of      int
+	Version int64
+}
+
+func lessonPost(name, op string) string {
+	return "@post('/b/" + name + "/lesson/" + op + "', {payload: {inst: $inst}, requestCancellation: 'disabled'})"
+}
+
+// LessonBar: the page's lesson, as a player: back to the start, back a
+// thought, play or pause, and a scrubber (step k of n). Narration (the
+// browser's own voice reading the captions and questions) is this viewer's
+// choice ($_voice). A morph target on the board's stream.
+templ LessonBar(name string, st LessonState) {
+	<div id="lesson-bar" class="lesson-bar">
+		if st.Has {
+			<div class="button-group" role="group" aria-label="Lesson">
+				if st.Owner {
+					<button class="icon" data-on:click={ "speechSynthesis.cancel(); " + lessonPost(name, "restart") } aria-label="From the start" title="From the start">
+						@Icon("restart")
+					</button>
+					<button class="icon" data-on:click={ "speechSynthesis.cancel(); " + lessonPost(name, "back") } aria-label="Back" title="Back a step">
+						@Icon("back")
+					</button>
+					if st.Running && !st.Paused {
+						<button class="icon" data-on:click={ "speechSynthesis.cancel(); " + lessonPost(name, "pause") } aria-label="Pause" title="Pause">
+							@Icon("pause")
+						</button>
+					} else {
+						<button class="icon" data-on:click={ lessonPost(name, "play") } aria-label="Play" title={ playTitle(st) }>
+							@Icon("play")
+						</button>
+					}
+				}
+				<button class="icon" data-on:click="$_voice = !$_voice; $_voice || speechSynthesis.cancel()" data-attr:aria-pressed="$_voice" aria-label="Narration" title="Narration: read the captions aloud">
+					<span data-show="$_voice">
+						@Icon("volume")
+					</span>
+					<span data-show="!$_voice">
+						@Icon("mute")
+					</span>
+				</button>
+			</div>
+			if st.Of > 0 {
+				<input class="scrub" type="range" min="0" max={ strconv.Itoa(st.Of) } value={ strconv.Itoa(st.Step) } disabled?={ !st.Owner } aria-label="Lesson position" title={ "Step " + strconv.Itoa(st.Step) + " of " + strconv.Itoa(st.Of) } data-on:change={ "speechSynthesis.cancel(); @post('/b/" + name + "/lesson/seek', {payload: {n: +el.value, inst: $inst}, requestCancellation: 'disabled'})" }/>
+			}
+			@Saved("lesson")
+		}
+	</div>
+}
+
+func playTitle(st LessonState) string {
+	switch {
+	case st.Paused:
+		return "Play on"
+	case st.Done:
+		return "Play it again"
+	}
+	return "Play"
+}

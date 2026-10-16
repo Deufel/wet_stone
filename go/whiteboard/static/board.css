@@ -611,3 +611,11 @@
   :where(.ask-card.say) > :where(p) { margin: 0; font-style: italic; }
   :where(.ask-card) > :where(.help) { justify-self: start; --type: -1; }
 }
+
+/* the lesson player, in the board's panel; undo and redo beside it */
+@layer block {
+  :where(.lesson-bar) { display: flex; align-items: center; gap: 0.5em; min-inline-size: 0; }
+  :where(.lesson-bar):where(:empty) { display: none; }
+  :where(.lesson-bar) > :where(.scrub) { inline-size: clamp(5rem, 14cqi, 12rem); accent-color: var(--accent, currentColor); }
+  :where(.lesson-bar) :where(button[aria-pressed="true"]) { --fg: 0.85; }
+}

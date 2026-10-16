@@ -227,14 +227,8 @@ func init() {
 // play runs a lesson on a board as the presenter "Demo"; the notes go into
 // the viewer's own notebook, the checklist onto the board's. end, when given,
 // is the card left on the board after (a book's page: the way to the next).
-// One lesson plays on a board at a time.
-func (h *Handler) play(l *Lesson, name string, user db.User, end *hub.Ask) {
-	if _, busy := h.playing.LoadOrStore(name, true); busy {
-		return
-	}
-	defer h.playing.Delete(name)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
+// Steps before from are done at once (a seek); run is the player's control.
+func (h *Handler) play(ctx context.Context, l *Lesson, name string, user db.User, end *hub.Ask, run *lessonRun, from int) {
 	b, _, err := h.Hub.Board(ctx, name)
 	if err != nil {
 		slog.Error("lesson", "board", name, "err", err)
@@ -250,23 +244,36 @@ func (h *Handler) play(l *Lesson, name string, user db.User, end *hub.Ask) {
 		b.Leave(demoUID)
 		if end != nil && ctx.Err() == nil {
 			h.Hub.Settle(name, end)
-		} else {
+		} else if ctx.Err() == nil {
 			h.Hub.Settle(name, nil) // a last caption goes with the presenter
 		}
 		h.Hub.Publish(name)
 	}()
-	pl := &player{h: h, p: &presenter{h: h, ctx: ctx, name: name, b: b, x: 500, y: 950, pace: l.Pace}, l: l, user: user, id: meta.ID}
-	p := pl.p
+	p := &presenter{h: h, ctx: ctx, name: name, b: b, uid: demoUID, x: 500, y: 950, pace: l.Pace, run: run, fast: from > 0}
+	pl := &player{h: h, p: p, l: l, user: user, id: meta.ID}
 
-	p.pause(2000 * time.Millisecond) // the page lands and its stream opens
+	p.pause(1200 * time.Millisecond) // the page lands and its stream opens
 	for _, item := range l.Checklist {
 		p.todo(user, pl.id, item)
 		p.pause(300 * time.Millisecond)
 	}
-	pl.run(l.Steps)
+	for i, s := range l.Steps {
+		if p.err != nil {
+			break
+		}
+		if i == from {
+			p.fast = false
+			h.Hub.Publish(name)
+		}
+		if run != nil {
+			run.set(func() { run.step = i })
+			h.Hub.Publish(name)
+		}
+		pl.run([]Step{s})
+	}
 	p.pause(600 * time.Millisecond)
 	p.click(980, 980) // deselect, park the cursor, and leave
-	if p.err != nil {
+	if p.err != nil && ctx.Err() == nil {
 		slog.Error("lesson", "board", name, "err", p.err)
 	}
 }
@@ -354,8 +361,8 @@ const helpsPerQuestion = 2
 // has the idea shown another way, puts the page back, and asks again.
 func (pl *player) ask(s Step) []Step {
 	h, p, user, name := pl.h, pl.p, pl.user, pl.p.name
-	if p.err != nil {
-		return nil
+	if p.err != nil || p.fast {
+		return nil // seeking past a question: it is not asked
 	}
 	ctx, cancel := context.WithTimeout(p.ctx, 10*time.Minute)
 	defer cancel()
@@ -429,11 +436,12 @@ func (pl *player) explainAgain(s Step, key apiKey) {
 
 // say puts a caption over the board, for as long as it takes to read.
 func (p *presenter) say(text string) {
-	if p.err != nil {
+	if p.err != nil || p.fast {
 		return
 	}
 	p.h.Hub.Settle(p.name, &hub.Ask{Say: text})
-	p.pause(time.Duration(1200+45*len(text)) * time.Millisecond)
+	p.pause(time.Duration(1500+70*len(text)) * time.Millisecond) // read, or spoken
+
 }
 
 // penarrow draws an arrow by hand: the shaft, then the head.
@@ -504,7 +512,7 @@ func (p *presenter) erase(at []int32) {
 	if len(at) == 2 {
 		p.click(at[0], at[1])
 		p.pause(300 * time.Millisecond)
-		if p.b.SelectedBy(demoUID) >= 0 {
+		if p.b.SelectedBy(p.uid) >= 0 {
 			p.act("delete", 0, 0)
 		}
 		return
