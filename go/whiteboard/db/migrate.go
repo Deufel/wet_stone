@@ -75,6 +75,33 @@ var migrations = []string{
 		PRIMARY KEY (user_id, board_id)
 	);
 	`,
+
+	// 4: books: a title and an owner, chapters in order, and pages in order,
+	// each page a board (one book per board)
+	`
+	CREATE TABLE IF NOT EXISTS books (
+		id         INTEGER PRIMARY KEY,
+		name       TEXT NOT NULL UNIQUE, -- the URL slug
+		title      TEXT NOT NULL,
+		owner_id   INTEGER NOT NULL REFERENCES users(id),
+		visibility TEXT NOT NULL DEFAULT 'public', -- public, private (owner only)
+		created_at INTEGER NOT NULL DEFAULT (unixepoch())
+	);
+	CREATE TABLE IF NOT EXISTS book_chapters (
+		id       INTEGER PRIMARY KEY,
+		book_id  INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+		position INTEGER NOT NULL,
+		title    TEXT NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS book_chapters_book ON book_chapters (book_id, position);
+	CREATE TABLE IF NOT EXISTS book_pages (
+		id         INTEGER PRIMARY KEY,
+		chapter_id INTEGER NOT NULL REFERENCES book_chapters(id) ON DELETE CASCADE,
+		board_id   INTEGER NOT NULL UNIQUE REFERENCES boards(id) ON DELETE CASCADE,
+		position   INTEGER NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS book_pages_chapter ON book_pages (chapter_id, position);
+	`,
 }
 
 func migrate(db *sql.DB) error {

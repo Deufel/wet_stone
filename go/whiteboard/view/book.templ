@@ -1,0 +1,140 @@
+package view
+
+import (
+	"strconv"
+	"whiteboard/db"
+)
+
+// BookPage is a book's front: its title and its contents, live (a morph
+// target on the book's stream). Its owner renames in place, adds chapters
+// and pages, and takes pages out.
+templ BookPage(u *db.User, b *db.Book) {
+	@Doc(b.Title+" · draw", nil) {
+		<div class="page home" data-signals={ "{" + savedSignal + ", _beat: 0}" } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ streamGet("/book/" + b.Name + "/stream") }>
+			@appHeader(u)
+			<main class="pg-main scroll-y">
+				<div class="home-body book-body">
+					@BookContents(u, b)
+				</div>
+			</main>
+		</div>
+		@MeMenu(u)
+	}
+}
+
+templ BookContents(u *db.User, b *db.Book) {
+	<div id="book-contents" class="book-contents" data-signals={ "{_doctitle: " + jsString(b.Title + " · draw") + "}" } data-effect="document.title = $_doctitle">
+		<header class="book-head">
+			@Icon("book")
+			<div>
+				<h2 { bookEdit(u, b, "/book/"+b.Name+"/title")... }>{ b.Title }</h2>
+				<p class="meta">{ visWord(b.Visibility) + " · " + coverLine(b) }</p>
+			</div>
+			<a class="button-like" href={ templ.SafeURL("/book/" + b.Name + "/print") }>
+				@Icon("printer")
+				Print the book
+			</a>
+		</header>
+		@Saved("book")
+		<ol class="chapters">
+			for _, c := range b.Chapters {
+				<li id={ "ch-" + strconv.FormatInt(c.ID, 10) }>
+					<h3>
+						<span class="num">{ "Chapter " + strconv.Itoa(c.No) }</span>
+						<span { bookEdit(u, b, "/book/"+b.Name+"/chapter/"+strconv.FormatInt(c.ID, 10)+"/title")... }>{ c.Title }</span>
+					</h3>
+					<ol class="book-pages">
+						for _, p := range c.Pages {
+							<li id={ "pg-" + strconv.FormatInt(p.ID, 10) }>
+								<span class="num">{ strconv.Itoa(p.No) }</span>
+								<a href={ templ.SafeURL("/b/" + p.Board) }>{ p.Title }</a>
+								if b.OwnerID == u.ID {
+									<button class="icon dgr sec" data-on:click={ "@post('/book/" + b.Name + "/page/" + strconv.FormatInt(p.ID, 10) + "/remove')" } aria-label={ "Take " + p.Title + " out of the book" } title="Take out of the book (the board stays)">
+										@Icon("x")
+									</button>
+								}
+							</li>
+						}
+					</ol>
+					if b.OwnerID == u.ID {
+						<button class="add" data-on:click={ "@post('/book/" + b.Name + "/chapter/" + strconv.FormatInt(c.ID, 10) + "/page')" }>
+							@Icon("plus")
+							Add a page
+						</button>
+					}
+				</li>
+			}
+		</ol>
+		if b.OwnerID == u.ID {
+			<button class="add" data-on:click={ "@post('/book/" + b.Name + "/chapter')" }>
+				@Icon("plus")
+				Add a chapter
+			</button>
+		}
+	</div>
+}
+
+// bookEdit: the owner renames a book or a chapter in place (the board-title
+// pattern: click, type, Enter or leave to save, Esc to put it back).
+func bookEdit(u *db.User, b *db.Book, url string) templ.Attributes {
+	if u == nil || b.OwnerID != u.ID {
+		return nil
+	}
+	return templ.Attributes{
+		"class": "editable",
+		"title": "Click to rename",
+		"data-on:click": "if (!el.isContentEditable) { el.dataset.orig = el.textContent; " +
+			"try { el.contentEditable = 'plaintext-only' } catch { el.contentEditable = 'true' } " +
+			"el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); " +
+			"const s = window.getSelection(); s.removeAllRanges(); s.addRange(r) }",
+		"data-on:keydown": "evt.stopPropagation(); if (evt.key === 'Enter') { evt.preventDefault(); el.blur() } " +
+			"else if (evt.key === 'Escape') { evt.preventDefault(); el.textContent = el.dataset.orig; el.blur() }",
+		"data-on:blur": "if (el.isContentEditable) { el.removeAttribute('contenteditable'); const t = el.textContent.trim(); " +
+			"if (t && t !== el.dataset.orig) { @post('" + url + "', {payload: {text: t}}) } else { el.textContent = el.dataset.orig } }",
+	}
+}
+
+// BookNav is where a board sits in its book, for the bar under its title.
+type BookNav struct {
+	Book, Title      string // the book's name and title
+	Chapter          string // "Ch 2 · Interfaces"
+	No, Of           int
+	Prev, Next       string // boards, "" at the ends
+}
+
+// bookBar: the board's place in its book, and the way to the pages beside it.
+templ bookBar(n *BookNav) {
+	<nav class="book-bar" aria-label="Book">
+		<a href={ templ.SafeURL("/book/" + n.Book) } title="The book's contents">
+			@Icon("book")
+			{ n.Title }
+		</a>
+		<span class="meta">{ n.Chapter + " · p " + strconv.Itoa(n.No) + " of " + strconv.Itoa(n.Of) }</span>
+		if n.Prev != "" {
+			<a class="icon-link" href={ templ.SafeURL("/b/" + n.Prev) } aria-label="Previous page" title="Previous page">←</a>
+		}
+		if n.Next != "" {
+			<a class="icon-link" href={ templ.SafeURL("/b/" + n.Next) } aria-label="Next page" title="Next page">→</a>
+		}
+	</nav>
+}
+
+// newBookRow: a new book, public or private, in one row (the drawer).
+templ newBookRow() {
+	<div class="new-row">
+		<span class="label">
+			@Icon("book")
+			New book
+		</span>
+		<div class="button-group">
+			<button data-on:click="@post('/books/new/public')" title="Anyone with the link can read it">
+				@Icon("link")
+				Public
+			</button>
+			<button data-on:click="@post('/books/new/private')" title="Only you">
+				@Icon("lock")
+				Private
+			</button>
+		</div>
+	</div>
+}

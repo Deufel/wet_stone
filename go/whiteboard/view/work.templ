@@ -3,7 +3,6 @@ package view
 import (
 	"strconv"
 	"whiteboard/db"
-	"whiteboard/hub"
 )
 
 // ─── The checklist ──────────────────────────────────────────────────────────
@@ -174,68 +173,3 @@ const notesApply = "const t = $_notes.text, l = $_notes.lang; " +
 // Tab indents (a notebook for code); the board's shortcuts never see these keys.
 const notesKeys = "evt.stopPropagation(); if (evt.key === 'Tab') { evt.preventDefault(); document.execCommand('insertText', false, '\\t') }"
 
-// ─── Paper ──────────────────────────────────────────────────────────────────
-
-type PrintData struct {
-	Name    string
-	Meta    *hub.Meta
-	Drawing string // the board's SVG, shapes and labels only
-	Todos   []db.Todo
-	Note    db.Note
-	Printed string // SQLite's now
-}
-
-// Print lays the board out for US Letter: the drawing fills the first page
-// under its title; the checklist and your notes follow on the next.
-templ Print(d PrintData) {
-	@Doc(d.Meta.Title+" · print", nil) {
-		<div class="print-page">
-			<nav class="print-bar row">
-				<a href={ templ.SafeURL("/b/" + d.Name) }>Back to the board</a>
-				<button data-on:click="window.print()">
-					@Icon("printer")
-					Print
-				</button>
-			</nav>
-			<article class="sheet sheet-board">
-				<header class="sheet-head">
-					<h1>{ d.Meta.Title }</h1>
-					<p>{ visWord(d.Meta.Visibility) + " · printed " + d.Printed }</p>
-				</header>
-				<figure>
-					@Raw(d.Drawing)
-				</figure>
-			</article>
-			<article class="sheet sheet-rest">
-				<section>
-					<h2>Checklist</h2>
-					if len(d.Todos) == 0 {
-						<p class="hint">Nothing on the list.</p>
-					}
-					<ul class="sheet-todo">
-						for _, t := range d.Todos {
-							<li data-ui-done?={ t.Done }>
-								<span class="box">
-									if t.Done {
-										✓
-									}
-								</span>
-								<span class="text">{ t.Text }</span>
-								if t.Done {
-									<span class="when num">{ doneLine(t) }</span>
-								}
-							</li>
-						}
-					</ul>
-				</section>
-				if d.Note.Text != "" {
-					<section>
-						<h2>Notes</h2>
-						<pre class="sheet-notes"><code class={ d.Note.Lang }>{ d.Note.Text }</code></pre>
-					</section>
-				}
-			</article>
-		</div>
-		<script src="/static/highlight.js"></script>
-	}
-}

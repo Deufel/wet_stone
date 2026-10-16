@@ -81,3 +81,6 @@ func BoardSubject(name string) string { return "board." + name + ".changed" }
 
 // UserSubject is the subject for a change to one person's list of boards.
 func UserSubject(id int64) string { return "user." + strconv.FormatInt(id, 10) + ".changed" }
+
+// BookSubject is the subject for a change to one book's contents.
+func BookSubject(id int64) string { return "book." + strconv.FormatInt(id, 10) + ".changed" }

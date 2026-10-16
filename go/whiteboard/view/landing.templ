@@ -61,7 +61,7 @@ templ Landing(d LandingData) {
 
 // Home is a signed-in user's front page: start or join a board, or go back
 // to one of theirs.
-templ Home(u *db.User, tabs []db.Tab) {
+templ Home(u *db.User, tabs []db.Tab, books []db.Book) {
 	@Doc("draw · your boards", nil) {
 		<div class="page home" data-signals={ "{" + savedSignal + ", _beat: 0, _rm: {name: '', title: ''}}" } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ streamGet("/stream") }>
 			@appHeader(u)
@@ -85,7 +85,7 @@ templ Home(u *db.User, tabs []db.Tab) {
 							<span>Only you and the people you invite.</span>
 						</button>
 					</div>
-					@HomeBoards(tabs)
+					@HomeBoards(tabs, books)
 				</div>
 			</main>
 		</div>
@@ -206,8 +206,21 @@ templ googleG() {
 
 // HomeBoards is the front page's board list: a morph target on the front
 // page's stream, sent again whenever the user's boards change anywhere.
-templ HomeBoards(tabs []db.Tab) {
+templ HomeBoards(tabs []db.Tab, books []db.Book) {
 	<section id="home-boards" class="home-boards">
+		<h3 id="books">Your books</h3>
+		if len(books) == 0 {
+			<p class="hint">No books yet: start one from the menu (the logo), then add chapters and pages.</p>
+		}
+		<ul class="boards">
+			for _, b := range books {
+				<li>
+					@Icon("book")
+					<a href={ templ.SafeURL("/book/" + b.Name) }>{ b.Title }</a>
+					<span class="meta">{ visWord(b.Visibility) }</span>
+				</li>
+			}
+		</ul>
 		if len(tabs) > 1 {
 			<h3>Your boards</h3>
 			<ul class="boards">
@@ -244,6 +257,14 @@ templ frontDrawer() {
 					The global board
 				</a>
 				@newBoardRow()
+			</section>
+			<section class="nav-sec" aria-label="Books">
+				<h3>Books</h3>
+				<a href="/#books">
+					@Icon("book")
+					Your books
+				</a>
+				@newBookRow()
 			</section>
 			@learnSection()
 		</nav>

@@ -1,0 +1,168 @@
+package view
+
+import (
+	"strconv"
+	"strings"
+	"whiteboard/db"
+)
+
+// PrintPage is one board on paper: the drawing on a sheet of its own, then
+// its checklist and the viewer's notes. Named is its @page name, which
+// carries its footer; Footer is the footer's left text, Mark its right one
+// ("" prints the sheet's own number).
+type PrintPage struct {
+	Board, Title, Drawing string
+	Todos                 []db.Todo
+	Note                  db.Note
+	Named, Footer, Mark   string
+}
+
+// PrintData is a board or a whole book, laid out for US Letter.
+type PrintData struct {
+	Back, BackLabel string
+	Title           string   // the document's title, and the footer's middle
+	Book            *db.Book // nil for a single board
+	Pages           []PrintPage
+	Printed         string // SQLite's now
+}
+
+// Print is the paper view. On screen each sheet is a page of paper with its
+// footer under it; in print the footers move into the page margins (the
+// named @page rules below), with chapter and page in a book.
+templ Print(d PrintData) {
+	@Doc(d.Title+" · print", nil) {
+		<div class="print-page">
+			<nav class="print-bar row">
+				<a href={ templ.SafeURL(d.Back) }>{ d.BackLabel }</a>
+				<button data-on:click="window.print()">
+					@Icon("printer")
+					Print
+				</button>
+			</nav>
+			if d.Book != nil {
+				@printCover(d)
+			}
+			for _, p := range d.Pages {
+				@printSheets(d, p)
+			}
+		</div>
+		@Raw("<style>" + pageRules(d) + "</style>")
+		<script src="/static/highlight.js"></script>
+	}
+}
+
+// printCover: the book's title page and its contents.
+templ printCover(d PrintData) {
+	<article class="sheet sheet-cover" style="page: cover">
+		<header class="cover-head">
+			<h1>{ d.Book.Title }</h1>
+			<p>{ coverLine(d.Book) + " · printed " + d.Printed }</p>
+		</header>
+		<ol class="contents">
+			for _, c := range d.Book.Chapters {
+				<li>
+					<h2>{ "Chapter " + strconv.Itoa(c.No) + " · " + c.Title }</h2>
+					<ol class="contents-pages">
+						for _, p := range c.Pages {
+							<li><span>{ p.Title }</span><span class="num">{ "p. " + strconv.Itoa(p.No) }</span></li>
+						}
+					</ol>
+				</li>
+			}
+		</ol>
+	</article>
+}
+
+templ printSheets(d PrintData, p PrintPage) {
+	<article class="sheet sheet-board" style={ "page: " + p.Named }>
+		<header class="sheet-head">
+			<h1>{ p.Title }</h1>
+			if d.Book == nil {
+				<p>{ "printed " + d.Printed }</p>
+			}
+		</header>
+		<figure>
+			@Raw(p.Drawing)
+		</figure>
+		@sheetFoot(d, p)
+	</article>
+	if len(p.Todos) > 0 || p.Note.Text != "" {
+		<article class="sheet sheet-rest" style={ "page: " + p.Named }>
+			if len(p.Todos) > 0 {
+				<section>
+					<h2>Checklist</h2>
+					<ul class="sheet-todo">
+						for _, t := range p.Todos {
+							<li data-ui-done?={ t.Done }>
+								<span class="box">
+									if t.Done {
+										✓
+									}
+								</span>
+								<span class="text">{ t.Text }</span>
+								if t.Done {
+									<span class="when num">{ doneLine(t) }</span>
+								}
+							</li>
+						}
+					</ul>
+				</section>
+			}
+			if p.Note.Text != "" {
+				<section>
+					<h2>Notes</h2>
+					<pre class="sheet-notes"><code class={ p.Note.Lang }>{ p.Note.Text }</code></pre>
+				</section>
+			}
+			@sheetFoot(d, p)
+		</article>
+	}
+}
+
+// sheetFoot is the footer as the screen shows it (print puts it in the margin).
+templ sheetFoot(d PrintData, p PrintPage) {
+	<footer class="sheet-foot">
+		<span>{ p.Footer }</span>
+		if d.Book != nil {
+			<span>{ d.Title }</span>
+		}
+		<span class="num">{ p.Mark }</span>
+	</footer>
+}
+
+func coverLine(b *db.Book) string {
+	return plural(len(b.Chapters), "chapter") + " · " + plural(len(b.Pages()), "page")
+}
+
+func plural(n int, word string) string {
+	if n == 1 {
+		return "1 " + word
+	}
+	return strconv.Itoa(n) + " " + word + "s"
+}
+
+// pageRules: one named @page per printed board, its footer in the margin
+// boxes: left the chapter (or the board), middle the book, right the page.
+func pageRules(d PrintData) string {
+	var sb strings.Builder
+	for _, p := range d.Pages {
+		sb.WriteString("@page " + p.Named + " {")
+		sb.WriteString(" @bottom-left { content: " + cssString(p.Footer) + "; }")
+		if d.Book != nil {
+			sb.WriteString(" @bottom-center { content: " + cssString(d.Title) + "; }")
+		}
+		if p.Mark != "" {
+			sb.WriteString(" @bottom-right { content: " + cssString(p.Mark) + "; }")
+		} else {
+			sb.WriteString(` @bottom-right { content: counter(page); }`)
+		}
+		sb.WriteString(" }\n")
+	}
+	return sb.String()
+}
+
+// cssString quotes text for a CSS content value (and keeps </style> out).
+func cssString(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", " ", "<", `\3c `)
+	return `"` + r.Replace(s) + `"`
+}

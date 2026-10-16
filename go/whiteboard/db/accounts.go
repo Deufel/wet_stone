@@ -165,32 +165,48 @@ func (d *DB) Meta(ctx context.Context, name string) (Meta, error) {
 
 // CreateBoard makes a new board owned by the user under an unguessable name.
 func (d *DB) CreateBoard(ctx context.Context, owner *User, title, visibility string) (string, error) {
-	raw := make([]byte, 10)
-	if _, err := rand.Read(raw); err != nil {
-		return "", err
-	}
-	name := strings.ToLower(strings.TrimRight(base32.StdEncoding.EncodeToString(raw), "="))
 	tx, err := d.sql.BeginTx(ctx, nil)
 	if err != nil {
 		return "", err
 	}
 	defer tx.Rollback()
-	now := time.Now().UnixMilli()
-	var id, branch int64
-	if err := tx.QueryRowContext(ctx, `INSERT INTO boards (name, title, owner_id, visibility, created_ms) VALUES (?, ?, ?, ?, ?) RETURNING id`,
-		name, title, owner.ID, visibility, now).Scan(&id); err != nil {
+	id, name, err := newBoard(ctx, tx, owner.ID, title, visibility)
+	if err != nil {
 		return "", err
 	}
-	if err := tx.QueryRowContext(ctx, `INSERT INTO branches (board_id, name, is_main) VALUES (?, 'main', 1) RETURNING id`, id).Scan(&branch); err != nil {
-		return "", err
-	}
-	if _, err := tx.ExecContext(ctx, `UPDATE boards SET branch_id = ? WHERE id = ?`, branch, id); err != nil {
-		return "", err
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO tabs (user_id, board_id, opened_ms) VALUES (?, ?, ?)`, owner.ID, id, now); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO tabs (user_id, board_id, opened_ms) VALUES (?, ?, ?)`, owner.ID, id, time.Now().UnixMilli()); err != nil {
 		return "", err
 	}
 	return name, tx.Commit()
+}
+
+// slug is a fresh random URL name.
+func slug() (string, error) {
+	raw := make([]byte, 10)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	return strings.ToLower(strings.TrimRight(base32.StdEncoding.EncodeToString(raw), "=")), nil
+}
+
+// newBoard inserts a board and its main branch inside tx.
+func newBoard(ctx context.Context, tx *sql.Tx, ownerID int64, title, visibility string) (int64, string, error) {
+	name, err := slug()
+	if err != nil {
+		return 0, "", err
+	}
+	var id, branch int64
+	if err := tx.QueryRowContext(ctx, `INSERT INTO boards (name, title, owner_id, visibility, created_ms) VALUES (?, ?, ?, ?, ?) RETURNING id`,
+		name, title, ownerID, visibility, time.Now().UnixMilli()).Scan(&id); err != nil {
+		return 0, "", err
+	}
+	if err := tx.QueryRowContext(ctx, `INSERT INTO branches (board_id, name, is_main) VALUES (?, 'main', 1) RETURNING id`, id).Scan(&branch); err != nil {
+		return 0, "", err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE boards SET branch_id = ? WHERE id = ?`, branch, id); err != nil {
+		return 0, "", err
+	}
+	return id, name, nil
 }
 
 func (d *DB) SetTitle(ctx context.Context, boardID int64, title string) error {

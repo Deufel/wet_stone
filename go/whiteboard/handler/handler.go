@@ -45,6 +45,7 @@ import (
 	"whiteboard/hub"
 	"whiteboard/view"
 
+	"github.com/a-h/templ"
 	"github.com/go-chi/chi/v5"
 	"github.com/starfederation/datastar-go/datastar"
 )
@@ -137,6 +138,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/stream", h.homeStream)
 	r.Post("/new/{visibility}", h.newBoard)
 	r.Post("/demo/{kind}", h.demo)
+	h.bookRoutes(r)
 	r.Post("/tabs/close/{name}", h.closeTab)
 	r.Get("/b/{name}", h.page)
 	r.Get("/b/{name}/stream", h.stream)
@@ -178,7 +180,8 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("tabs", "err", err)
 	}
-	_ = view.Home(u, tabs).Render(r.Context(), w)
+	books, _ := h.DB.BooksOf(r.Context(), u.ID)
+	_ = view.Home(u, tabs, books).Render(r.Context(), w)
 }
 
 // tabs is the user's tab strip, the global board always first.
@@ -256,7 +259,8 @@ func (h *Handler) homeStream(w http.ResponseWriter, r *http.Request) {
 			return true
 		}
 		buf.Reset()
-		if err := view.HomeBoards(tabs).Render(r.Context(), &buf); err != nil {
+		books, _ := h.DB.BooksOf(r.Context(), u.ID)
+		if err := view.HomeBoards(tabs, books).Render(r.Context(), &buf); err != nil {
 			return true
 		}
 		return sse.PatchElements(buf.String()) == nil
@@ -369,7 +373,7 @@ func (h *Handler) page(w http.ResponseWriter, r *http.Request) {
 		slog.Error("tabs", "err", err)
 	}
 	html(w)
-	if err := view.Board(view.BoardData{Inst: h.Instance, Name: n, Link: h.Auth.BaseURL + "/b/" + n, User: u, Meta: meta, Hist: hist, Tabs: tabs}).Render(r.Context(), w); err != nil {
+	if err := view.Board(view.BoardData{Nav: h.bookNav(r, meta.ID, n), Inst: h.Instance, Name: n, Link: h.Auth.BaseURL + "/b/" + n, User: u, Meta: meta, Hist: hist, Tabs: tabs}).Render(r.Context(), w); err != nil {
 		slog.Error("page", "err", err)
 	}
 }
@@ -656,6 +660,13 @@ func (h *Handler) share(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not save", http.StatusInternalServerError)
 		return
 	}
+	if op == "title" { // a page's new name shows in its book's contents too
+		if name := h.DB.BookOf(r.Context(), meta.ID); name != "" {
+			if bk, err := h.DB.Book(r.Context(), name); err == nil {
+				_ = h.Bus.Publish(bus.BookSubject(bk.ID), nil)
+			}
+		}
+	}
 	sse := datastar.NewSSE(w, r)
 	switch op {
 	case "title":
@@ -771,15 +782,14 @@ func (h *Handler) print(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	b, _, err := h.Hub.Board(r.Context(), n)
-	if err != nil {
+	pg, ok := h.printPage(r, u, n)
+	if !ok {
 		http.Error(w, "board unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	todos, _ := h.DB.Todos(r.Context(), meta.ID)
-	note, _ := h.DB.Note(r.Context(), u.ID, meta.ID)
+	pg.Named, pg.Footer = "board", meta.Title
 	html(w)
-	_ = view.Print(view.PrintData{Name: n, Meta: meta, Drawing: b.Print(), Todos: todos, Note: note, Printed: h.DB.Now(r.Context())}).Render(r.Context(), w)
+	_ = view.Print(view.PrintData{Back: "/b/" + n, BackLabel: "Back to the board", Title: meta.Title, Pages: []view.PrintPage{pg}, Printed: h.DB.Now(r.Context())}).Render(r.Context(), w)
 }
 
 // Beat is the heartbeat's period; the page's sentinel calls the line lost after
@@ -788,6 +798,13 @@ const Beat = 5 * time.Second
 
 func beat(sse *datastar.ServerSentEventGenerator) error {
 	return sse.PatchSignals([]byte(`{"_beat":` + strconv.FormatInt(time.Now().UnixMilli(), 10) + `}`))
+}
+
+// renderString renders a component for a stream patch.
+func renderString(r *http.Request, c templ.Component) string {
+	var b bytes.Buffer
+	_ = c.Render(r.Context(), &b)
+	return b.String()
 }
 
 // Control characters dropped, capped at max bytes on a rune boundary.

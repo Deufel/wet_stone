@@ -7,7 +7,8 @@ import (
 )
 
 type BoardData struct {
-	Inst string // the server process this page landed on
+	Nav  *BookNav // the board's place in a book, or nil
+	Inst string   // the server process this page landed on
 	Name string
 	Link string // the board's full URL, for sharing
 	User *db.User
@@ -31,7 +32,12 @@ templ Board(d BoardData) {
 				<button class="brand" popovertarget="nav-drawer" aria-label="Menu" title="Your boards">
 					@Mark()
 				</button>
-				@boardTitle(d.Name, d.User, d.Meta)
+				<div class="title-stack">
+					@boardTitle(d.Name, d.User, d.Meta)
+					if d.Nav != nil {
+						@bookBar(d.Nav)
+					}
+				</div>
 				<div class="row end">
 					<span class="presence tablet desktop" title="People on this board"><span data-text="$users"></span> here</span>
 					<button class="share" data-on:click="document.getElementById('share').showModal()">
@@ -257,6 +263,20 @@ templ navDrawer(d BoardData) {
 				<h3>Boards</h3>
 				@DrawerBoards(d.Name, d.Meta, d.Tabs)
 				@newBoardRow()
+			</section>
+			<section class="nav-sec" aria-label="Books">
+				<h3>Books</h3>
+				if d.Nav != nil {
+					<a href={ templ.SafeURL("/book/" + d.Nav.Book) }>
+						@Icon("book")
+						{ d.Nav.Title }
+					</a>
+				}
+				<a href="/#books">
+					@Icon("home")
+					Your books
+				</a>
+				@newBookRow()
 			</section>
 			@learnSection()
 			<section class="nav-sec" aria-label="This board">

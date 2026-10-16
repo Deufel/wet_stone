@@ -440,12 +440,37 @@
   ::highlight(css-var-name), ::highlight(python-builtin), ::highlight(javascript-builtin), ::highlight(go-builtin), ::highlight(sqlite-parameter), ::highlight(python-decorator), ::highlight(javascript-decorator) { color: oklch(0.6 calc(0.15 * var(--chroma, 1)) 20); }
   ::highlight(css-punctuation), ::highlight(html-bracket), ::highlight(python-operator), ::highlight(python-punctuation), ::highlight(javascript-operator), ::highlight(javascript-punctuation), ::highlight(go-operator), ::highlight(go-punctuation), ::highlight(sqlite-operator), ::highlight(sqlite-punctuation), ::highlight(sqlite-identifier) { color: oklch(0.66 0 0); }
 
-  /* ── paper: /b/{name}/print, US Letter ──────────────────────────────── */
+}
+
+@layer block {
+  /* the checklist as a bottom drawer (a phone) */
+  :where(.todo-drawer:popover-open) { display: grid; }
+  :where(.todo-drawer) { block-size: min(70svh, 30rem); grid-template-rows: auto minmax(0, 1fr) auto; gap: 0.4lh; padding-block-end: max(0.75lh, env(safe-area-inset-bottom)); }
+  :where(.todo-drawer) > :where(.drawer-head) { margin: 0; }
+  :where(.todo-drawer) > :where(.drawer-head) > :where(h2) { margin-inline-end: auto; }
+}
+
+/* ── the print layer: paper, US Letter (8.5 × 11 in) ─────────────────────
+   /b/{name}/print and /book/{name}/print. On screen each .sheet is a page
+   of paper with its footer at the foot; on paper the footers move into the
+   page margins: the named @page rules the page writes for itself (chapter,
+   book, page) take their content, and the type for every margin box is
+   set once here. Every sheet is its own printed page. */
+@page { size: letter; margin: 0.5in 0.55in 0.7in; }
+@page {
+  @bottom-left { font-family: system-ui, sans-serif; font-size: 8pt; color: gray; vertical-align: top; padding-top: 0.15in; }
+  @bottom-center { font-family: system-ui, sans-serif; font-size: 8pt; color: gray; vertical-align: top; padding-top: 0.15in; }
+  @bottom-right { font-family: system-ui, sans-serif; font-size: 8pt; color: gray; vertical-align: top; padding-top: 0.15in; }
+}
+@page cover { }
+
+@layer print {
   :where(.print-page) { color-scheme: light; padding-block: 1lh 2lh; }
   :where(.print-bar) { justify-content: space-between; align-items: center; max-inline-size: 8.5in; margin: 0 auto 0.8lh; padding-inline: 1em; }
   :where(.print-bar) > :where(button) { display: inline-flex; align-items: center; gap: 0.4em; }
   :where(.sheet) {
-    box-sizing: border-box; inline-size: min(8.5in, 100%); min-block-size: 11in; margin: 0 auto 1lh; padding: 0.5in;
+    box-sizing: border-box; inline-size: min(8.5in, 100%); min-block-size: 11in; margin: 0 auto 1lh; padding: 0.5in 0.5in 0.35in;
+    grid-template-rows: auto 1fr auto;
     background: white; color: black; box-shadow: 0 0.2lh 1lh color-mix(in oklch, black 18%, transparent);
     display: grid; align-content: start; gap: 0.4in;
   }
@@ -472,20 +497,63 @@
   :where(.sheet-notes) > :where(code) { white-space: inherit; }
   :where(.sheet) :where(.hint) { color: gray; }
 
-  @page { size: letter; margin: 0.5in; }
+
+
+  :where(.sheet-foot) { display: flex; justify-content: space-between; gap: 1em; align-self: end; padding-block-start: 0.15in; border-block-start: 0.5pt solid silver; color: gray; --type: -2; }
+  :where(.sheet-foot) > :where(span:first-child) { flex: 1; }
+  :where(.sheet-foot) > :where(span:last-child) { flex: 1; text-align: end; }
+
+  /* a book's cover: its title and its contents */
+  :where(.sheet-cover) { align-content: start; gap: 0.5in; }
+  :where(.cover-head) { padding-block-start: 1.5in; }
+  :where(.cover-head) > :where(h1) { --type: 5; margin: 0; letter-spacing: -0.02em; line-height: 1.05; }
+  :where(.cover-head) > :where(p) { margin: 0.3lh 0 0; color: gray; }
+  :where(.contents) { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25in; }
+  :where(.contents) :where(h2) { --type: 0.5; margin: 0 0 0.08in; }
+  :where(.contents-pages) { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.04in; }
+  :where(.contents-pages) > :where(li) { display: flex; gap: 0.6em; }
+  :where(.contents-pages) > :where(li) > :where(span:first-child) { flex: 1; border-block-end: 0.5pt dotted silver; }
+
   @media print {
+    /* paper is white, edge to edge; the printable area is 8.5 − 1.1 = 7.4 in
+       wide (the @page margins), and everything is sized to fit it */
+    :where(html, body, .print-page) { background: white; margin: 0; padding: 0; color-scheme: light; }
     :where(.print-bar) { display: none; }
-    :where(.print-page) { padding: 0; }
-    :where(.sheet) { inline-size: auto; min-block-size: 0; margin: 0; padding: 0; box-shadow: none; }
-    :where(.sheet-board) { break-after: page; }
+    :where(.sheet) { box-sizing: border-box; inline-size: 7.4in; max-inline-size: 7.4in; min-block-size: 0; margin: 0; padding: 0; box-shadow: none; break-after: page; display: block; }
+    :where(.print-board) { inline-size: 7.4in; max-inline-size: 7.4in; block-size: 7.4in; }
+    :where(.sheet-notes, .sheet-todo) { box-sizing: border-box; max-inline-size: 7.4in; }
+    :where(.sheet):where(:last-of-type) { break-after: auto; }
+    :where(.sheet) > * + * { margin-block-start: 0.3in; }
+    :where(.sheet-foot) { display: none; }
     :where(.sheet-todo) > :where(li) { break-inside: avoid; }
+    :where(.cover-head) { padding-block-start: 2in; }
   }
 }
 
+/* ── books on screen ──────────────────────────────────────────────────── */
 @layer block {
-  /* the checklist as a bottom drawer (a phone) */
-  :where(.todo-drawer:popover-open) { display: grid; }
-  :where(.todo-drawer) { block-size: min(70svh, 30rem); grid-template-rows: auto minmax(0, 1fr) auto; gap: 0.4lh; padding-block-end: max(0.75lh, env(safe-area-inset-bottom)); }
-  :where(.todo-drawer) > :where(.drawer-head) { margin: 0; }
-  :where(.todo-drawer) > :where(.drawer-head) > :where(h2) { margin-inline-end: auto; }
+  :where(.book-body) { max-inline-size: 46rem; }
+  :where(.book-head) { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.8em; }
+  :where(.book-head) > :where(svg) { inline-size: 2em; block-size: 2em; --fg: -0.5; }
+  :where(.book-head) :where(h2) { --type: 3; margin: 0; letter-spacing: -0.015em; }
+  :where(.book-head) :where(.meta) { margin: 0; --fg: -0.5; --type: -1; }
+  :where(.button-like) { display: inline-flex; align-items: center; gap: 0.4em; padding: 0.3lh 0.8em; border: 1px solid var(--border); border-radius: var(--cfg-radius); color: inherit; text-decoration: none; white-space: nowrap; }
+  :where(.button-like) > :where(svg) { inline-size: 1.05em; block-size: 1.05em; }
+  :where(.chapters) { list-style: none; margin: 0.6lh 0 0; padding: 0; display: grid; gap: 0.9lh; }
+  :where(.chapters) > :where(li) > :where(h3) { display: flex; align-items: baseline; gap: 0.7em; margin: 0 0 0.3lh; --type: 1; }
+  :where(.chapters) :where(h3) > :where(.num) { --fg: -0.5; --type: -1; text-transform: uppercase; letter-spacing: 0.06em; }
+  :where(.book-pages) { list-style: none; margin: 0; padding: 0; display: grid; }
+  :where(.book-pages) > :where(li) { display: flex; align-items: center; gap: 0.8em; padding-block: 0.25lh; border-block-end: 1px solid var(--border); }
+  :where(.book-pages) > :where(li) > :where(.num) { --fg: -0.45; min-inline-size: 1.6em; text-align: end; }
+  :where(.book-pages) > :where(li) > :where(a) { flex: 1; color: inherit; font-weight: 550; }
+  :where(.book-contents) :where(.add) { display: inline-flex; align-items: center; gap: 0.4em; margin-block-start: 0.4lh; --type: -1; }
+  :where(.book-contents) :where(.add) > :where(svg) { inline-size: 1em; block-size: 1em; }
+
+  /* a board in a book: its place, under its title */
+  :where(.title-stack) { display: grid; gap: 0; min-inline-size: 0; }
+  :where(.book-bar) { display: flex; align-items: center; gap: 0.6em; --type: -1; min-inline-size: 0; white-space: nowrap; }
+  :where(.book-bar) > :where(a) { display: inline-flex; align-items: center; gap: 0.35em; color: inherit; text-decoration: none; --fg: -0.6; }
+  :where(.book-bar) > :where(a) > :where(svg) { inline-size: 1em; block-size: 1em; }
+  :where(.book-bar) > :where(.meta) { --fg: -0.45; overflow: hidden; text-overflow: ellipsis; }
+  :where(.book-bar) > :where(.icon-link) { padding: 0 0.35em; border: 1px solid var(--border); border-radius: calc(var(--cfg-radius) * 0.6); }
 }
