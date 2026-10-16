@@ -219,4 +219,3 @@ func (h *Handler) lessonControl(w http.ResponseWriter, r *http.Request) {
 	h.Hub.Publish(n)
 	datastar.NewSSE(w, r)
 }
-
