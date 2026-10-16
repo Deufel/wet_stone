@@ -42,12 +42,14 @@ type live struct {
 	b    *board.Board
 	hist atomic.Pointer[History]
 	meta atomic.Pointer[Meta]
-	todo atomic.Int64  // the checklist's version: a stream re-reads it when this moves
-	wake chan struct{} // cap 1
+	todo atomic.Int64        // the checklist's version: a stream re-reads it when this moves
+	ask  atomic.Pointer[Ask] // a lesson's question on the board, or nil
+	wake chan struct{}       // cap 1
 
 	mu      sync.Mutex
-	pending string   // the latest unsaved change, "" = none
-	ops     []HistOp // history commands, in order
+	pending string      // the latest unsaved change, "" = none
+	ops     []HistOp    // history commands, in order
+	answers chan string // where the waiting question's answer goes
 }
 
 // HistOp is a history command from the panel.

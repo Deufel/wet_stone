@@ -12,6 +12,7 @@ import (
 
 	"whiteboard/board"
 	"whiteboard/db"
+	"whiteboard/hub"
 )
 
 // A Lesson is a script the presenter plays on a board: what a demo is, and
@@ -34,7 +35,10 @@ import (
 //	    {"do": "nudge", "by": [1, 0]},
 //	    {"do": "todo", "text": "…"}, {"do": "check", "item": "prefix"},
 //	    {"do": "notes", "n": 5},                           // show the first n lines
-//	    {"do": "pause", "ms": 800}
+//	    {"do": "pause", "ms": 800},
+//	    {"do": "ask", "question": "…", "options": ["2", "4"], // no options: free text
+//	     "answer": "4", "explain": "…",                    // both optional
+//	     "if": {"4": [steps…], "*": [steps…]}}              // a branch by the answer
 //	  ]
 //	}
 type Lesson struct {
@@ -63,6 +67,14 @@ type Step struct {
 	Item   string     `json:"item,omitempty"`
 	N      int        `json:"n,omitempty"`
 	Ms     int        `json:"ms,omitempty"`
+
+	// ask: the lesson waits for the viewer's answer, says how it went, and
+	// may take a branch (If, by the answer, "*" for any other)
+	Question string            `json:"question,omitempty"`
+	Options  []string          `json:"options,omitempty"`
+	Answer   string            `json:"answer,omitempty"`
+	Explain  string            `json:"explain,omitempty"`
+	If       map[string][]Step `json:"if,omitempty"`
 }
 
 // Validate checks a lesson before it is played: every step known, with what
@@ -77,6 +89,11 @@ func (l *Lesson) Validate() error {
 	if l.Pace < 0 || l.Pace > 5 {
 		return fmt.Errorf("pace %v: 0 to 5", l.Pace)
 	}
+	return l.check(l.Steps, "")
+}
+
+// check validates steps, and the steps of every branch (named by its path).
+func (l *Lesson) check(steps []Step, at string) error {
 	in := func(v []int32, n int) bool {
 		if len(v) != n {
 			return false
@@ -88,8 +105,8 @@ func (l *Lesson) Validate() error {
 		}
 		return true
 	}
-	for i, s := range l.Steps {
-		bad := func(why string) error { return fmt.Errorf("step %d (%s): %s", i+1, s.Do, why) }
+	for i, s := range steps {
+		bad := func(why string) error { return fmt.Errorf("step %s%d (%s): %s", at, i+1, s.Do, why) }
 		switch s.Do {
 		case "box":
 			if !in(s.At, 4) {
@@ -140,6 +157,18 @@ func (l *Lesson) Validate() error {
 		case "pause":
 			if s.Ms <= 0 || s.Ms > 60000 {
 				return bad("ms: 1 to 60000")
+			}
+		case "ask":
+			if strings.TrimSpace(s.Question) == "" {
+				return bad("question")
+			}
+			if len(s.Options) > 6 {
+				return bad("options: at most 6")
+			}
+			for key, branch := range s.If {
+				if err := l.check(branch, fmt.Sprintf("%s%d [%s] ", at, i+1, key)); err != nil {
+					return err
+				}
 			}
 		default:
 			return bad("unknown step")
@@ -208,50 +237,94 @@ func (h *Handler) play(l *Lesson, name string, user db.User) {
 		p.todo(user, id, item)
 		p.pause(300 * time.Millisecond)
 	}
-	for _, s := range l.Steps {
-		if p.err != nil {
-			break
+	var run func(steps []Step)
+	run = func(steps []Step) {
+		for _, s := range steps {
+			if p.err != nil {
+				return
+			}
+			switch s.Do {
+			case "box":
+				p.box(s.At[0], s.At[1], s.At[2], s.At[3], s.Label)
+			case "arrow":
+				p.stroke(3, s.From[0], s.From[1], s.To[0], s.To[1])
+			case "line":
+				p.stroke(2, s.From[0], s.From[1], s.To[0], s.To[1])
+			case "pen":
+				p.pen(s.Points)
+			case "laser":
+				p.laser(s.At[0], s.At[1], s.R)
+			case "click":
+				p.click(s.At[0], s.At[1])
+			case "dblclick":
+				p.dblclick(s.At[0], s.At[1])
+			case "drag":
+				p.stroke(0, s.From[0], s.From[1], s.To[0], s.To[1])
+			case "label":
+				p.label(s.Text)
+			case "group", "ungroup", "delete":
+				p.act(s.Do, 0, 0)
+			case "nudge":
+				p.act("nudge", s.By[0], s.By[1])
+			case "todo":
+				p.todo(user, id, s.Text)
+			case "check":
+				p.check(user, id, s.Item)
+			case "notes":
+				notes(s.N)
+			case "pause":
+				p.pause(time.Duration(s.Ms) * time.Millisecond)
+			case "ask":
+				run(h.ask(p, name, user, s))
+			}
+			p.pause(250 * time.Millisecond) // a beat between steps
 		}
-		switch s.Do {
-		case "box":
-			p.box(s.At[0], s.At[1], s.At[2], s.At[3], s.Label)
-		case "arrow":
-			p.stroke(3, s.From[0], s.From[1], s.To[0], s.To[1])
-		case "line":
-			p.stroke(2, s.From[0], s.From[1], s.To[0], s.To[1])
-		case "pen":
-			p.pen(s.Points)
-		case "laser":
-			p.laser(s.At[0], s.At[1], s.R)
-		case "click":
-			p.click(s.At[0], s.At[1])
-		case "dblclick":
-			p.dblclick(s.At[0], s.At[1])
-		case "drag":
-			p.stroke(0, s.From[0], s.From[1], s.To[0], s.To[1])
-		case "label":
-			p.label(s.Text)
-		case "group", "ungroup", "delete":
-			p.act(s.Do, 0, 0)
-		case "nudge":
-			p.act("nudge", s.By[0], s.By[1])
-		case "todo":
-			p.todo(user, id, s.Text)
-		case "check":
-			p.check(user, id, s.Item)
-		case "notes":
-			notes(s.N)
-		case "pause":
-			p.pause(time.Duration(s.Ms) * time.Millisecond)
-		}
-		p.pause(250 * time.Millisecond) // a beat between steps
 	}
+	run(l.Steps)
 	p.pause(600 * time.Millisecond)
 	p.click(980, 980) // deselect, park the cursor, and leave
 	if p.err != nil {
 		slog.Error("lesson", "board", name, "err", p.err)
 	}
 }
+
+// ask puts the step's question on the board, waits for the viewer's answer,
+// shows how it went, and returns the branch the answer takes (or none).
+func (h *Handler) ask(p *presenter, name string, user db.User, s Step) []Step {
+	if p.err != nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(p.ctx, 10*time.Minute)
+	defer cancel()
+	q := hub.Ask{Question: s.Question, Options: s.Options, By: user.First(), ByID: user.ID}
+	answer, err := h.Hub.Ask(ctx, name, q)
+	if err != nil {
+		p.err = err // nobody answered: the lesson stops here
+		return nil
+	}
+	q.Answered = answer
+	q.Correct = s.Answer == "" || same(answer, s.Answer)
+	switch {
+	case s.Answer == "":
+		q.Result = s.Explain
+	case q.Correct:
+		q.Result = strings.TrimSpace("Right. " + s.Explain)
+	default:
+		q.Result = strings.TrimSpace("Not quite: it's " + s.Answer + ". " + s.Explain)
+	}
+	h.Hub.Settle(name, &q)
+	p.pause(time.Duration(2500+40*len(q.Result)) * time.Millisecond) // time to read it
+	h.Hub.Settle(name, nil)
+	for key, branch := range s.If {
+		if key != "*" && same(answer, key) {
+			return branch
+		}
+	}
+	return s.If["*"]
+}
+
+// same compares answers loosely: case and surrounding space aside.
+func same(a, b string) bool { return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b)) }
 
 // pen draws a stroke through the points, at a hand's pace.
 func (p *presenter) pen(points [][2]int32) {

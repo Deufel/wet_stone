@@ -147,6 +147,7 @@ templ boardCard(name string) {
 		     in the panel's menu), then the paper. The paper sits a few pixels in
 		     from its frame, and the grid runs on under that margin, so its edge
 		     marks show whole -->
+		@AskCard(name, nil, nil)
 		<div class="board-body">
 			<div class="button-group tools tablet desktop" role="toolbar" aria-label="Tools">
 				@railTool(0, "select", "Select", "Esc")

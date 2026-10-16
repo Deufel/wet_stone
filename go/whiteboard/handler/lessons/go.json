@@ -135,7 +135,7 @@
     440,
     560
    ],
-   "label": "s · ptr · len 2 · cap 4"
+   "label": "s · ptr · len 2 · cap ?"
   },
   {
    "do": "check",
@@ -181,6 +181,69 @@
    "item": "Slicing shares"
   },
   {
+   "do": "ask",
+   "question": "s := arr[1:3] is [20 30]. What is cap(s)?",
+   "options": [
+    "2",
+    "3",
+    "4"
+   ],
+   "answer": "4",
+   "explain": "cap counts from where s starts (arr[1]) to the end of arr: 4 slots.",
+   "if": {
+    "*": [
+     {
+      "do": "laser",
+      "at": [
+       570,
+       190
+      ],
+      "r": 350
+     },
+     {
+      "do": "pen",
+      "points": [
+       [
+        260,
+        260
+       ],
+       [
+        400,
+        262
+       ],
+       [
+        560,
+        258
+       ],
+       [
+        720,
+        262
+       ],
+       [
+        880,
+        260
+       ]
+      ]
+     },
+     {
+      "do": "pause",
+      "ms": 900
+     }
+    ]
+   }
+  },
+  {
+   "do": "click",
+   "at": [
+    160,
+    545
+   ]
+  },
+  {
+   "do": "label",
+   "text": "s · ptr · len 2 · cap 4"
+  },
+  {
    "do": "pause",
    "ms": 1200
   },
@@ -210,6 +273,16 @@
   {
    "do": "check",
    "item": "append within"
+  },
+  {
+   "do": "ask",
+   "question": "After s = append(s, 99), what is arr[3]?",
+   "options": [
+    "40",
+    "99"
+   ],
+   "answer": "99",
+   "explain": "s had room (cap 4), so append wrote into arr itself."
   },
   {
    "do": "pause",
@@ -603,6 +676,12 @@
   {
    "do": "notes",
    "n": 18
+  },
+  {
+   "do": "ask",
+   "question": "Which built-in gives you a slice of your own?",
+   "answer": "copy",
+   "explain": "make a new slice, then copy(dst, src) fills it: no shared array."
   },
   {
    "do": "check",

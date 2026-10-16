@@ -146,6 +146,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/b/{name}/todo/add", h.todoAdd)
 	r.Post("/b/{name}/todo/{id}/{op}", h.todoOp)
 	r.Post("/b/{name}/notes", h.notes)
+	r.Post("/b/{name}/answer", h.answer)
 	r.Get("/b/{name}/print", h.print)
 	r.Post("/b/{name}/{op}", h.command)
 }
@@ -483,8 +484,21 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 		return true
 	}
 	var sentTodo int64
+	sentAsk := int64(-1)
 	push := func() bool {
 		ctx := r.Context()
+		// a lesson's question, when it comes, is answered, or goes
+		q := h.Hub.AskOf(n)
+		v := int64(0)
+		if q != nil {
+			v = q.Version
+		}
+		if v != sentAsk {
+			if sse.PatchElements(renderString(r, view.AskCard(n, u, q))) != nil {
+				return false
+			}
+			sentAsk = v
+		}
 		if v := h.Hub.TodoVersion(ctx, n); v != sentTodo {
 			list, err := h.DB.Todos(ctx, meta0.ID)
 			if err != nil {
@@ -773,6 +787,32 @@ func (h *Handler) notes(w http.ResponseWriter, r *http.Request) {
 	}
 	h.Hub.PublishUser(u.ID)
 	ack.Saved(datastar.NewSSE(w, r), "notes", "Saved")
+}
+
+// answer hands the viewer's answer to the lesson's question on the board.
+func (h *Handler) answer(w http.ResponseWriter, r *http.Request) {
+	n, u, _, ok := h.open(w, r, false)
+	if !ok {
+		return
+	}
+	var p payload
+	if err := datastar.ReadSignals(r, &p); err != nil {
+		http.Error(w, "bad payload", http.StatusBadRequest)
+		return
+	}
+	if h.moved(w, r, p.Inst) {
+		return
+	}
+	text := cleanText(p.Text, 200)
+	if text == "" {
+		ack.Bad(datastar.NewSSE(w, r), "ask", "An answer, please")
+		return
+	}
+	if err := h.Hub.Answer(r.Context(), n, u.ID, text); err != nil {
+		ack.Bad(datastar.NewSSE(w, r), "ask", "That question is not waiting for you")
+		return
+	}
+	datastar.NewSSE(w, r)
 }
 
 // print is the board for paper: US Letter, the drawing on the first page,

@@ -256,6 +256,9 @@
   @keyframes laser-fade { from { opacity: 1; } to { opacity: 0; } }
   :where(#board) .laser { --fg: 1; animation: laser-fade 1.2s ease-in forwards; will-change: opacity; }
   :where(#board) .laser path { fill: none; stroke: currentColor; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+  /* other people's cursors (and the presenter's) stay out of the way: faint,
+     and never in the way of a click */
+  :where(#board) .cursors { opacity: 0.32; pointer-events: none; }
   :where(#board) .cursor path { fill: currentColor; stroke: none; }
   /* names and labels are sized in board units (the SVG scales them with the
      paper), so they read the same at any size, as a presenter's do */
@@ -556,4 +559,26 @@
   :where(.book-bar) > :where(a) > :where(svg) { inline-size: 1em; block-size: 1em; }
   :where(.book-bar) > :where(.meta) { --fg: -0.45; overflow: hidden; text-overflow: ellipsis; }
   :where(.book-bar) > :where(.icon-link) { padding: 0 0.35em; border: 1px solid var(--border); border-radius: calc(var(--cfg-radius) * 0.6); }
+}
+
+/* a lesson's question, over the bottom of the board */
+@layer block {
+  :where(.board-card) { position: relative; }
+  :where(.lesson-ask) { position: absolute; inset-inline: 0; inset-block-end: 0.8lh; z-index: 4; display: grid; justify-items: center; pointer-events: none; padding-inline: 0.8em; }
+  :where(.lesson-ask):where(:empty) { display: none; }
+  :where(.ask-card) {
+    pointer-events: auto; inline-size: min(34rem, 100%); padding: 0.6lh 1em; display: grid; gap: 0.4lh;
+    --lift: 0.14; background-color: var(--_bg); border: 1px solid var(--border); border-radius: var(--cfg-radius);
+    box-shadow: 0 0.3lh 1.2lh color-mix(in oklch, currentColor 18%, transparent);
+    @starting-style { opacity: 0; translate: 0 0.5lh; } transition: opacity 0.2s, translate 0.2s;
+  }
+  :where(.ask-card) > :where(.q) { margin: 0; --type: 0.5; font-weight: 600; }
+  :where(.ask-card) > :where(.meta) { margin: 0; --fg: -0.5; }
+  :where(.ask-card) > :where(.options) { display: flex; flex-wrap: wrap; gap: 0.4em; }
+  :where(.ask-card) > :where(.options) > :where(button) { min-inline-size: 3.5em; }
+  :where(.ask-card) > :where(.free) > :where(input) { flex: 1; min-inline-size: 0; }
+  :where(.ask-card) > :where(.result) { margin: 0; display: grid; gap: 0.15lh; }
+  :where(.ask-card[data-ui-answered]) > :where(.result) { --hue-lock: var(--hue-dgr); }
+  :where(.ask-card[data-ui-correct]) > :where(.result) { --hue-lock: var(--hue-suc); }
+  :where(.ask-card[data-ui-answered]) > :where(.result) > :where(strong) { --fg: 0.85; }
 }

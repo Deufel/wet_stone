@@ -37,3 +37,17 @@ func TestLessonValidate(t *testing.T) {
 		}
 	}
 }
+
+func TestLessonAskValidate(t *testing.T) {
+	var l Lesson
+	src := `{"title":"x","steps":[{"do":"ask","question":"q?","options":["a","b"],"if":{"*":[{"do":"fly"}]}}]}`
+	if err := json.Unmarshal([]byte(src), &l); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Validate(); err == nil || !strings.Contains(err.Error(), "[*]") {
+		t.Fatalf("a bad step in a branch: %v", err)
+	}
+	if !same(" Copy ", "copy") || same("cop", "copy") {
+		t.Fatal("same")
+	}
+}

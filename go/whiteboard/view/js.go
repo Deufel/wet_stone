@@ -192,7 +192,7 @@ func newBoard(vis string) string { return "@post('/new/" + vis + "')" }
 // pageSignals: the board page's signals, with the server process it landed on.
 func pageSignals(inst string) string { return "{inst: " + jsString(inst) + ", " + signals[1:] }
 
-const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, dseq: 0, lbox: [0, 0, 0, 0], _ledit: false, _drag: false, _beat: 0, _full: false, _todo: '', _notes: {text: '', lang: '', v: 0}, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _prev: 0}"
+const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, dseq: 0, lbox: [0, 0, 0, 0], _ledit: false, _drag: false, _ans: '', _beat: 0, _full: false, _todo: '', _notes: {text: '', lang: '', v: 0}, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _prev: 0}"
 
 // fullToggle: the whiteboard alone on the screen. The card fills the window
 // ($_full, CSS); where the browser can, the window goes full screen too (an
