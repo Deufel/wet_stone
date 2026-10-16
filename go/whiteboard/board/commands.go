@@ -16,7 +16,7 @@ type Cmd struct {
 	DSeq   int64 // pointer commands: the Seq of the down that began this stroke
 	Shape  int32 // label: the shape the text was typed for
 	Label  string
-	Ink    Ink // style: the ink for the selection (or the shape drawn last)
+	Ink    Ink     // style: the ink for the selection (or the shape drawn last)
 	IDs    []int32 // pick: the shapes to select (a presenter's, by id)
 }
 
