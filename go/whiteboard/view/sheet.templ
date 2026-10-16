@@ -119,3 +119,36 @@ func sheetBackLabel(b *db.Book) string {
 	}
 	return "The book"
 }
+
+// sheetDrawing is a page's drawing, for a small copy of it.
+func sheetDrawing(s db.Sheet) string {
+	return board.Drawing(s.Drawing, s.Box, "print-board leaf-drawing")
+}
+
+// SheetsPrint is a whiteboard's book for paper: every page, a letter sheet
+// each, edge to edge.
+templ SheetsPrint(b *db.Book, sheets []db.Sheet) {
+	@Doc(b.Title+" · print · draw", nil) {
+		<div class="page leaf-page">
+			<header class="pg-header app-header leaf-bar">
+				<a class="button-like" href={ templ.SafeURL("/book/" + b.Name) }>
+					@Icon("back")
+					The book
+				</a>
+				<span class="meta">{ strconv.Itoa(len(sheets)) + " pages" }</span>
+				<div class="row end">
+					<button data-on:click="window.print()">
+						@Icon("printer")
+						Print
+					</button>
+				</div>
+			</header>
+			<main class="pg-main scroll-y leaf-main">
+				for _, s := range sheets {
+					@sheetPaper(b, s)
+				}
+			</main>
+		</div>
+		<script src="/static/highlight.js"></script>
+	}
+}

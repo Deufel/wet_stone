@@ -183,6 +183,15 @@ func (d *DB) AddChapter(ctx context.Context, book *Book) (string, error) {
 	return board, tx.Commit()
 }
 
+// AddChapterOnly adds "Chapter N" at the end of a whiteboard's book: the
+// pages sent next go in it.
+func (d *DB) AddChapterOnly(ctx context.Context, book *Book) error {
+	_, err := d.sql.ExecContext(ctx, `INSERT INTO book_chapters (book_id, position, title)
+		VALUES (?, COALESCE((SELECT max(position) FROM book_chapters WHERE book_id = ?), 0) + 1, ?)`,
+		book.ID, book.ID, "Chapter "+strconv.Itoa(len(book.Chapters)+1))
+	return err
+}
+
 // AddPage adds a page at the end of a chapter of the book; it returns its board.
 func (d *DB) AddPage(ctx context.Context, book *Book, chapterID int64) (string, error) {
 	ok := false

@@ -8,13 +8,13 @@ import (
 // BookPage is a book's front: its title and its contents, live (a morph
 // target on the book's stream). Its owner renames in place, adds chapters
 // and pages, and takes pages out.
-templ BookPage(u *db.User, b *db.Book) {
+templ BookPage(u *db.User, b *db.Book, sheets []db.Sheet) {
 	@Doc(b.Title+" · draw", nil) {
 		<div class="page home" data-signals={ "{" + savedSignal + ", _beat: 0}" } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ streamGet("/book/" + b.Name + "/stream") }>
 			@appHeader(u)
 			<main class="pg-main scroll-y">
 				<div class="home-body book-body">
-					@BookContents(u, b)
+					@BookContents(u, b, sheets)
 				</div>
 			</main>
 		</div>
@@ -22,7 +22,7 @@ templ BookPage(u *db.User, b *db.Book) {
 	}
 }
 
-templ BookContents(u *db.User, b *db.Book) {
+templ BookContents(u *db.User, b *db.Book, sheets []db.Sheet) {
 	<div id="book-contents" class="book-contents" data-signals={ "{_doctitle: " + jsString(b.Title + " · draw") + "}" } data-effect="document.title = $_doctitle">
 		<header class="book-head">
 			@Icon("book")
@@ -36,6 +36,16 @@ templ BookContents(u *db.User, b *db.Book) {
 			</a>
 		</header>
 		@Saved("book")
+		if b.Board != "" {
+			<a class="button-like whiteboard-link" href={ templ.SafeURL("/b/" + b.Board) }>
+				@Icon("pen")
+				if u != nil && u.ID == b.OwnerID {
+					The whiteboard: draw the next page
+				} else {
+					The whiteboard
+				}
+			</a>
+		}
 		<ol class="chapters">
 			for _, c := range b.Chapters {
 				<li id={ "ch-" + strconv.FormatInt(c.ID, 10) }>
@@ -43,6 +53,22 @@ templ BookContents(u *db.User, b *db.Book) {
 						<span class="num">{ "Chapter " + strconv.Itoa(c.No) }</span>
 						<span { bookEdit(u, b, "/book/"+b.Name+"/chapter/"+strconv.FormatInt(c.ID, 10)+"/title")... }>{ c.Title }</span>
 					</h3>
+					if b.Board != "" {
+						<ol class="book-sheets">
+							for _, sh := range sheets {
+								if sh.ChapterNo == c.No {
+									<li>
+										<a href={ templ.SafeURL("/book/" + b.Name + "/page/" + strconv.Itoa(sh.No)) } title={ "Page " + strconv.Itoa(sh.No) }>
+											<span class="mini">
+												@templ.Raw(sheetDrawing(sh))
+											</span>
+											<span class="no">{ "p. " + strconv.Itoa(sh.No) }</span>
+										</a>
+									</li>
+								}
+							}
+						</ol>
+					} else {
 					<ol class="book-pages">
 						for _, p := range c.Pages {
 							<li id={ "pg-" + strconv.FormatInt(p.ID, 10) }>
@@ -61,6 +87,7 @@ templ BookContents(u *db.User, b *db.Book) {
 							@Icon("plus")
 							Add a page
 						</button>
+					}
 					}
 				</li>
 			}

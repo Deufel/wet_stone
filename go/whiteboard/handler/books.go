@@ -51,14 +51,16 @@ func (h *Handler) newBook(w http.ResponseWriter, r *http.Request) {
 	if vis != db.Private {
 		vis = db.Public
 	}
-	name, _, err := h.DB.CreateBook(r.Context(), u, "Untitled book", vis)
+	// a book is its whiteboard and the pages sent from it: the teacher
+	// starts at the whiteboard
+	_, board, err := h.DB.CreateWhiteboardBook(r.Context(), u, "Untitled book", vis)
 	if err != nil {
 		slog.Error("new book", "err", err)
 		http.Error(w, "could not make a book", http.StatusInternalServerError)
 		return
 	}
 	h.Hub.PublishUser(u.ID)
-	_ = datastar.NewSSE(w, r).Redirect("/book/" + name)
+	_ = datastar.NewSSE(w, r).Redirect("/b/" + board)
 }
 
 // openBook resolves the book in the path for a signed-in reader; on false it
@@ -100,8 +102,9 @@ func (h *Handler) bookPage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	sheets, _ := h.DB.Sheets(r.Context(), b.ID)
 	html(w)
-	_ = view.BookPage(u, b).Render(r.Context(), w)
+	_ = view.BookPage(u, b, sheets).Render(r.Context(), w)
 }
 
 // bookStream re-sends the contents whenever the book changes.
@@ -126,7 +129,8 @@ func (h *Handler) bookStream(w http.ResponseWriter, r *http.Request) {
 			_ = sse.Redirect("/")
 			return false
 		}
-		return sse.PatchElements(renderString(r, view.BookContents(u, fresh))) == nil
+		sheets, _ := h.DB.Sheets(r.Context(), fresh.ID)
+		return sse.PatchElements(renderString(r, view.BookContents(u, fresh, sheets))) == nil
 	}
 	keep := time.NewTicker(Beat)
 	defer keep.Stop()
@@ -176,6 +180,8 @@ func (h *Handler) bookEdit(w http.ResponseWriter, r *http.Request) {
 		if t := cleanText(p.Text, 80); t != "" {
 			err = h.DB.RenameChapter(ctx, b.ID, id, t)
 		}
+	case hasSuffix(path, "/chapter") && b.Board != "":
+		err = h.DB.AddChapterOnly(ctx, b) // the next pages sent go in it
 	case hasSuffix(path, "/chapter"):
 		goTo, err = h.DB.AddChapter(ctx, b)
 	case hasSuffix(path, "/page"):
@@ -255,6 +261,16 @@ func (h *Handler) printPage(r *http.Request, u *db.User, board string) (view.Pri
 func (h *Handler) bookPrint(w http.ResponseWriter, r *http.Request) {
 	b, u, ok := h.openBook(w, r, true)
 	if !ok {
+		return
+	}
+	if b.Board != "" { // a whiteboard's book: its pages, each a letter sheet
+		sheets, err := h.DB.Sheets(r.Context(), b.ID)
+		if err != nil {
+			http.Error(w, "book unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		html(w)
+		_ = view.SheetsPrint(b, sheets).Render(r.Context(), w)
 		return
 	}
 	d := view.PrintData{Back: "/book/" + b.Name, BackLabel: "Back to the book", Title: b.Title, Book: b, Printed: h.DB.Now(r.Context())}

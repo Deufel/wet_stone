@@ -666,7 +666,7 @@
   
   :where(.leaf-page) { --bg: -0.4; }
   :where(.leaf-bar) { display: flex; align-items: center; gap: 0.8em; }
-  :where(.leaf-main) { display: grid; justify-items: center; padding: 1.2lh 1rem; }
+  :where(.leaf-main) { display: grid; justify-items: center; align-content: start; gap: 1.2lh; padding: 1.2lh 1rem; }
   :where(.leaf-main) > :where(.leaf) { inline-size: min(100%, 52rem, (100svh - 7lh) * 8.5 / 11); box-shadow: 0 0.3lh 1.4lh color-mix(in oklch, black 30%, transparent); }
 
   /* the whiteboard's footer: its book's pages */
@@ -685,8 +685,10 @@
   @page leaf { size: letter; margin: 0; }
   .leaf-page { display: block !important; }
   .leaf-page > .pg-header { display: none !important; }
+  html:has(.leaf-page), html:has(.leaf-page) body, .leaf-page, .leaf-main { block-size: auto !important; max-block-size: none !important; overflow: visible !important; }
   .leaf-main { padding: 0 !important; display: block !important; }
-  .leaf-main > .leaf { page: leaf; inline-size: 8.5in !important; block-size: 11in; box-shadow: none !important; }
+  .leaf-main > .leaf { page: leaf; inline-size: 8.5in !important; block-size: 11in; box-shadow: none !important; break-after: page; overflow: hidden; }
+  .leaf-main > .leaf:last-child { break-after: auto; }
 }
 
 /* a page's drawing: the print board's ink, sized to its page */
@@ -695,4 +697,13 @@
   .print-board .label > span { background: none; }
   .print-board .label.code { display: block; text-align: start; padding: 10px 12px; }
   .print-board .label.code > pre { margin: 0; padding: 0; background: none; border: 0; color: black; font-family: var(--font-mono, ui-monospace, monospace); font-size: 15px; line-height: 1.4; white-space: pre; text-align: start; }
+}
+
+@layer block {
+  :where(.whiteboard-link) { justify-self: start; }
+  :where(.book-sheets) { display: flex; flex-wrap: wrap; gap: 0.8em; list-style: none; margin: 0.3lh 0; padding: 0; }
+  :where(.book-sheets) :where(a) { display: grid; justify-items: center; gap: 0.15lh; color: inherit; text-decoration: none; }
+  :where(.book-sheets) :where(.mini) { display: block; block-size: 8lh; aspect-ratio: 8.5 / 11; background: white; padding: 4px; box-sizing: border-box; border-radius: 2px; box-shadow: 0 1px 4px color-mix(in oklch, black 35%, transparent); overflow: hidden; }
+  :where(.book-sheets) :where(a:hover) :where(.mini) { outline: 2px solid var(--focus, currentColor); }
+  :where(.book-sheets) :where(.no) { --type: -1; --fg: -0.5; }
 }
