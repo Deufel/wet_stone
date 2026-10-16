@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"whiteboard/board"
 )
 
 // A fake Messages API: the first reply fails the checker, the second passes;
@@ -82,6 +83,33 @@ func TestExplainSteps(t *testing.T) {
 	anthropicURL = srv.URL
 	steps, err := explainSteps(context.Background(), apiKey{"sk-ant-test", ""}, Lessons["go"], Step{Do: "ask", Question: "What is cap(s)?", Answer: "4"})
 	if err != nil || calls != 2 || len(steps) != 3 || steps[0].Do != "say" {
+		t.Fatalf("calls %d, steps %+v, err %v", calls, steps, err)
+	}
+}
+
+// AI draw: Claude is told what the board holds, and a sketch that would wipe
+// the board is sent back.
+func TestSketchSteps(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		var req struct{ Messages []message }
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		if !strings.Contains(req.Messages[0].Content, `box [100, 100, 300, 180] "cache"`) {
+			t.Errorf("the board was not described: %q", req.Messages[0].Content)
+		}
+		reply := `{"steps": [{"do": "erase"}]}`
+		if len(req.Messages) == 3 {
+			reply = `{"steps": [{"do": "code", "at": [400, 100, 900, 300], "lang": "odin", "text": "x := 1"}, {"do": "penarrow", "from": [300, 140], "to": [400, 140]}]}`
+		}
+		piece, _ := json.Marshal(reply)
+		fmt.Fprintf(w, "data: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", piece)
+	}))
+	defer srv.Close()
+	anthropicURL = srv.URL
+	snap := board.Snapshot{Shapes: []board.SavedShape{{Kind: board.Box, X1: 100, Y1: 100, X2: 300, Y2: 180, Label: "cache"}}}
+	steps, err := sketchSteps(context.Background(), apiKey{"sk-ant-test", ""}, snap, "show the cache's code")
+	if err != nil || calls != 2 || len(steps) != 2 || steps[0].Do != "code" {
 		t.Fatalf("calls %d, steps %+v, err %v", calls, steps, err)
 	}
 }

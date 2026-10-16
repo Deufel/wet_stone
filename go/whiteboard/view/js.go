@@ -212,3 +212,8 @@ func pressed(tool int) string {
 }
 
 func pick(tool int) string { return "$tool = " + string(rune('0'+tool)) }
+
+// sketchPost asks Claude to draw $_sketch, and closes the menu.
+func sketchPost(name string) string {
+	return "@post('/b/" + name + "/sketch', {payload: {text: $_sketch, inst: $inst}}); $_sketch = ''; setTimeout(() => document.getElementById('sketch-menu')?.hidePopover(), 1200)"
+}

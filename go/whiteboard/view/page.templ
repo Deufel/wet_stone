@@ -134,6 +134,17 @@ templ boardCard(name string) {
 				<button class="icon todo-open" popovertarget="todo-drawer" aria-label="Checklist" title="Checklist">
 					@Icon("list")
 				</button>
+				<button class="icon" popovertarget="sketch-menu" aria-label="Ask Claude to draw" title="Ask Claude to draw (beta)">
+					@Icon("sparkles")
+				</button>
+				<div id="sketch-menu" class="menu sketch-menu" popover data-signals__ifmissing="{_sketch: ''}">
+					<p class="meta">Claude draws it on this board, around what is there. <span class="tag">beta</span></p>
+					<div class="row oneline">
+						<input type="text" maxlength="800" placeholder="Sketch how a hash map finds a key" aria-label="What should Claude draw?" data-bind:_sketch data-on:keydown={ "evt.stopPropagation(); if (evt.key === 'Enter' && $_sketch.trim()) { " + sketchPost(name) + " }" }/>
+						<button class="suc" data-on:click={ "$_sketch.trim() && " + sketchPost(name) }>Draw</button>
+					</div>
+					@Saved("sketch")
+				</div>
 				<div class="button-group undo-redo">
 					<button class="icon" data-on:click={ postKept(name, "undo") } aria-label="Undo" title="Undo (Ctrl Z)">
 						@Icon("undo")

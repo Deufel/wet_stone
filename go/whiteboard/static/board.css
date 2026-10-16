@@ -628,3 +628,13 @@
   :where(.print-board) :where(.label.code) > :where(pre) { margin: 0; font-family: ui-monospace, monospace; font-size: 13px; white-space: pre; }
   :where(.label-edit.code) { display: block; font-family: var(--font-mono, ui-monospace, monospace); font-size: 1.5cqi; line-height: 1.4; white-space: pre; text-align: start; align-content: start; overflow: auto; }
 }
+
+/* ask Claude to draw */
+@layer block {
+  :where([popovertarget="sketch-menu"]) { anchor-name: --sketch-btn; }
+  :where(#sketch-menu) { position-anchor: --sketch-btn; }
+  :where(.sketch-menu) { inline-size: min(26rem, calc(100vw - 2rem)); padding: 0.6lh 0.8em; gap: 0.4lh; }
+  :where(.sketch-menu[popover]:popover-open) { display: grid; }
+  :where(.sketch-menu) > :where(.meta) { margin: 0; --fg: -0.5; --type: -1; }
+  :where(.sketch-menu) :where(input) { flex: 1; min-inline-size: 0; }
+}

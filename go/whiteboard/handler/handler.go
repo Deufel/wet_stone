@@ -66,8 +66,9 @@ type Handler struct {
 	// and reloads when it reaches another.
 	Instance string
 
-	runs    sync.Map // board name → *lessonRun, its lesson playing (or paused, or done)
-	writing sync.Map // user id → *writeJob, their lesson being written
+	runs      sync.Map // board name → *lessonRun, its lesson playing (or paused, or done)
+	writing   sync.Map // user id → *writeJob, their lesson being written
+	sketching sync.Map // board name → Claude drawing there
 }
 
 // reloadJS reloads the page, at most once in 10 s (two processes answering
@@ -153,6 +154,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/b/{name}/answer", h.answer)
 	r.Post("/b/{name}/lesson/{op}", h.lessonControl)
 	r.Post("/b/{name}/help", h.help)
+	r.Post("/b/{name}/sketch", h.sketch)
 	r.Post("/course/{kind}", h.course)
 	r.Post("/me/key", h.setKey)
 	r.Post("/me/workspace", h.setWorkspace)
