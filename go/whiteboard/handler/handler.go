@@ -154,6 +154,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/b/{name}/replay", h.replay)
 	r.Post("/course/{kind}", h.course)
 	r.Post("/me/key", h.setKey)
+	r.Post("/me/workspace", h.setWorkspace)
 	r.Post("/lessons/write", h.write)
 	r.Get("/b/{name}/print", h.print)
 	r.Post("/b/{name}/{op}", h.command)

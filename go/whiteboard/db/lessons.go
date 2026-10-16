@@ -106,14 +106,20 @@ func (d *DB) SetAnthropicKey(ctx context.Context, userID int64, key string) erro
 	return err
 }
 
-// AnthropicKey is the user's key, for the server's own calls only.
-func (d *DB) AnthropicKey(ctx context.Context, userID int64) (string, error) {
+// AnthropicKey is the user's key and the workspace its requests name ("" for
+// none), for the server's own calls only.
+func (d *DB) AnthropicKey(ctx context.Context, userID int64) (key, workspace string, err error) {
 	ctx, cancel := reading(ctx)
 	defer cancel()
-	var key string
-	err := d.rd.QueryRowContext(ctx, `SELECT anthropic FROM user_keys WHERE user_id = ?`, userID).Scan(&key)
+	err = d.rd.QueryRowContext(ctx, `SELECT anthropic, workspace FROM user_keys WHERE user_id = ?`, userID).Scan(&key, &workspace)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
+		return "", "", nil
 	}
-	return key, err
+	return key, workspace, err
+}
+
+// SetAnthropicWorkspace names the workspace for the user's key ("" for none).
+func (d *DB) SetAnthropicWorkspace(ctx context.Context, userID int64, workspace string) error {
+	_, err := d.sql.ExecContext(ctx, `UPDATE user_keys SET workspace = ? WHERE user_id = ?`, workspace, userID)
+	return err
 }

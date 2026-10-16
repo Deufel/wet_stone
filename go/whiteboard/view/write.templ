@@ -7,7 +7,8 @@ package view
 
 // WriterState is what the two lines show.
 type WriterState struct {
-	KeyEnd string // the key's last four characters; "" for no key
+	KeyEnd    string // the key's last four characters; "" for no key
+	Workspace string // the workspace its requests name, if it needs one
 	State  string // "", "writing", "ready" or "failed"
 	Topic  string
 	Title  string // the book, once ready
@@ -67,6 +68,11 @@ templ WriterParts(s WriterState) {
 				{ "Your Anthropic key, ending " + s.KeyEnd }
 				<button class="sec" data-on:click="@post('/me/key', {payload: {text: ''}})">Remove</button>
 			</p>
+			<div class="row oneline" data-signals={ "{_ws: " + jsString(s.Workspace) + "}" }>
+				<input type="text" autocomplete="off" spellcheck="false" placeholder="Workspace ID, if the key needs one (wrkspc_…)" aria-label="Anthropic workspace ID" data-bind:_ws data-on:keydown="evt.stopPropagation()"/>
+				<button data-on:click="@post('/me/workspace', {payload: {text: $_ws}})">Save</button>
+			</div>
+			@Saved("workspace")
 		}
 		@Saved("key")
 	</div>

@@ -19,7 +19,7 @@ func TestClaudeWritesAndRepairs(t *testing.T) {
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
-		if r.Header.Get("x-api-key") != "sk-ant-test" {
+		if r.Header.Get("x-api-key") != "sk-ant-test" || r.Header.Get("anthropic-workspace-id") != "wrkspc_test" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -42,14 +42,14 @@ func TestClaudeWritesAndRepairs(t *testing.T) {
 	defer srv.Close()
 	anthropicURL = srv.URL
 
-	got, err := writeCourse(context.Background(), "sk-ant-test", "maps", 1)
+	got, err := writeCourse(context.Background(), apiKey{"sk-ant-test", "wrkspc_test"}, "maps", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got == nil || calls != 2 || got.Chapters[0].Pages[0].Title != "copy: a slice of your own" {
 		t.Fatalf("calls %d, course %+v", calls, got)
 	}
-	if _, err := claude(context.Background(), "sk-ant-wrong", "", nil); err == nil || !strings.Contains(err.Error(), "key") {
+	if _, err := claude(context.Background(), apiKey{"sk-ant-wrong", ""}, "", nil); err == nil || !strings.Contains(err.Error(), "key") {
 		t.Fatalf("a refused key: %v", err)
 	}
 }

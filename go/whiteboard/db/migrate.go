@@ -118,6 +118,11 @@ var migrations = []string{
 		updated_at INTEGER NOT NULL DEFAULT (unixepoch())
 	);
 	`,
+
+	// 6: the workspace a key's requests name (an organization-wide key needs one)
+	`
+	ALTER TABLE user_keys ADD COLUMN workspace TEXT NOT NULL DEFAULT '';
+	`,
 }
 
 func migrate(db *sql.DB) error {

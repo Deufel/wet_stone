@@ -27,10 +27,37 @@ import (
 // to Anthropic.
 //
 //	POST /me/key         keep the key (payload {text}; "" removes it)
+//	POST /me/workspace   the workspace its requests name (payload {text}; "" for none)
 //	POST /lessons/write  write a book (payload {text: the topic, n: pages})
 
 // WriteModel writes the lessons.
 const WriteModel = "claude-opus-5-5"
+
+// setWorkspace: a key made for the whole organization (not inside a
+// workspace) must name one on every request; this keeps which.
+func (h *Handler) setWorkspace(w http.ResponseWriter, r *http.Request) {
+	u := auth.User(r.Context())
+	if u == nil {
+		http.Error(w, "sign in first", http.StatusUnauthorized)
+		return
+	}
+	var p payload
+	_ = datastar.ReadSignals(r, &p)
+	ws := strings.TrimSpace(p.Text)
+	if len(ws) > 100 || strings.IndexFunc(ws, func(c rune) bool {
+		return !(c == '_' || c == '-' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z')
+	}) >= 0 {
+		ack.Bad(datastar.NewSSE(w, r), "workspace", "A workspace ID is letters, digits, _ and -")
+		return
+	}
+	if err := h.DB.SetAnthropicWorkspace(r.Context(), u.ID, ws); err != nil {
+		slog.Error("set workspace", "err", err)
+		ack.Bad(datastar.NewSSE(w, r), "workspace", "Not saved")
+		return
+	}
+	h.Hub.PublishUser(u.ID)
+	ack.Saved(datastar.NewSSE(w, r), "workspace", "Saved")
+}
 
 type writeJob struct {
 	Topic, State, Title, Board, Err string
@@ -65,8 +92,8 @@ func (h *Handler) setKey(w http.ResponseWriter, r *http.Request) {
 // writerState is what the writer's lines show this user.
 func (h *Handler) writerState(ctx context.Context, u *db.User) view.WriterState {
 	var s view.WriterState
-	if key, _ := h.DB.AnthropicKey(ctx, u.ID); len(key) > 4 {
-		s.KeyEnd = key[len(key)-4:]
+	if key, ws, _ := h.DB.AnthropicKey(ctx, u.ID); len(key) > 4 {
+		s.KeyEnd, s.Workspace = key[len(key)-4:], ws
 	}
 	if v, ok := h.writing.Load(u.ID); ok {
 		j := v.(*writeJob)
@@ -91,7 +118,7 @@ func (h *Handler) write(w http.ResponseWriter, r *http.Request) {
 		ack.Bad(datastar.NewSSE(w, r), "write", "What should it teach?")
 		return
 	}
-	key, err := h.DB.AnthropicKey(r.Context(), u.ID)
+	key, ws, err := h.DB.AnthropicKey(r.Context(), u.ID)
 	if err != nil || key == "" {
 		ack.Bad(datastar.NewSSE(w, r), "write", "Keep your Anthropic key first")
 		return
@@ -104,7 +131,7 @@ func (h *Handler) write(w http.ResponseWriter, r *http.Request) {
 	}
 	h.writing.Store(u.ID, job)
 	h.Hub.PublishUser(u.ID)
-	go h.writeBook(*u, key, topic, pages, job)
+	go h.writeBook(*u, apiKey{key, ws}, topic, pages, job)
 	ack.Saved(datastar.NewSSE(w, r), "write", "Writing: it lands in Learn, in the menu")
 }
 
@@ -117,7 +144,7 @@ func short(s string, n int) string {
 
 // writeBook asks Claude for the course, checks it (one repair round), and
 // stores it as the user's book.
-func (h *Handler) writeBook(u db.User, key, topic string, pages int, job *writeJob) {
+func (h *Handler) writeBook(u db.User, key apiKey, topic string, pages int, job *writeJob) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 	done := func(j writeJob) {
@@ -141,7 +168,7 @@ func (h *Handler) writeBook(u db.User, key, topic string, pages int, job *writeJ
 
 // writeCourse asks Claude for the course and checks it, with one round of
 // repair (the checker's complaint sent back).
-func writeCourse(ctx context.Context, key, topic string, pages int) (*Course, error) {
+func writeCourse(ctx context.Context, key apiKey, topic string, pages int) (*Course, error) {
 	msgs := []message{{Role: "user", Content: writePrompt(topic, pages)}}
 	for try := 0; try < 2; try++ {
 		text, err := claude(ctx, key, writeSystem(), msgs)
@@ -174,6 +201,9 @@ func jsonOf(s string) string {
 
 // ─── The Messages API ───────────────────────────────────────────────────────
 
+// apiKey is a key and, for an organization-wide one, the workspace it names.
+type apiKey struct{ Key, Workspace string }
+
 type message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
@@ -186,7 +216,7 @@ var claudeClient = &http.Client{Timeout: 14 * time.Minute}
 
 // claude sends one conversation to the Messages API, streamed (a long book
 // takes minutes), and returns the reply's text.
-func claude(ctx context.Context, key, system string, msgs []message) (string, error) {
+func claude(ctx context.Context, key apiKey, system string, msgs []message) (string, error) {
 	body, _ := json.Marshal(map[string]any{
 		"model": WriteModel, "max_tokens": 64000, "stream": true,
 		"system": system, "messages": msgs,
@@ -195,7 +225,10 @@ func claude(ctx context.Context, key, system string, msgs []message) (string, er
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("x-api-key", key)
+	req.Header.Set("x-api-key", key.Key)
+	if key.Workspace != "" {
+		req.Header.Set("anthropic-workspace-id", key.Workspace)
+	}
 	req.Header.Set("anthropic-version", "2023-06-01")
 	req.Header.Set("content-type", "application/json")
 	res, err := claudeClient.Do(req)
@@ -214,7 +247,7 @@ func claude(ctx context.Context, key, system string, msgs []message) (string, er
 		case http.StatusTooManyRequests, 529:
 			return "", errors.New("Anthropic is busy; try again in a minute")
 		}
-		return "", fmt.Errorf("Anthropic: %s", short(e.Error.Message, 120))
+		return "", fmt.Errorf("Anthropic: %s", short(e.Error.Message, 400))
 	}
 	var out strings.Builder
 	sc := bufio.NewScanner(res.Body)
@@ -245,7 +278,7 @@ func claude(ctx context.Context, key, system string, msgs []message) (string, er
 				return "", errors.New("the book ran too long; ask for fewer pages")
 			}
 		case "error":
-			return "", fmt.Errorf("Anthropic: %s", short(ev.Error.Message, 120))
+			return "", fmt.Errorf("Anthropic: %s", short(ev.Error.Message, 400))
 		}
 	}
 	if err := sc.Err(); err != nil {
