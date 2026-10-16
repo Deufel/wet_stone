@@ -125,9 +125,7 @@ templ boardCard(name string) {
 				</button>
 			</div>
 			<div class="row oneline ends">
-				<span class="note" data-text="$note" aria-live="polite"></span>
 				@Saved("label")
-				<span class="count num"><span data-text="$shapes"></span> shapes</span>
 				<!-- a phone: the checklist opens as a bottom drawer -->
 				<button class="icon todo-open" popovertarget="todo-drawer" aria-label="Checklist" title="Checklist">
 					@Icon("list")
