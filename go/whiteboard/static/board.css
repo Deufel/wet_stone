@@ -234,6 +234,8 @@
   :where(#stage) .major { fill: none; stroke: color-mix(in oklch, currentColor 18%, transparent); stroke-width: 1; }
   :where(#board) rect { fill: color-mix(in oklch, currentColor 14%, transparent); stroke: currentColor; stroke-width: 2; }
   :where(#board) line { stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  :where(#board) .pen { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  :where(#board) [data-ui-selected] .pen { stroke-width: 4.5; }
   :where(#board) .head { fill: currentColor; stroke: none; }
   :where(#board) .node { fill: color-mix(in oklch, currentColor 10%, Canvas); stroke: currentColor; stroke-width: 1.5; }
   :where(#board) .node[data-ui-linked] { fill: currentColor; }
@@ -456,6 +458,7 @@
   :where(.print-board) rect { fill: none; stroke: black; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
   :where(.print-board) line { stroke: black; stroke-width: 1.5; stroke-linecap: round; vector-effect: non-scaling-stroke; }
   :where(.print-board) .head { fill: black; stroke: none; }
+  :where(.print-board) .pen { fill: none; stroke: black; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
   :where(.print-board) .node { fill: black; stroke: none; }
   :where(.print-board) .label { display: flex; align-items: center; justify-content: center; block-size: 100%; inline-size: 100%; text-align: center; padding: 0.2em; overflow: hidden; font-size: 22px; color: black; }
   :where(.sheet-rest) > :where(section) > :where(h2) { --type: 1; margin: 0 0 0.3lh; padding-block-end: 0.15lh; border-block-end: 1pt solid black; }

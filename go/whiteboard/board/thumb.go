@@ -34,6 +34,17 @@ func Thumb(snap Snapshot) string {
 			sb.WriteByte('h')
 			n(-abs32(s.X2 - s.X1))
 			sb.WriteByte('z')
+		case Pen: // its points, joined
+			for k := 0; k+1 < len(s.Points); k += 2 {
+				if k == 0 {
+					sb.WriteByte('M')
+				} else {
+					sb.WriteByte('L')
+				}
+				n(s.Points[k])
+				sb.WriteByte(' ')
+				n(s.Points[k+1])
+			}
 		case Line, Arrow: // M x1 y1 L x2 y2
 			ax, ay := b.endPoint(s, 0)
 			bx, by := b.endPoint(s, 1)

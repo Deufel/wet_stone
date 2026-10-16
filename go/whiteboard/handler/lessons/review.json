@@ -1,0 +1,238 @@
+{
+ "title": "Demo · Checkout redesign",
+ "pace": 1,
+ "notes": {
+  "lang": "",
+  "lines": [
+   "Product review · checkout redesign",
+   "Presenting: Demo · watching: the team",
+   "",
+   "Flow today: Cart → Shipping → Payment → Confirm",
+   "- 38% of mobile users leave at Payment",
+   "- the card form is the slow part",
+   "",
+   "Proposal",
+   "- Apple Pay on Payment: skips the card form",
+   "",
+   "Decisions",
+   "- spike Apple Pay this sprint",
+   "- keep Shipping as one step",
+   "",
+   "Follow-ups are on the checklist →"
+  ]
+ },
+ "steps": [
+  {
+   "do": "notes",
+   "n": 2
+  },
+  {
+   "do": "box",
+   "at": [
+    60,
+    200,
+    220,
+    320
+   ],
+   "label": "Cart"
+  },
+  {
+   "do": "pause",
+   "ms": 350
+  },
+  {
+   "do": "box",
+   "at": [
+    290,
+    200,
+    450,
+    320
+   ],
+   "label": "Shipping"
+  },
+  {
+   "do": "pause",
+   "ms": 350
+  },
+  {
+   "do": "box",
+   "at": [
+    520,
+    200,
+    680,
+    320
+   ],
+   "label": "Payment"
+  },
+  {
+   "do": "pause",
+   "ms": 350
+  },
+  {
+   "do": "box",
+   "at": [
+    750,
+    200,
+    910,
+    320
+   ],
+   "label": "Confirm"
+  },
+  {
+   "do": "pause",
+   "ms": 350
+  },
+  {
+   "do": "arrow",
+   "from": [
+    220,
+    260
+   ],
+   "to": [
+    290,
+    260
+   ]
+  },
+  {
+   "do": "pause",
+   "ms": 250
+  },
+  {
+   "do": "arrow",
+   "from": [
+    450,
+    260
+   ],
+   "to": [
+    520,
+    260
+   ]
+  },
+  {
+   "do": "pause",
+   "ms": 250
+  },
+  {
+   "do": "arrow",
+   "from": [
+    680,
+    260
+   ],
+   "to": [
+    750,
+    260
+   ]
+  },
+  {
+   "do": "pause",
+   "ms": 250
+  },
+  {
+   "do": "notes",
+   "n": 4
+  },
+  {
+   "do": "pause",
+   "ms": 600
+  },
+  {
+   "do": "laser",
+   "at": [
+    600,
+    260
+   ],
+   "r": 120
+  },
+  {
+   "do": "notes",
+   "n": 6
+  },
+  {
+   "do": "pause",
+   "ms": 500
+  },
+  {
+   "do": "box",
+   "at": [
+    290,
+    700,
+    910,
+    800
+   ],
+   "label": "38% of mobile users leave at Payment: why?"
+  },
+  {
+   "do": "pause",
+   "ms": 700
+  },
+  {
+   "do": "box",
+   "at": [
+    520,
+    450,
+    680,
+    560
+   ],
+   "label": "Apple Pay"
+  },
+  {
+   "do": "pause",
+   "ms": 250
+  },
+  {
+   "do": "arrow",
+   "from": [
+    600,
+    320
+   ],
+   "to": [
+    600,
+    450
+   ]
+  },
+  {
+   "do": "notes",
+   "n": 9
+  },
+  {
+   "do": "pause",
+   "ms": 600
+  },
+  {
+   "do": "todo",
+   "text": "Measure drop-off at Payment by device"
+  },
+  {
+   "do": "pause",
+   "ms": 500
+  },
+  {
+   "do": "todo",
+   "text": "Spike Apple Pay on the Payment step"
+  },
+  {
+   "do": "pause",
+   "ms": 500
+  },
+  {
+   "do": "todo",
+   "text": "Review the Confirm copy with design"
+  },
+  {
+   "do": "notes",
+   "n": 13
+  },
+  {
+   "do": "pause",
+   "ms": 900
+  },
+  {
+   "do": "check",
+   "item": "Measure"
+  },
+  {
+   "do": "notes",
+   "n": 15
+  }
+ ]
+}

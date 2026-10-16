@@ -1,0 +1,612 @@
+{
+ "title": "Demo · Go slices, under the hood",
+ "pace": 1.8,
+ "notes": {
+  "lang": "go",
+  "lines": [
+   "// Slices, under the hood",
+   "package main",
+   "",
+   "func main() {",
+   "\tarr := [5]int{10, 20, 30, 40, 50} // the backing array",
+   "\ts := arr[1:3]                     // header: ptr → arr[1], len 2, cap 4",
+   "\t// s is [20 30]: it looks into arr; it owns nothing",
+   "",
+   "\ts = append(s, 99) // fits in cap: writes into arr[3]",
+   "\t// arr is now [10 20 30 99 50]",
+   "",
+   "\ts = append(s, 1, 2) // past cap: a new array, copied, then appended",
+   "\ts[0] = -1           // writes the new array; arr[1] is still 20",
+   "",
+   "\t// the old array lives on only while something points at it",
+   "\tc := make([]int, len(s))",
+   "\tcopy(c, s) // c has its own backing array",
+   "}"
+  ]
+ },
+ "checklist": [
+  "A slice is a header: pointer, length, capacity",
+  "The header points into a backing array",
+  "Slicing shares the array: nothing is copied",
+  "append within capacity writes in place",
+  "append past capacity moves to a new array",
+  "copy when you need a slice of your own"
+ ],
+ "steps": [
+  {
+   "do": "notes",
+   "n": 5
+  },
+  {
+   "do": "pause",
+   "ms": 1000
+  },
+  {
+   "do": "box",
+   "at": [
+    100,
+    140,
+    240,
+    240
+   ],
+   "label": "10"
+  },
+  {
+   "do": "pause",
+   "ms": 200
+  },
+  {
+   "do": "box",
+   "at": [
+    260,
+    140,
+    400,
+    240
+   ],
+   "label": "20"
+  },
+  {
+   "do": "pause",
+   "ms": 200
+  },
+  {
+   "do": "box",
+   "at": [
+    420,
+    140,
+    560,
+    240
+   ],
+   "label": "30"
+  },
+  {
+   "do": "pause",
+   "ms": 200
+  },
+  {
+   "do": "box",
+   "at": [
+    580,
+    140,
+    720,
+    240
+   ],
+   "label": "40"
+  },
+  {
+   "do": "pause",
+   "ms": 200
+  },
+  {
+   "do": "box",
+   "at": [
+    740,
+    140,
+    880,
+    240
+   ],
+   "label": "50"
+  },
+  {
+   "do": "pause",
+   "ms": 200
+  },
+  {
+   "do": "pause",
+   "ms": 600
+  },
+  {
+   "do": "laser",
+   "at": [
+    490,
+    190
+   ],
+   "r": 430
+  },
+  {
+   "do": "notes",
+   "n": 6
+  },
+  {
+   "do": "box",
+   "at": [
+    140,
+    460,
+    440,
+    560
+   ],
+   "label": "s · ptr · len 2 · cap 4"
+  },
+  {
+   "do": "check",
+   "item": "A slice is a header"
+  },
+  {
+   "do": "pause",
+   "ms": 800
+  },
+  {
+   "do": "arrow",
+   "from": [
+    290,
+    460
+   ],
+   "to": [
+    330,
+    240
+   ]
+  },
+  {
+   "do": "check",
+   "item": "The header points"
+  },
+  {
+   "do": "pause",
+   "ms": 800
+  },
+  {
+   "do": "notes",
+   "n": 7
+  },
+  {
+   "do": "laser",
+   "at": [
+    410,
+    190
+   ],
+   "r": 180
+  },
+  {
+   "do": "check",
+   "item": "Slicing shares"
+  },
+  {
+   "do": "pause",
+   "ms": 1200
+  },
+  {
+   "do": "notes",
+   "n": 10
+  },
+  {
+   "do": "laser",
+   "at": [
+    650,
+    190
+   ],
+   "r": 90
+  },
+  {
+   "do": "click",
+   "at": [
+    600,
+    150
+   ]
+  },
+  {
+   "do": "label",
+   "text": "99"
+  },
+  {
+   "do": "check",
+   "item": "append within"
+  },
+  {
+   "do": "pause",
+   "ms": 1400
+  },
+  {
+   "do": "notes",
+   "n": 12
+  },
+  {
+   "do": "box",
+   "at": [
+    100,
+    700,
+    240,
+    800
+   ],
+   "label": "20"
+  },
+  {
+   "do": "pause",
+   "ms": 150
+  },
+  {
+   "do": "box",
+   "at": [
+    260,
+    700,
+    400,
+    800
+   ],
+   "label": "30"
+  },
+  {
+   "do": "pause",
+   "ms": 150
+  },
+  {
+   "do": "box",
+   "at": [
+    420,
+    700,
+    560,
+    800
+   ],
+   "label": "99"
+  },
+  {
+   "do": "pause",
+   "ms": 150
+  },
+  {
+   "do": "box",
+   "at": [
+    580,
+    700,
+    720,
+    800
+   ],
+   "label": "1"
+  },
+  {
+   "do": "pause",
+   "ms": 150
+  },
+  {
+   "do": "box",
+   "at": [
+    740,
+    700,
+    880,
+    800
+   ],
+   "label": "2"
+  },
+  {
+   "do": "pause",
+   "ms": 150
+  },
+  {
+   "do": "pause",
+   "ms": 500
+  },
+  {
+   "do": "dblclick",
+   "at": [
+    330,
+    240
+   ]
+  },
+  {
+   "do": "pause",
+   "ms": 700
+  },
+  {
+   "do": "drag",
+   "from": [
+    330,
+    240
+   ],
+   "to": [
+    170,
+    700
+   ]
+  },
+  {
+   "do": "pause",
+   "ms": 500
+  },
+  {
+   "do": "dblclick",
+   "at": [
+    290,
+    460
+   ]
+  },
+  {
+   "do": "pause",
+   "ms": 500
+  },
+  {
+   "do": "drag",
+   "from": [
+    290,
+    460
+   ],
+   "to": [
+    290,
+    560
+   ]
+  },
+  {
+   "do": "pause",
+   "ms": 500
+  },
+  {
+   "do": "click",
+   "at": [
+    160,
+    545
+   ]
+  },
+  {
+   "do": "label",
+   "text": "s · ptr · len 5 · cap 8"
+  },
+  {
+   "do": "pause",
+   "ms": 600
+  },
+  {
+   "do": "notes",
+   "n": 13
+  },
+  {
+   "do": "click",
+   "at": [
+    120,
+    715
+   ]
+  },
+  {
+   "do": "label",
+   "text": "-1"
+  },
+  {
+   "do": "laser",
+   "at": [
+    330,
+    190
+   ],
+   "r": 90
+  },
+  {
+   "do": "check",
+   "item": "append past"
+  },
+  {
+   "do": "pause",
+   "ms": 1400
+  },
+  {
+   "do": "notes",
+   "n": 15
+  },
+  {
+   "do": "click",
+   "at": [
+    960,
+    960
+   ]
+  },
+  {
+   "do": "drag",
+   "from": [
+    900,
+    260
+   ],
+   "to": [
+    80,
+    120
+   ]
+  },
+  {
+   "do": "group"
+  },
+  {
+   "do": "pause",
+   "ms": 700
+  },
+  {
+   "do": "drag",
+   "from": [
+    110,
+    150
+   ],
+   "to": [
+    110,
+    90
+   ]
+  },
+  {
+   "do": "pause",
+   "ms": 700
+  },
+  {
+   "do": "pen",
+   "points": [
+    [
+     490,
+     50
+    ],
+    [
+     566,
+     51
+    ],
+    [
+     640,
+     54
+    ],
+    [
+     710,
+     60
+    ],
+    [
+     772,
+     68
+    ],
+    [
+     827,
+     78
+    ],
+    [
+     871,
+     90
+    ],
+    [
+     903,
+     102
+    ],
+    [
+     923,
+     116
+    ],
+    [
+     930,
+     130
+    ],
+    [
+     923,
+     143
+    ],
+    [
+     903,
+     157
+    ],
+    [
+     871,
+     170
+    ],
+    [
+     827,
+     181
+    ],
+    [
+     772,
+     191
+    ],
+    [
+     710,
+     199
+    ],
+    [
+     640,
+     205
+    ],
+    [
+     566,
+     208
+    ],
+    [
+     490,
+     210
+    ],
+    [
+     413,
+     208
+    ],
+    [
+     339,
+     205
+    ],
+    [
+     269,
+     199
+    ],
+    [
+     207,
+     191
+    ],
+    [
+     152,
+     181
+    ],
+    [
+     108,
+     170
+    ],
+    [
+     76,
+     157
+    ],
+    [
+     56,
+     143
+    ],
+    [
+     50,
+     130
+    ],
+    [
+     56,
+     116
+    ],
+    [
+     76,
+     102
+    ],
+    [
+     108,
+     90
+    ],
+    [
+     152,
+     78
+    ],
+    [
+     207,
+     68
+    ],
+    [
+     269,
+     60
+    ],
+    [
+     339,
+     54
+    ],
+    [
+     413,
+     51
+    ],
+    [
+     489,
+     50
+    ],
+    [
+     566,
+     51
+    ],
+    [
+     640,
+     54
+    ]
+   ]
+  },
+  {
+   "do": "pause",
+   "ms": 800
+  },
+  {
+   "do": "notes",
+   "n": 18
+  },
+  {
+   "do": "check",
+   "item": "copy when"
+  }
+ ]
+}

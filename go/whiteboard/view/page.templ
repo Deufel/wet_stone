@@ -150,6 +150,7 @@ templ boardCard(name string) {
 				@railTool(2, "line", "Line", "L")
 				@railTool(3, "arrow", "Arrow", "A")
 				@railTool(4, "laser", "Laser", "5")
+				@railTool(5, "pen", "Pen", "P")
 			</div>
 		<div class="stage-box">
 			<div class="stage-frame">
@@ -226,7 +227,7 @@ type tool struct {
 	icon, label string
 }
 
-var tools = []tool{{0, "select", "Select"}, {1, "box", "Box"}, {2, "line", "Line"}, {3, "arrow", "Arrow"}, {4, "laser", "Laser"}}
+var tools = []tool{{0, "select", "Select"}, {1, "box", "Box"}, {2, "line", "Line"}, {3, "arrow", "Arrow"}, {4, "laser", "Laser"}, {5, "pen", "Pen"}}
 
 // clearDialog: clearing the board asks first (the history still keeps it).
 templ clearDialog(name string) {
@@ -337,8 +338,8 @@ templ keysDialog() {
 			</button>
 		</header>
 		<dl class="keylist">
-			<dt><kbd>R</kbd> <kbd>L</kbd> <kbd>A</kbd> <kbd>5</kbd></dt>
-			<dd>box, line, arrow, laser</dd>
+			<dt><kbd>R</kbd> <kbd>L</kbd> <kbd>A</kbd> <kbd>5</kbd> <kbd>P</kbd></dt>
+			<dd>box, line, arrow, laser, pen</dd>
 			<dt><kbd>Esc</kbd></dt>
 			<dd>the select tool, or back to the last tool</dd>
 			<dt><kbd>H</kbd> <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd></dt>

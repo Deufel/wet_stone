@@ -51,6 +51,7 @@ const (
 	Box
 	Line
 	Arrow
+	Pen // a freehand stroke that stays: its points, its box their extent
 )
 
 type Shape struct {
@@ -61,6 +62,45 @@ type Shape struct {
 	Corner         [4]int32 // boxes: the joint each corner belongs to, -1 = free; corner c is x2 if c&1, y2 if c>=2
 	Group          int32    // -1 = none; members share a color and are selected together
 	Label          string
+	Points         []int32 // pen: x, y pairs in board units; X1..Y2 hold their extent
+}
+
+// PenPointsMax caps one stroke (pairs).
+const PenPointsMax = 1500
+
+// penBounds sets a pen stroke's box to the extent of its points.
+func penBounds(s *Shape) {
+	if len(s.Points) < 2 {
+		return
+	}
+	s.X1, s.Y1, s.X2, s.Y2 = s.Points[0], s.Points[1], s.Points[0], s.Points[1]
+	for i := 2; i+1 < len(s.Points); i += 2 {
+		s.X1, s.X2 = min(s.X1, s.Points[i]), max(s.X2, s.Points[i])
+		s.Y1, s.Y2 = min(s.Y1, s.Points[i+1]), max(s.Y2, s.Points[i+1])
+	}
+}
+
+// penShift moves a pen stroke by (dx, dy).
+func penShift(s *Shape, dx, dy int32) {
+	for i := 0; i+1 < len(s.Points); i += 2 {
+		s.Points[i] += dx
+		s.Points[i+1] += dy
+	}
+	s.X1, s.X2, s.Y1, s.Y2 = s.X1+dx, s.X2+dx, s.Y1+dy, s.Y2+dy
+}
+
+// penNear reports whether (x, y) is within LineHit of the stroke.
+func penNear(s *Shape, x, y int32) bool {
+	p := s.Points
+	if len(p) == 2 {
+		return dist2(x, y, p[0], p[1]) <= LineHit*LineHit
+	}
+	for i := 0; i+3 < len(p); i += 2 {
+		if segDist2(x, y, p[i], p[i+1], p[i+2], p[i+3]) <= LineHit*LineHit {
+			return true
+		}
+	}
+	return false
 }
 
 // One shared position for every node linked at a coordinate.
@@ -80,6 +120,7 @@ const (
 	DragGroup   // the whole selection moves
 	DragMarquee // a selection rectangle from (GX, GY)
 	DragLaser   // a fading pointer stroke
+	DragPen     // a pen stroke being drawn
 )
 
 type Drag struct {

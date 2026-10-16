@@ -10,6 +10,7 @@ import (
 // Icons: Lucide's line glyphs (ISC license), inlined so a page needs no icon
 // font or sprite request. They draw in currentColor, so mike.css inks them.
 var icons = map[string]string{
+	"pen":      `<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>`,
 	"play":     `<polygon points="6 3 20 12 6 21 6 3"/>`,
 	"more":     `<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>`,
 	"maximize": `<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>`,

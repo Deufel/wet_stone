@@ -200,6 +200,16 @@ func (b *Board) down(c Cmd) {
 	u.X, u.Y = c.X, c.Y
 	u.clearGuides()
 	switch c.Tool {
+	case 5: // the pen: a stroke that stays
+		index := b.shapeNew(Pen, c.X, c.Y)
+		if index < 0 {
+			u.note("board is full: delete something first")
+			return
+		}
+		b.Shapes[index].Points = []int32{c.X, c.Y}
+		u.Sel = [ShapesMax]bool{}
+		u.Selected = -1
+		u.Drag = Drag{Kind: DragPen, Shape: index, Fresh: true}
 	case 4:
 		u.Drag = Drag{Kind: DragLaser, Shape: -1}
 		u.laserN, u.laserSeg = 0, 0
@@ -285,6 +295,9 @@ func (b *Board) move(c Cmd) {
 	case DragLaser:
 		b.laserPoint(u, c.X, c.Y)
 		return
+	case DragPen:
+		b.penPoint(u.Drag.Shape, c.X, c.Y)
+		return
 	case DragGroup:
 		b.groupMove(u, c.X, c.Y)
 		return
@@ -299,7 +312,9 @@ func (b *Board) move(c Cmd) {
 
 	switch u.Drag.Kind {
 	case DragWhole:
-		if s.Kind == Box {
+		if s.Kind == Pen {
+			penShift(s, c.X-u.Drag.GX-s.X1, c.Y-u.Drag.GY-s.Y1)
+		} else if s.Kind == Box {
 			// corner-linked boxes come along as one rigid cluster
 			nx, ny := snapGrid(c.X-u.Drag.GX), snapGrid(c.Y-u.Drag.GY)
 			var mask [ShapesMax]bool
@@ -418,6 +433,17 @@ func (b *Board) up(c Cmd) (change string) {
 	case DragLaser:
 		b.laserFinish(u)
 		return ""
+	case DragPen:
+		s := &b.Shapes[drag.Shape]
+		if s.Kind != Pen {
+			return ""
+		}
+		b.penPoint(drag.Shape, c.X, c.Y)
+		if len(s.Points) < 4 { // a click, not a stroke
+			b.shapeRemove(drag.Shape)
+			return ""
+		}
+		return "draw pen"
 	}
 	index := drag.Shape
 	s := &b.Shapes[index]
@@ -537,6 +563,10 @@ func (b *Board) hitTest(x, y int32) (int32, Drag, bool) {
 				}
 				rx, ry := b.endPoint(s, ref)
 				return i, Drag{Kind: DragWhole, Shape: i, HX: uint8(ref), GX: x - rx, GY: y - ry}, true
+			}
+		case Pen:
+			if penNear(s, x, y) {
+				return i, Drag{Kind: DragWhole, Shape: i, GX: x - s.X1, GY: y - s.Y1}, true
 			}
 		case Box:
 			for _, h := range [4][2]uint8{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
@@ -683,6 +713,20 @@ func plural(n int) string {
 		return ""
 	}
 	return "s"
+}
+
+// penPoint adds a point to a pen stroke, if it has moved far enough.
+func (b *Board) penPoint(index int32, x, y int32) {
+	s := &b.Shapes[index]
+	if s.Kind != Pen || len(s.Points) >= 2*PenPointsMax {
+		return
+	}
+	n := len(s.Points)
+	if n >= 2 && dist2(x, y, s.Points[n-2], s.Points[n-1]) < 16 {
+		return // under 4 units: keep the path light
+	}
+	s.Points = append(s.Points, x, y)
+	penBounds(s)
 }
 
 // SelectedBy is the shape that viewer has selected (its primary), or -1: what

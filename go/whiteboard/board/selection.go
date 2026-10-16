@@ -68,6 +68,14 @@ func (b *Board) marqueeSelect(u *User, sx, sy, ex, ey int32) {
 			} else {
 				hit = bx1 >= rx1 && bx2 <= rx2 && by1 >= ry1 && by2 <= ry2
 			}
+		case Pen:
+			if touch { // any of its points inside
+				for p := 0; p+1 < len(s.Points) && !hit; p += 2 {
+					hit = inside(s.Points[p], s.Points[p+1])
+				}
+			} else {
+				hit = s.X1 >= rx1 && s.X2 <= rx2 && s.Y1 >= ry1 && s.Y2 <= ry2
+			}
 		case Line, Arrow:
 			ax, ay := b.endPoint(s, 0)
 			bx, by := b.endPoint(s, 1)
@@ -327,6 +335,11 @@ func (b *Board) translateShapes(mask *[ShapesMax]bool, dx, dy int32) {
 			setEnd(s, end, ex+dx, ey+dy)
 		}
 	}
+	for i := range b.Shapes {
+		if s := &b.Shapes[i]; mask[i] && s.Kind == Pen {
+			penShift(s, dx, dy)
+		}
+	}
 }
 
 // Bounding box of the shapes in mask.
@@ -416,7 +429,7 @@ func (b *Board) stretchShapes(mask *[ShapesMax]bool, dx, dy int32) {
 	}
 	lines := *mask
 	for i := range b.Shapes {
-		if b.Shapes[i].Kind == Box {
+		if !isConnector(b.Shapes[i].Kind) { // boxes stretched above; a pen does not stretch
 			lines[i] = false
 		}
 	}

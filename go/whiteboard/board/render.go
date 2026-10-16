@@ -56,11 +56,43 @@ func (w *writer) circle(cx, cy, r int32, extra string) {
 }
 
 // a label as a foreignObject the engine types, centered in the given box
+// penPath writes a pen stroke as path data, smoothed: a quadratic through
+// each point to the midpoint of the next (the laser's smoothing).
+func (w *writer) penPath(p []int32) {
+	if len(p) < 2 {
+		return
+	}
+	w.s("M")
+	w.i(p[0])
+	w.s(" ")
+	w.i(p[1])
+	n := len(p) / 2
+	if n == 1 {
+		w.s("h0") // a dot
+		return
+	}
+	for k := 1; k < n-1; k++ {
+		x, y := p[2*k], p[2*k+1]
+		w.s(" Q")
+		w.i(x)
+		w.s(" ")
+		w.i(y)
+		w.s(" ")
+		w.i((x + p[2*k+2]) / 2)
+		w.s(" ")
+		w.i((y + p[2*k+3]) / 2)
+	}
+	w.s(" L")
+	w.i(p[2*n-2])
+	w.s(" ")
+	w.i(p[2*n-1])
+}
+
 // labelBox is where a shape's label sits, [x, y, w, h] in board units: a
 // box's own rectangle, a connector's band across its middle. The page's label
 // editor opens over exactly this box.
 func (b *Board) labelBox(s *Shape) [4]int32 {
-	if s.Kind == Box {
+	if s.Kind == Box || s.Kind == Pen {
 		x1, x2 := min(s.X1, s.X2), max(s.X1, s.X2)
 		y1, y2 := min(s.Y1, s.Y2), max(s.Y1, s.Y2)
 		return [4]int32{x1, y1, x2 - x1, y2 - y1}
@@ -365,6 +397,11 @@ func (b *Board) drawShapes(w *writer, v *User) {
 					w.circle(cx, cy, 4, ` class="node" data-ui-linked`)
 				}
 			}
+			w.label(s, b.labelBox(s))
+		case Pen:
+			w.s(`<path class="pen" d="`)
+			w.penPath(s.Points)
+			w.s(`"/>`)
 			w.label(s, b.labelBox(s))
 		case Line, Arrow:
 			ax, ay := b.endPoint(s, 0)
