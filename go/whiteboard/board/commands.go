@@ -17,6 +17,7 @@ type Cmd struct {
 	Shape  int32 // label: the shape the text was typed for
 	Label  string
 	Ink    Ink // style: the ink for the selection (or the shape drawn last)
+	IDs    []int32 // pick: the shapes to select (a presenter's, by id)
 }
 
 // Apply runs one command. It returns what changed the drawing, for the
@@ -34,6 +35,11 @@ func (b *Board) Apply(c Cmd) (change string) {
 		return b.style(c)
 	case "cw45", "ccw45", "cw30", "ccw30":
 		return b.turn(c)
+	case "pick": // a presenter selects shapes by id (no pointer to aim)
+		b.pick(c)
+		return ""
+	case "shift": // a presenter moves its selection by (X, Y), grid-snapped
+		return b.shift(c)
 	case "down":
 		b.down(c)
 	case "move":
@@ -800,4 +806,38 @@ func (b *Board) turn(c Cmd) string {
 		return ""
 	}
 	return "turn"
+}
+
+// pick selects the shapes c.IDs names (whole groups), the first the primary.
+func (b *Board) pick(c Cmd) {
+	u := b.userFor(c.UID)
+	if u == nil {
+		return
+	}
+	u.Sel = [ShapesMax]bool{}
+	u.Selected = -1
+	for _, id := range c.IDs {
+		if id >= 0 && id < ShapesMax && b.Shapes[id].Kind != None {
+			b.selSet(u, id, true)
+			if u.Selected < 0 {
+				u.Selected = id
+			}
+		}
+	}
+	b.selPrimary(u)
+}
+
+// shift moves the selection by (c.X, c.Y), snapped to the grid and kept on
+// the board.
+func (b *Board) shift(c Cmd) string {
+	u := b.userFor(c.UID)
+	if u == nil || b.selCount(u) == 0 {
+		return ""
+	}
+	dx, dy := b.clampToBoard(&u.Sel, snapDelta(c.X), snapDelta(c.Y))
+	if dx == 0 && dy == 0 {
+		return ""
+	}
+	b.moveSelection(u, dx, dy, false)
+	return "move"
 }

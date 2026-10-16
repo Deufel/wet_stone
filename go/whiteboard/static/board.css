@@ -870,7 +870,11 @@
   :where(.tool-rail) :where(.rail-foot) > :where(.button-group) { flex-direction: column; }
   :where(.tool-rail) :where(.rail-foot) > :where(.page-save):where(:empty) { display: none; }
   :where(.tool-rail) :where(.rail-ai) { border-block-end: 0; }
-  :where(.tool-rail) :where(.tool.pri) { border-radius: var(--cfg-radius); }
+  /* Claude's group: alone, the button is round; with Stop under it (while
+     Claude draws), the two read as one group, round at its ends only */
+  .tool-rail .rail-ai > .tool { border-radius: var(--cfg-radius); }
+  .tool-rail .rail-ai:has(.sketch-stop > button) > .tool { border-radius: var(--cfg-radius) var(--cfg-radius) 0 0; }
+  .tool-rail .rail-ai .sketch-stop > button { border-radius: 0 0 var(--cfg-radius) var(--cfg-radius); margin-block-start: -1px; }
   :where(.tool-rail) :where(.rail-sec) > :where(.tool) { --fg: -0.3; }
   :where(.tool-rail) :where(.tool):where([disabled]) { opacity: 0.45; }
 }
@@ -893,4 +897,37 @@
   :where(.tool-rail) > :where(.button-group) + :where(.button-group) { margin-block-start: 0.12lh; padding-block-start: 0.12lh; }
   :where(.strip-pages) :where(.mini) { block-size: 2lh; }
   :where(.page-strip) { padding-block: 0.1lh; }
+}
+
+/* free drawing (```svg): the art alone, its frame only while selected; its
+   strokes scale with it (the board's own keep their width) */
+@layer block {
+  :where(#board) rect.art-frame { fill: none; stroke: none; }
+  :where(#board) [data-ui-selected] > rect.art-frame { stroke: currentColor; stroke-width: 1.5; stroke-dasharray: 6 4; }
+  .print-board rect.art-frame { fill: none; stroke: none; }
+  :where(#stage) svg.art, :where(#stage) svg.art * { vector-effect: none; pointer-events: none; }
+  .print-board svg.art * { vector-effect: none; }
+}
+
+/* the teaching bar on a wider screen: only while a lesson plays, or it is
+   saying something; else it takes no room */
+@media (width >= 576px) {
+  .board-page > .teach-bar:has(> #lesson-bar:empty):not(.acking) { display: none; }
+}
+@layer block {
+  :where(.free-draw) { gap: 0.4em; --type: -1; cursor: pointer; }
+  :where(.free-draw) > :where(input) { flex: none; inline-size: auto; }
+}
+
+/* who may open the board: its owner's menu under the title */
+@layer block {
+  :where(.vis-btn) { display: inline-flex; align-items: center; gap: 0.25em; padding: 0 0.2em; margin-inline-start: -0.2em; min-block-size: 0; border: 0; background: none; box-shadow: none; --type: -1; --fg: -0.5; cursor: pointer; border-radius: 0.3em; }
+  :where(.vis-btn):where(:hover) { --lift: 0.08; background-color: var(--_bg); --fg: -0.2; }
+  :where(.vis-btn) > :where(svg) { inline-size: 0.9em; block-size: 0.9em; }
+  :where([popovertarget="vis-menu"]) { anchor-name: --vis-btn; }
+  :where(#vis-menu) { position-anchor: --vis-btn; }
+  :where(.vis-menu) > :where(button) { display: flex; align-items: center; gap: 0.5em; text-align: start; padding: 0.25lh 0.5em; }
+  :where(.vis-menu) > :where(button) > :where(span) { display: grid; }
+  :where(.vis-menu) :where(small) { --type: -1; --fg: -0.5; }
+  :where(.vis-menu) > :where(button[aria-pressed="true"]) { --lift: 0.14; background-color: var(--_bg); }
 }

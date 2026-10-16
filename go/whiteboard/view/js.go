@@ -101,19 +101,19 @@ func onMove(name string) string {
 
 func onUp(name string) string {
 	// a shape just drawn: its Enter comes before the frame that selects it
-	// an Enter pressed before this up (window._editAfterUp) asks for the
-	// editor once the up has landed: the server has the shape by then
-	return "$_drag = false; if ($tool === 6) { window._lwait = Date.now() } if ([1, 2, 3, 6].includes($tool)) { window._drew = Date.now() } " + pointer +
-		"window._upP = " + postKept(name, "up") + "; " +
-		"if (window._editAfterUp) { window._editAfterUp = false; window._lwait = Date.now(); window._upP.finally(() => " + postKept(name, "editsel") + ") }"
+	// an Enter pressed before this up lands ($_editAfterUp) asks for the
+	// editor once it has: the server has the shape by then
+	return "$_drag = false; if ($tool === 6) { $_lwait = Date.now() } if ([1, 2, 3, 6].includes($tool)) { $_drew = Date.now() } " + pointer +
+		"$_upBusy = true; @post('/b/" + name + "/up', {requestCancellation: 'disabled'}).finally(() => { $_upBusy = false; " +
+		"if ($_editAfterUp) { $_editAfterUp = false; $_lwait = Date.now(); " + postKept(name, "editsel") + " } })"
 }
 
 // The editor opens a round trip after the gesture that asks for it (Enter on
 // a selection, a double-click, the code tool's box). Keys typed in between
-// are held (window._lbuf) instead of reaching the shortcuts, and typed into
+// are held ($_lbuf) instead of reaching the shortcuts, and typed into
 // the editor when it opens; an Enter among them saves, as in the editor.
-const holdKeys = "if (window._lwait && Date.now() - window._lwait < 1200 && !evt.ctrlKey && !evt.metaKey && !evt.altKey && (k.length === 1 || k === 'Enter' || k === 'Backspace')) { " +
-	"evt.preventDefault(); window._lbuf = (window._lbuf || '') + (k === 'Enter' ? '\\n' : k === 'Backspace' ? '\\b' : k) }"
+const holdKeys = "evt.preventDefault(); if (!$_lwait || Date.now() - $_lwait >= 1200) { $_lwait = Date.now() } " +
+	"$_lbuf = $_lbuf + (k === 'Enter' ? '\\n' : k === 'Backspace' ? '\\b' : k)"
 
 // The label editor. It opens when the server bumps $edit (sending the
 // shape's label box, $lbox, and its text, $label) and only then: el._seen
@@ -123,10 +123,10 @@ const labelBoxStyle = "{left: $lbox[0] / 10 + '%', top: $lbox[1] * 100 / $_bh + 
 const labelOpen = "if ($edit > 0 && $edit !== el._seen) { el._seen = $edit; $_ledit = true; " +
 	// what was typed while the editor was on its way, replayed into it; keys
 	// keep being held until it has the focus (a frame later), then those too
-	"const replay = (txt) => { let save = false; const buf = window._lbuf || ''; window._lbuf = ''; " +
+	"const replay = (txt) => { let save = false; const buf = $_lbuf; $_lbuf = ''; " +
 	"for (const c of buf) { if (c === '\\b') { txt = txt.slice(0, -1) } else if (c === '\\n') { if (txt.trimStart().startsWith('```')) { txt += '\\n' } else { save = true; break } } else { txt += c } } return [txt, save] }; " +
-	"window._lwait = Date.now(); let [txt, save] = replay($label); el.textContent = txt; el.classList.toggle('code', txt.trimStart().startsWith('```')); " +
-	"requestAnimationFrame(() => { el.focus(); const [t2, s2] = replay(el.textContent); el.textContent = t2; save = save || s2; window._lwait = 0; " +
+	"$_lwait = Date.now(); let [txt, save] = replay($label); el.textContent = txt; el.classList.toggle('code', txt.trimStart().startsWith('```')); " +
+	"requestAnimationFrame(() => { el.focus(); const [t2, s2] = replay(el.textContent); el.textContent = t2; save = save || s2; $_lwait = 0; " +
 	"el.classList.toggle('code', t2.trimStart().startsWith('```')); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); if (save) { el.blur() } }) }"
 
 // Enter or leaving the editor saves; Esc puts it back. Its keys stop here.
@@ -138,12 +138,12 @@ const labelKeys = "evt.stopPropagation(); const code = el.innerText.trimStart().
 	"else if (evt.key === 'Escape') { evt.preventDefault(); el._cancel = true; el.blur() }"
 
 func labelCommit(name string) string {
-	return "if ($_ledit) { $_ledit = false; const raw = el.innerText; const t = raw.trimStart().startsWith('```') ? raw.trim().slice(0, 1500) : raw.replace(/\\s+/g, ' ').trim().slice(0, 48); " +
+	return "if ($_ledit) { $_ledit = false; const raw = el.innerText; const t = raw.trimStart().startsWith('```') ? raw.trim().slice(0, raw.trimStart().startsWith('```svg') ? 24000 : 1500) : raw.replace(/\\s+/g, ' ').trim().slice(0, 48); " +
 		"if (!el._cancel && t !== $label) { $label = t; " + postKept(name, "label") + " } el._cancel = false }"
 }
 
 func onDblclick(name string) string {
-	return "window._lwait = Date.now(); const r = stage.getBoundingClientRect(); $lx = Math.round((evt.clientX - r.left) * 1000 / r.width); $ly = Math.round((evt.clientY - r.top) * $_bh / r.height); " +
+	return "$_lwait = Date.now(); const r = stage.getBoundingClientRect(); $lx = Math.round((evt.clientX - r.left) * 1000 / r.width); $ly = Math.round((evt.clientY - r.top) * $_bh / r.height); " +
 		postKept(name, "link")
 }
 
@@ -156,8 +156,7 @@ func onKey(name string) string {
 		"const k = evt.key, t = evt.target;",
 		"const d = {ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], h: [-1, 0], j: [0, 1], k: [0, -1], l: [1, 0]}[k];",
 		"if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.isContentEditable) {}",
-		"else if ((($_drag && k !== 'Enter') || (window._lwait && Date.now() - window._lwait < 1200)) && !evt.ctrlKey && !evt.metaKey && !evt.altKey && (k.length === 1 || k === 'Enter' || k === 'Backspace')) { " +
-			"if (!window._lwait || Date.now() - window._lwait >= 1200) { window._lwait = Date.now() } evt.preventDefault(); window._lbuf = (window._lbuf || '') + (k === 'Enter' ? '\\n' : k === 'Backspace' ? '\\b' : k) }",
+		"else if ((($_drag && k !== 'Enter') || ($_lwait && Date.now() - $_lwait < 1200)) && !evt.ctrlKey && !evt.metaKey && !evt.altKey && (k.length === 1 || k === 'Enter' || k === 'Backspace')) { " + holdKeys + " }",
 		"else if ((evt.ctrlKey || evt.metaKey) && !evt.altKey && (k === 'z' || k === 'Z')) { evt.preventDefault(); " + postKept(name, "undo") + " }",
 		"else if ((evt.ctrlKey || evt.metaKey) && !evt.altKey && (k === 'r' || k === 'y')) { evt.preventDefault(); " + postKept(name, "redo") + " }",
 		"else if (evt.ctrlKey || evt.metaKey || evt.altKey) {}",
@@ -166,9 +165,8 @@ func onKey(name string) string {
 		"else if (k === 'H') { document.getElementById('history-drawer').togglePopover() }",
 		"else if (k === 'f' || k === 'F') { " + fullToggle + " }",
 		"else if (k === 'Escape') { $tool = 0 }",
-		"else if (k === 'Enter' && $_drag) { evt.preventDefault(); window._editAfterUp = true; window._lwait = Date.now() }",
-		"else if (k === 'Enter' && ($sel >= 0 || Date.now() - (window._drew || 0) < 1500)) { evt.preventDefault(); window._lwait = Date.now(); window._drew = 0; " +
-			"const go = () => " + postKept(name, "editsel") + "; window._upP ? window._upP.finally(go) : go() }",
+		"else if (k === 'Enter' && ($_drag || $_upBusy)) { evt.preventDefault(); $_editAfterUp = true; $_lwait = Date.now() }",
+		"else if (k === 'Enter' && ($sel >= 0 || Date.now() - $_drew < 1500)) { evt.preventDefault(); $_lwait = Date.now(); $_drew = 0; " + postKept(name, "editsel") + " }",
 		"else if (d && $nsel > 0 && (k.startsWith('Arrow') || $tool === 0)) { evt.preventDefault(); $ndx = d[0]; $ndy = d[1]; " + postKept(name, "nudge") + " }",
 		"else if (k === 'Delete' || k === 'Backspace') { " + post(name, "delete") + " }",
 		"else if (k === 'g') { " + post(name, "group") + " }",
@@ -225,7 +223,7 @@ func pageSignals(inst string, height int32) string {
 	return "{inst: " + jsString(inst) + ", _bh: " + strconv.Itoa(int(height)) + ", " + signals[1:]
 }
 
-const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, dseq: 0, lbox: [0, 0, 0, 0], _ledit: false, _drag: false, _ans: '', _beat: 0, _full: false, _todo: '', _notes: {text: '', lang: '', v: 0}, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _voice: true}"
+const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, dseq: 0, lbox: [0, 0, 0, 0], _ledit: false, _drag: false, _ans: '', _beat: 0, _full: false, _todo: '', _notes: {text: '', lang: '', v: 0}, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _voice: true, _lwait: 0, _lbuf: '', _drew: 0, _upBusy: false, _editAfterUp: false}"
 
 // fullToggle: the whiteboard alone on the screen. The card fills the window
 // ($_full, CSS); where the browser can, the window goes full screen too (an
@@ -243,7 +241,7 @@ func pick(tool int) string { return "$tool = " + string(rune('0'+tool)) }
 
 // sketchPost asks Claude to draw $_sketch, and closes the menu.
 func sketchPost(name string) string {
-	return "@post('/b/" + name + "/sketch', {payload: {text: $_sketch, inst: $inst}}); $_sketch = ''; setTimeout(() => document.getElementById('sketch-menu')?.hidePopover(), 1200)"
+	return "@post('/b/" + name + "/sketch', {payload: {text: $_sketch, free: $_free, inst: $inst}}); $_sketch = ''; setTimeout(() => document.getElementById('sketch-menu')?.hidePopover(), 1200)"
 }
 
 // navSecInit and navSecToggle fold a drawer section and keep it as this

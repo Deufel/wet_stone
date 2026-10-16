@@ -109,7 +109,7 @@ templ Board(d BoardData) {
 // sending the whiteboard to a page, Claude), then the history and full
 // screen. A phone has its tool menus here too.
 templ teachBar(name string, owner bool) {
-	<nav class="pg-subheader teach-bar" aria-label="Teaching">
+	<nav class="pg-subheader teach-bar" aria-label="Teaching" data-class:acking="['sheet', 'sketch', 'label'].includes($_saved.k)">
 		<div class="row oneline panel-menus mobile">
 			<button class="icon tool-now" popovertarget="tools-menu" aria-label="Tools" title="Tools">
 				for _, t := range tools {
@@ -426,10 +426,35 @@ templ boardTitle(name string, u *db.User, m *hub.Meta) {
 			<h1 { titleEdit(name, u, m)... }>{ m.Title }</h1>
 			@Saved("title")
 		</div>
-		<span class="vis">
-			@visIcon(m.Visibility)
-			{ visWord(m.Visibility) }
-		</span>
+		if u != nil && u.ID == m.OwnerID && m.Visibility != db.Global {
+			<!-- its owner changes who may open it, after the fact -->
+			<button class="vis vis-btn" popovertarget="vis-menu" title="Who can open this board">
+				@visIcon(m.Visibility)
+				{ visWord(m.Visibility) }
+				@Icon("chevron")
+			</button>
+			<div id="vis-menu" class="menu vis-menu" popover>
+				<button data-on:click={ "@post('/b/" + name + "/share/public'); document.getElementById('vis-menu').hidePopover()" } aria-pressed={ strconv.FormatBool(m.Visibility == db.Public) }>
+					@Icon("link")
+					<span>
+						<strong>Anyone with the link</strong>
+						<small>can open it and draw</small>
+					</span>
+				</button>
+				<button data-on:click={ "@post('/b/" + name + "/share/private'); document.getElementById('vis-menu').hidePopover()" } aria-pressed={ strconv.FormatBool(m.Visibility == db.Private) }>
+					@Icon("lock")
+					<span>
+						<strong>Private</strong>
+						<small>you and the people you invite</small>
+					</span>
+				</button>
+			</div>
+		} else {
+			<span class="vis">
+				@visIcon(m.Visibility)
+				{ visWord(m.Visibility) }
+			</span>
+		}
 	</div>
 }
 
@@ -546,8 +571,12 @@ func visWord(v string) string {
 // sketchMenu asks Claude to draw: at page level, so a phone (no toolbar)
 // opens it too from its bar.
 templ sketchMenu(name string) {
-	<div id="sketch-menu" class="menu sketch-menu" popover data-signals__ifmissing="{_sketch: ''}">
+	<div id="sketch-menu" class="menu sketch-menu" popover data-signals__ifmissing="{_sketch: '', _free: false}">
 		<p class="meta">Claude draws it on this board, around what is there. <span class="tag">beta</span></p>
+		<label class="row oneline free-draw" title="Claude may draw any SVG it likes, animated">
+			<input type="checkbox" data-bind:_free/>
+			<span>Free draw: any figure, animated</span>
+		</label>
 		<div class="row oneline">
 			<input type="text" maxlength="800" placeholder="Sketch how a hash map finds a key" aria-label="What should Claude draw?" data-bind:_sketch data-on:keydown={ "evt.stopPropagation(); if (evt.key === 'Enter' && $_sketch.trim()) { " + sketchPost(name) + " }" }/>
 			<button class="suc" data-on:click={ "$_sketch.trim() && " + sketchPost(name) }>Draw</button>

@@ -150,7 +150,7 @@ func (p *presenter) label(text string) {
 	if sel < 0 {
 		return
 	}
-	if p.fast {
+	if p.fast || board.IsArt(text) { // a drawing lands whole, never half-typed
 		p.cmd(board.Cmd{Op: "label", Shape: sel, Label: text})
 		return
 	}

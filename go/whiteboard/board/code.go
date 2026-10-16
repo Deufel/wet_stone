@@ -37,7 +37,7 @@ func CodeOf(label string) (lang, code string) {
 	rest := strings.TrimPrefix(label, "```")
 	first, body, _ := strings.Cut(rest, "\n")
 	lang = strings.ToLower(strings.TrimSpace(first))
-	if !codeLangs[lang] && lang != "math" {
+	if !codeLangs[lang] && lang != "math" && lang != "svg" {
 		lang = ""
 	}
 	return lang, strings.TrimSuffix(strings.TrimRight(body, " \t\n"), "```")
@@ -52,6 +52,10 @@ func (w *writer) code(s *Shape, box [4]int32) {
 	h.Write([]byte(s.Label))
 	if lang == "math" {
 		w.math(code, box, strconv.FormatUint(uint64(h.Sum32()), 36))
+		return
+	}
+	if lang == "svg" {
+		w.art(code, box)
 		return
 	}
 	w.s("<foreignObject")
@@ -80,7 +84,30 @@ func (w *writer) math(tex string, box [4]int32, key string) {
 	w.s(key)
 	// data-ignore-morph: the board is drawn again on every change, and its
 	// TeX would morph back over the MathML Temml made of it
-	w.s(`" data-ignore-morph data-init="window.temml &amp;&amp; temml.render(el.textContent, el, {displayMode: true, throwOnError: false})">`)
+	// typeset, then shrunk until it fits its box (a model cannot know how
+	// wide the typeset math will be)
+	w.s(`" data-ignore-morph data-init="if (window.temml) { temml.render(el.textContent, el, {displayMode: true, throwOnError: false}); const b = el.parentElement, k = Math.min(1, (b.clientWidth - 16) / el.scrollWidth, (b.clientHeight - 16) / el.scrollHeight); if (k &lt; 1) { el.style.fontSize = (40 * k) + 'px' } }">`)
 	w.s(html.EscapeString(tex))
 	w.s("</div></div></foreignObject>")
+}
+
+// IsArt: is this label a free drawing (```svg …)? Its box is not drawn.
+func IsArt(label string) bool {
+	return strings.HasPrefix(label, "```svg")
+}
+
+// art draws a ```svg label: its (cleaned) SVG fitted into the box. Cleaned
+// again here, whatever wrote it.
+func (w *writer) art(src string, box [4]int32) {
+	clean, err := CleanSVG(strings.TrimSpace(src))
+	if err != nil {
+		return
+	}
+	w.s(`<svg class="art"`)
+	w.attr("x", box[0])
+	w.attr("y", box[1])
+	w.attr("width", box[2])
+	w.attr("height", box[3])
+	w.s(` preserveAspectRatio="xMidYMid meet" `)
+	w.s(strings.TrimPrefix(clean, "<svg "))
 }

@@ -103,6 +103,8 @@ func (h *Hub) Share(ctx context.Context, name, op, arg string) error {
 		err = h.db.Invite(ctx, m.ID, arg)
 	case "uninvite":
 		err = h.db.Uninvite(ctx, m.ID, arg)
+	case "visibility":
+		err = h.db.SetVisibility(ctx, m.ID, arg)
 	}
 	if err != nil {
 		return err
@@ -116,7 +118,7 @@ func (h *Hub) Share(ctx context.Context, name, op, arg string) error {
 	// whose tab strips changed: everyone holding the board for a rename (the
 	// owner included), the invited or uninvited person for a share change
 	switch op {
-	case "title":
+	case "title", "visibility":
 		ids, _ := h.db.TabHolders(ctx, m.ID)
 		for _, id := range ids {
 			h.PublishUser(id)

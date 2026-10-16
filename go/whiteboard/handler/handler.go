@@ -742,6 +742,12 @@ func (h *Handler) share(w http.ResponseWriter, r *http.Request) {
 		arg = strings.ToLower(addr.Address)
 	case "uninvite":
 		arg = strings.ToLower(strings.TrimSpace(s.Who))
+	case "public", "private": // who may open it, changed after the fact
+		if meta.Visibility == db.Global {
+			ack.Bad(datastar.NewSSE(w, r), "title", "The global board is everyone's")
+			return
+		}
+		op, arg = "visibility", op
 	default:
 		http.NotFound(w, r)
 		return
@@ -776,6 +782,7 @@ type payload struct {
 	Lang string `json:"lang"`
 	Inst string `json:"inst"`
 	N    int    `json:"n"`
+	Free bool   `json:"free"` // a sketch: free draw (any svg)
 }
 
 func (h *Handler) todoAdd(w http.ResponseWriter, r *http.Request) {
@@ -954,6 +961,14 @@ func renderString(r *http.Request, c templ.Component) string {
 func cleanLabel(s string) string {
 	if !board.IsCode(strings.TrimSpace(s)) {
 		return cleanText(s, board.LabelMax)
+	}
+	if t := strings.TrimSpace(s); board.IsArt(t) { // a free drawing: kept only as cleaned SVG
+		_, body, _ := strings.Cut(t, "\n")
+		clean, err := board.CleanSVG(body)
+		if err != nil {
+			return ""
+		}
+		return "```svg\n" + clean
 	}
 	s = strings.TrimSpace(strings.ReplaceAll(s, "\r", ""))
 	out := make([]rune, 0, len(s))

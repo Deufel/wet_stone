@@ -74,8 +74,11 @@ type Step struct {
 	By     []int8     `json:"by,omitempty"`
 	Label  string     `json:"label,omitempty"`
 	Text   string     `json:"text,omitempty"`
-	Lang   string     `json:"lang,omitempty"` // a code block's language
-	Kind   string     `json:"kind,omitempty"` // turn: cw45, ccw45, cw30, ccw30
+	Lang   string     `json:"lang,omitempty"`  // a code block's language
+	Kind   string     `json:"kind,omitempty"`  // turn: cw45, ccw45, cw30, ccw30; connect: arrow (default) or line
+	IDs    []int32    `json:"ids,omitempty"`   // select, move, connect: shapes by id (the board's #n)
+	Delta  []int32    `json:"delta,omitempty"` // move: [dx, dy] in board units
+	Svg    string     `json:"svg,omitempty"`   // svg: a free drawing (an <svg> document, viewBox set)
 
 	// a teacher's ink, on any drawing step (or a "style" step, on the
 	// selection): an absolute hue (1..360), a strength (-1..1), a meaning
@@ -185,6 +188,28 @@ func (l *Lesson) check(steps []Step, at string) error {
 				return bad("lang: one of css, html, python, javascript, go, sqlite, odin, mojo, or math (LaTeX)")
 			}
 		case "group", "ungroup", "delete":
+		case "select":
+			if len(s.IDs) == 0 {
+				return bad("ids: the shapes to select, by id")
+			}
+		case "move":
+			if len(s.Delta) != 2 || abs(s.Delta[0]) > board.W || abs(s.Delta[1]) > board.Letter {
+				return bad("delta: [dx, dy] in board units")
+			}
+		case "connect":
+			if len(s.IDs) != 2 || (s.Kind != "" && s.Kind != "arrow" && s.Kind != "line") {
+				return bad("ids: [from, to], two shapes by id; kind arrow or line")
+			}
+			if len(s.Label) > board.LabelMax {
+				return bad(fmt.Sprintf("label: at most %d bytes", board.LabelMax))
+			}
+		case "svg":
+			if !in(s.At, 4) {
+				return bad("at: [x1, y1, x2, y2] on the board")
+			}
+			if _, err := board.CleanSVG(s.Svg); err != nil {
+				return bad("svg: " + err.Error())
+			}
 		case "turn":
 			if !board.Turns[s.Kind] {
 				return bad("kind: cw45, ccw45, cw30 or ccw30")
@@ -329,6 +354,20 @@ func (pl *player) run(steps []Step) {
 		switch s.Do {
 		case "style":
 			p.style()
+		case "select":
+			p.cmd(board.Cmd{Op: "pick", IDs: s.IDs})
+		case "move":
+			if len(s.IDs) > 0 {
+				p.cmd(board.Cmd{Op: "pick", IDs: s.IDs})
+			}
+			p.pause(200 * time.Millisecond)
+			p.cmd(board.Cmd{Op: "shift", X: s.Delta[0], Y: s.Delta[1]})
+		case "connect":
+			p.connect(s.IDs[0], s.IDs[1], s.Kind == "line", s.Label)
+		case "svg":
+			if clean, err := board.CleanSVG(s.Svg); err == nil {
+				p.box(s.At[0], s.At[1], s.At[2], s.At[3], "```svg\n"+clean)
+			}
 		case "turn":
 			if !p.fast {
 				p.pause(150 * time.Millisecond)
@@ -522,6 +561,9 @@ func (p *presenter) penarrow(x1, y1, x2, y2 int32) {
 
 // labelMax: a code block's label may be long; a plain one is a few words.
 func labelMax(text string) int {
+	if board.IsArt(text) {
+		return board.SvgMax
+	}
 	if board.IsCode(text) {
 		return board.CodeMax
 	}
@@ -632,6 +674,66 @@ func (p *presenter) erase(at []int32) {
 	p.glide(0, 40, 40, 0)
 	p.pause(300 * time.Millisecond)
 	p.cmd(board.Cmd{Op: "clear"})
+}
+
+// connect draws a connector from one shape to another, port to port: the
+// sides that face each other (it links to them, so it follows them).
+func (p *presenter) connect(from, to int32, line bool, label string) {
+	if p.err != nil {
+		return
+	}
+	snap := p.b.Snapshot()
+	var a, b *board.SavedShape
+	for i := range snap.Shapes {
+		switch snap.Shapes[i].Idx {
+		case from:
+			a = &snap.Shapes[i]
+		case to:
+			b = &snap.Shapes[i]
+		}
+	}
+	if a == nil || b == nil {
+		return
+	}
+	ax, ay, bx, by := facing(a, b)
+	tool := uint8(3)
+	if line {
+		tool = 2
+	}
+	p.stroke(tool, ax, ay, bx, by)
+	p.style()
+	if label != "" {
+		p.pause(200 * time.Millisecond)
+		p.label(label)
+	}
+}
+
+// facing is where a connector between two shapes starts and ends: the
+// midpoints of the sides that face each other.
+func facing(a, b *board.SavedShape) (ax, ay, bx, by int32) {
+	box := func(s *board.SavedShape) (int32, int32, int32, int32) {
+		return min(s.X1, s.X2), min(s.Y1, s.Y2), max(s.X1, s.X2), max(s.Y1, s.Y2)
+	}
+	a1, a2, a3, a4 := box(a)
+	b1, b2, b3, b4 := box(b)
+	acx, acy, bcx, bcy := (a1+a3)/2, (a2+a4)/2, (b1+b3)/2, (b2+b4)/2
+	if abs(bcx-acx) >= abs(bcy-acy) { // side by side
+		if bcx > acx {
+			return a3, acy, b1, bcy
+		}
+		return a1, acy, b3, bcy
+	}
+	if bcy > acy { // one over the other
+		return acx, a4, bcx, b2
+	}
+	return acx, a2, bcx, b4
+}
+
+func abs(v int32) int32 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func onBoard(x, y int32) [2]int32 {

@@ -73,7 +73,7 @@ func (h *Handler) sketch(w http.ResponseWriter, r *http.Request) {
 			sketchVersion.Add(1)
 			h.Hub.Publish(n) // the Stop button goes
 		}()
-		h.sketchOn(ctx, n, apiKey{key, ws}, ask)
+		h.sketchOn(ctx, n, apiKey{key, ws}, ask, p.Free)
 	}()
 	ack.Saved(datastar.NewSSE(w, r), "sketch", "Claude is on it…")
 }
@@ -101,7 +101,7 @@ func (h *Handler) sketchingOn(name string) bool {
 }
 
 // sketchOn asks for the steps and plays them as "Claude", until ctx ends.
-func (h *Handler) sketchOn(ctx context.Context, name string, key apiKey, ask string) {
+func (h *Handler) sketchOn(ctx context.Context, name string, key apiKey, ask string, free bool) {
 	b, _, err := h.Hub.Board(ctx, name)
 	if err != nil {
 		return
@@ -117,7 +117,7 @@ func (h *Handler) sketchOn(ctx context.Context, name string, key apiKey, ask str
 		}
 	}()
 	h.Hub.Settle(name, &hub.Ask{Say: "Claude is thinking about: " + short(ask, 120)})
-	steps, err := sketchSteps(ctx, key, b.Snapshot(), ask)
+	steps, err := sketchSteps(ctx, key, b.Snapshot(), b.Height, ask, free)
 	p := &presenter{h: h, ctx: ctx, name: name, b: b, uid: sketchUID, x: 980, y: 980, pace: 1}
 	if ctx.Err() != nil {
 		return // stopped while thinking
@@ -135,10 +135,10 @@ func (h *Handler) sketchOn(ctx context.Context, name string, key apiKey, ask str
 }
 
 // sketchSteps asks Claude for the drawing, given what the board holds.
-func sketchSteps(ctx context.Context, key apiKey, snap board.Snapshot, ask string) ([]Step, error) {
-	msgs := []message{{Role: "user", Content: "The board now:\n" + describeBoard(snap) + "\n\nThe request:\n" + ask}}
+func sketchSteps(ctx context.Context, key apiKey, snap board.Snapshot, height int32, ask string, free bool) ([]Step, error) {
+	msgs := []message{{Role: "user", Content: "The board now:\n" + describeBoard(snap, height) + "\nThe request:\n" + ask}}
 	for try := 0; try < 2; try++ {
-		text, err := claude(ctx, key, sketchSystem(), msgs)
+		text, err := claude(ctx, key, sketchSystem(free), msgs)
 		if err != nil {
 			return nil, err
 		}
@@ -159,8 +159,8 @@ func sketchSteps(ctx context.Context, key apiKey, snap board.Snapshot, ask strin
 // checkSketch: a sketch draws and speaks; it does not ask, nor touch the
 // checklist or the notes, nor wipe the board.
 func checkSketch(steps []Step) error {
-	if len(steps) == 0 || len(steps) > 80 {
-		return errors.New("1 to 80 steps")
+	if len(steps) == 0 || len(steps) > 120 {
+		return errors.New("1 to 120 steps")
 	}
 	for i, s := range steps {
 		switch s.Do {
@@ -176,39 +176,135 @@ func checkSketch(steps []Step) error {
 	return l.Validate()
 }
 
-// describeBoard lists the board's shapes for the model: what and where.
-func describeBoard(snap board.Snapshot) string {
+// describeBoard is the board for the model: its size, every shape by id
+// (what, where, what it says, its ink and turn, what a connector joins), and
+// the empty bands where new work fits.
+func describeBoard(snap board.Snapshot, height int32) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "The page is 1000 wide × %d tall (x right, y down).\n", height)
 	if len(snap.Shapes) == 0 {
-		return "(empty)"
+		sb.WriteString("It is empty.\n")
+		return sb.String()
+	}
+	jointBox := map[int32]int32{}
+	for _, j := range snap.Joints {
+		jointBox[j.Idx] = j.Box
 	}
 	kinds := map[board.Kind]string{board.Box: "box", board.Line: "line", board.Arrow: "arrow", board.Pen: "pen stroke"}
-	var sb strings.Builder
+	sb.WriteString("Shapes (id, kind, extent [x1, y1, x2, y2], then what it holds):\n")
+	type band struct{ y1, y2 int32 }
+	var used []band
 	for _, s := range snap.Shapes {
-		fmt.Fprintf(&sb, "- %s [%d, %d, %d, %d]", kinds[s.Kind], s.X1, s.Y1, s.X2, s.Y2)
-		if s.Label != "" {
-			fmt.Fprintf(&sb, " %q", short(s.Label, 200))
+		x1, y1, x2, y2 := min(s.X1, s.X2), min(s.Y1, s.Y2), max(s.X1, s.X2), max(s.Y1, s.Y2)
+		used = append(used, band{y1, y2})
+		fmt.Fprintf(&sb, "- #%d %s [%d, %d, %d, %d]", s.Idx, kinds[s.Kind], x1, y1, x2, y2)
+		switch {
+		case board.IsArt(s.Label):
+			sb.WriteString(" a free drawing (svg)")
+		case strings.HasPrefix(s.Label, "```math"):
+			_, tex := board.CodeOf(s.Label)
+			fmt.Fprintf(&sb, " math %q", short(tex, 120))
+		case board.IsCode(s.Label):
+			lang, code := board.CodeOf(s.Label)
+			fmt.Fprintf(&sb, " code (%s) %q", lang, short(code, 160))
+		case s.Label != "":
+			fmt.Fprintf(&sb, " %q", s.Label)
+		}
+		if s.Kind == board.Line || s.Kind == board.Arrow {
+			for end, j := range s.Joint {
+				if b, ok := jointBox[j]; ok && j >= 0 && b >= 0 {
+					fmt.Fprintf(&sb, " %s #%d", [...]string{"from", "to"}[end], b)
+				}
+			}
+		}
+		if s.Group >= 0 {
+			fmt.Fprintf(&sb, " group %d", s.Group)
+		}
+		if s.Ink.Sem > 0 {
+			fmt.Fprintf(&sb, " sem %s", board.Semantics[s.Ink.Sem])
+		}
+		if s.Ink.Hue > 0 {
+			fmt.Fprintf(&sb, " hue %d", s.Ink.Hue-1)
+		}
+		if s.Turn.Rot%360 != 0 {
+			fmt.Fprintf(&sb, " turned %d°", ((s.Turn.Rot%360)+360)%360)
 		}
 		sb.WriteByte('\n')
 	}
+	// the empty bands, top to bottom (at least 100 tall)
+	sb.WriteString("Empty bands (y ranges with nothing in them, the whole width free):")
+	free := 0
+	for y := int32(40); y < height-40; {
+		blocked := false
+		for _, u := range used {
+			if y >= u.y1-10 && y <= u.y2+10 {
+				blocked, y = true, u.y2+11
+				break
+			}
+		}
+		if blocked {
+			continue
+		}
+		end := height - 40
+		for _, u := range used {
+			if u.y1-10 > y && u.y1-10 < end {
+				end = u.y1 - 10
+			}
+		}
+		if end-y >= 100 {
+			fmt.Fprintf(&sb, " %d–%d", y, end)
+			free++
+		}
+		y = end + 1
+	}
+	if free == 0 {
+		sb.WriteString(" none (fit new work beside what is there, or erase)")
+	}
+	sb.WriteByte('\n')
 	return sb.String()
 }
 
-func sketchSystem() string {
+// sketchSystem is the manual Claude draws by: the page, what each step
+// does, how the board behaves; free, it may also draw any SVG it likes.
+func sketchSystem(free bool) string {
+	mode := `Draw with the board's own shapes (boxes, arrows, code and math blocks, the pen) wherever they say it;
+use an "svg" step only for a figure the shapes cannot make (a curve, a molecule, a chart).`
+	if free {
+		mode = `FREE DRAW is on: you may draw anything as SVG ("svg" steps), animated with SMIL if motion helps
+(<animate>, <animateTransform>, <animateMotion>): diagrams, molecules, waves, orbits, charts, icons.
+Give each svg a viewBox and draw in its own units; it is fitted into its box. Use stroke="currentColor"
+or explicit colors; text inside an svg is fine. Still use boxes for words to be read, and "say" to narrate.`
+	}
 	return strings.TrimSpace(`
-You draw on "draw", a shared whiteboard, as the presenter "Claude": the
-viewers watch your cursor draw. You get what the board holds now (shapes with
-[x1, y1, x2, y2]; for a line or arrow, its two ends) and a request. Draw it:
-in the empty space, or adding to and pointing at what is there, as asked.
+You draw on "draw", a shared whiteboard shaped like a letter page, as the presenter "Claude": the
+viewers watch your cursor draw. You get the board (every shape by id, where it is, what it says,
+what each connector joins, and the empty bands) and a request. Do it: in the empty space, or
+working with what is there: point at it, connect to it, move it, ink it, turn it, as asked.
 
-Draw like a person at a whiteboard: boxes for words, code blocks for code,
-arrows to connect, the pen for sketches, emphasis and quick diagrams; a
-"say" now and then to tell them what you are showing. Keep it clear and not
-crowded: a good sketch is 8–40 steps.
+` + mode + `
 
 Reply with ONE JSON object and nothing else: {"steps": [STEP, …]}
-Allowed steps: box, code, arrow, line, pen, ring, underline, penarrow, laser,
-say, pause, click, label, drag, delete, group, ungroup, nudge, erase (with
-"at": one shape; never the whole board).
 
-` + stepsSpec)
+THE BOARD. Shapes snap to a 20-unit grid. A box's label is centred, 26 units high, ~14 units a
+character, and wraps inside the box. A box whose label starts with a fence is a block: code
+(15 units a line, monospace, highlighted) or math (LaTeX, typeset). Lines and arrows link to the
+8 ports of a box (corners and side midpoints) and follow it when it moves. Selecting a shape
+selects its whole group. A shape you have just drawn is the one "style" and "turn" act on if
+nothing is selected.
+
+WORKING WITH WHAT IS THERE (ids are the board's #n):
+ {"do": "select", "ids": [3, 5]}                          selects shapes (then label, style, turn,
+                                                           delete, group act on them)
+ {"do": "move", "ids": [3], "delta": [0, 120]}             moves shapes by dx, dy (connectors follow)
+ {"do": "connect", "ids": [3, 5], "label": "calls"}       an arrow from #3 to #5, side to side, linked
+                                                           (kind "line" for no head); ink it inline
+ {"do": "laser", "at": [cx, cy], "r": 80}                  point at something while you "say" it
+ {"do": "turn", "kind": "cw45"}                            animates a turn (cw45, ccw45, cw30, ccw30)
+ {"do": "svg", "at": [x1, y1, x2, y2], "svg": "<svg viewBox='0 0 100 60'>…</svg>"}
+                                                           a figure of your own, fitted into the box
+
+` + stepsSpec + `
+
+Draw like a teacher: say what you are showing, build it up in order, point at what matters, keep
+it clear and uncrowded (8–40 steps). Never wipe the board ("erase" with "at" removes one shape).`)
 }

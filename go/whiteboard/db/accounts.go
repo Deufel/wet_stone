@@ -211,6 +211,13 @@ func newBoard(ctx context.Context, tx *sql.Tx, ownerID int64, title, visibility 
 	return id, name, nil
 }
 
+// SetVisibility makes a board public (anyone with the link) or private
+// (its owner and the people invited); the global board stays as it is.
+func (d *DB) SetVisibility(ctx context.Context, boardID int64, v string) error {
+	_, err := d.sql.ExecContext(ctx, `UPDATE boards SET visibility = ? WHERE id = ? AND visibility != 'global'`, v, boardID)
+	return err
+}
+
 func (d *DB) SetTitle(ctx context.Context, boardID int64, title string) error {
 	_, err := d.sql.ExecContext(ctx, `UPDATE boards SET title = ? WHERE id = ?`, title, boardID)
 	return err

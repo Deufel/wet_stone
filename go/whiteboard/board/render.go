@@ -447,6 +447,9 @@ func (b *Board) drawShapes(w *writer, v *User) {
 			w.attr("y", y1)
 			w.attr("width", x2-x1)
 			w.attr("height", y2-y1)
+			if IsArt(s.Label) { // a free drawing: its frame shows only when selected
+				w.s(` class="art-frame"`)
+			}
 			w.s(` rx="6"/>`)
 			for k := 0; k < 4; k++ {
 				if s.Corner[k] >= 0 {

@@ -95,7 +95,7 @@ func TestSketchSteps(t *testing.T) {
 		calls++
 		var req struct{ Messages []message }
 		_ = json.NewDecoder(r.Body).Decode(&req)
-		if !strings.Contains(req.Messages[0].Content, `box [100, 100, 300, 180] "cache"`) {
+		if !strings.Contains(req.Messages[0].Content, `#0 box [100, 100, 300, 180] "cache"`) {
 			t.Errorf("the board was not described: %q", req.Messages[0].Content)
 		}
 		reply := `{"steps": [{"do": "erase"}]}`
@@ -108,7 +108,7 @@ func TestSketchSteps(t *testing.T) {
 	defer srv.Close()
 	anthropicURL = srv.URL
 	snap := board.Snapshot{Shapes: []board.SavedShape{{Kind: board.Box, X1: 100, Y1: 100, X2: 300, Y2: 180, Label: "cache"}}}
-	steps, err := sketchSteps(context.Background(), apiKey{"sk-ant-test", ""}, snap, "show the cache's code")
+	steps, err := sketchSteps(context.Background(), apiKey{"sk-ant-test", ""}, snap, board.Letter, "show the cache's code", false)
 	if err != nil || calls != 2 || len(steps) != 2 || steps[0].Do != "code" {
 		t.Fatalf("calls %d, steps %+v, err %v", calls, steps, err)
 	}
