@@ -78,7 +78,9 @@ func (w *writer) math(tex string, box [4]int32, key string) {
 	w.attr("height", box[3])
 	w.s(`><div xmlns="http://www.w3.org/1999/xhtml" class="label math"><div class="tex" id="tex-`)
 	w.s(key)
-	w.s(`" data-init="window.temml &amp;&amp; temml.render(el.textContent, el, {displayMode: true, throwOnError: false})">`)
+	// data-ignore-morph: the board is drawn again on every change, and its
+	// TeX would morph back over the MathML Temml made of it
+	w.s(`" data-ignore-morph data-init="window.temml &amp;&amp; temml.render(el.textContent, el, {displayMode: true, throwOnError: false})">`)
 	w.s(html.EscapeString(tex))
 	w.s("</div></div></foreignObject>")
 }

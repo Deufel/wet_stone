@@ -73,6 +73,9 @@ templ Board(d BoardData) {
 		@TodoDrawer(d.Name)
 		@panelMenus(d.Name)
 		@clearDialog(d.Name)
+		if d.User != nil && d.Meta.OwnerID == d.User.ID {
+			@deletePageDialog(d.Name)
+		}
 		<aside id="history-drawer" class="drawer right history-drawer" popover="manual" aria-label="History">
 			<header class="drawer-head">
 				<h2>History</h2>
@@ -321,22 +324,22 @@ templ navDrawer(d BoardData) {
 				@Icon("home")
 				Home
 			</a>
-			<section class="nav-sec" aria-label="Boards">
-				<h3>Boards</h3>
+			<details class="nav-sec" open aria-label="Boards" data-init={ navSecInit("Boards") } data-on:toggle={ navSecSave("Boards") }>
+				<summary><h3>Boards</h3></summary>
 				@DrawerBoards(d.Name, d.Meta, d.Tabs)
 				@newBoardRow()
-			</section>
-			<section class="nav-sec" aria-label="Books">
-				<h3>Books</h3>
+			</details>
+			<details class="nav-sec" open aria-label="Books" data-init={ navSecInit("Books") } data-on:toggle={ navSecSave("Books") }>
+				<summary><h3>Books</h3></summary>
 				<a href="/#books">
 					@Icon("home")
 					Your books
 				</a>
 				@newBookRow()
-			</section>
+			</details>
 			@learnSection()
-			<section class="nav-sec" aria-label="This board">
-				<h3>This board</h3>
+			<details class="nav-sec" open aria-label="This board" data-init={ navSecInit("This board") } data-on:toggle={ navSecSave("This board") }>
+				<summary><h3>This board</h3></summary>
 				<a href={ templ.SafeURL("/b/" + d.Name + "/print") }>
 					@Icon("printer")
 					Print
@@ -345,7 +348,7 @@ templ navDrawer(d BoardData) {
 					@Icon("keys")
 					Keyboard shortcuts
 				</button>
-			</section>
+			</details>
 		</nav>
 		<p class="fine"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
 	</aside>

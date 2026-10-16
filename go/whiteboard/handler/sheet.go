@@ -36,6 +36,7 @@ func (h *Handler) sheetRoutes(r chi.Router) {
 	r.Post("/b/{name}/sendpage", h.sendPage)
 	r.Post("/b/{name}/editpage/{no}", h.editPage)
 	r.Post("/b/{name}/newpage", h.newPage)
+	r.Post("/b/{name}/deletepage", h.deletePage)
 	r.Get("/book/{name}/page/{no}", h.sheetPage)
 	r.Post("/book/{name}/sheet/{id}/remove", h.removeSheet)
 }
@@ -166,6 +167,34 @@ func (h *Handler) editPage(w http.ResponseWriter, r *http.Request) {
 	}
 	h.stopRun(n) // another page: the lesson on the last one ends
 	ack.Saved(datastar.NewSSE(w, r), "sheet", "Page "+strconv.Itoa(no)+" is back on the whiteboard")
+}
+
+// deletePage takes the page on the whiteboard out of the book, and turns
+// to a clean page.
+func (h *Handler) deletePage(w http.ResponseWriter, r *http.Request) {
+	n, _, meta, s, ok := h.teacher(w, r)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	book, err := h.DB.Book(ctx, h.DB.WhiteboardBook(ctx, meta.ID))
+	if err != nil {
+		ack.Bad(datastar.NewSSE(w, r), "sheet", "No book here")
+		return
+	}
+	id, no := h.DB.Editing(ctx, book.ID)
+	if id == 0 {
+		ack.Bad(datastar.NewSSE(w, r), "sheet", "No page on the whiteboard")
+		return
+	}
+	h.stopRun(n) // its lesson, if it was playing
+	if err := h.DB.RemoveSheet(ctx, book.ID, id); err != nil {
+		slog.Error("delete page", "board", n, "err", err)
+		ack.Bad(datastar.NewSSE(w, r), "sheet", "Not deleted")
+		return
+	}
+	h.turnPage(r, n, s.UID, book.ID)
+	ack.Saved(datastar.NewSSE(w, r), "sheet", "Page "+strconv.Itoa(no)+" deleted")
 }
 
 // newPage leaves a page being changed as it was, and turns to a clean one.

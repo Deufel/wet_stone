@@ -220,3 +220,13 @@ func pick(tool int) string { return "$tool = " + string(rune('0'+tool)) }
 func sketchPost(name string) string {
 	return "@post('/b/" + name + "/sketch', {payload: {text: $_sketch, inst: $inst}}); $_sketch = ''; setTimeout(() => document.getElementById('sketch-menu')?.hidePopover(), 1200)"
 }
+
+// navSecInit and navSecSave keep a drawer section open or closed, as this
+// viewer left it (their browser only: a convenience, not state).
+func navSecInit(label string) string {
+	return "try { if (localStorage.getItem('nav:" + label + "') === 'closed') el.open = false } catch {}"
+}
+
+func navSecSave(label string) string {
+	return "try { localStorage.setItem('nav:" + label + "', el.open ? 'open' : 'closed') } catch {}"
+}

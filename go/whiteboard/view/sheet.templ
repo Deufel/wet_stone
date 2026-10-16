@@ -74,6 +74,10 @@ templ PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing 
 				<span>{ "Save page " + strconv.Itoa(editing) }</span>
 			</button>
 			<button class="sec" data-on:click={ postKept(name, "newpage") } title={ "Leave page " + strconv.Itoa(editing) + " as it was and start a clean page" }>New page</button>
+			<button class="sec dgr" data-on:click={ "$_delpage = " + strconv.Itoa(editing) + "; document.getElementById('delete-page-confirm').showModal()" } title={ "Delete page " + strconv.Itoa(editing) + " from the book" }>
+				@Icon("trash")
+				<span>{ "Delete page " + strconv.Itoa(editing) }</span>
+			</button>
 		} else if owner {
 			<button class="send-page" data-on:click={ postKept(name, "sendpage") } title="Save the whole whiteboard as the book's next page, and turn to a clean one">
 				@Icon("book")
@@ -208,4 +212,21 @@ templ mathAssets() {
 	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Math&display=swap"/>
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/temml@0.14.0/dist/Temml-Local.css"/>
 	<script src="https://cdn.jsdelivr.net/npm/temml@0.14.0/dist/temml.min.js"></script>
+}
+
+// deletePageDialog asks before the page on the whiteboard leaves the book
+// ($_delpage names it). Outside the strip's morph target: an update never
+// closes it under the teacher's hand.
+templ deletePageDialog(name string) {
+	<dialog id="delete-page-confirm" class="modal content-1 confirm" closedby="any" aria-label="Delete the page" data-signals__ifmissing="{_delpage: 0}">
+		<h2>Delete page <span data-text="$_delpage"></span>?</h2>
+		<p>It leaves the book, and the pages after it move up. The whiteboard turns to a clean page; its history keeps the drawing.</p>
+		<div class="row end">
+			<button data-on:click="document.getElementById('delete-page-confirm').close()" autofocus>Cancel</button>
+			<button class="dgr" data-on:click={ postKept(name, "deletepage") + "; document.getElementById('delete-page-confirm').close()" }>
+				@Icon("trash")
+				Delete
+			</button>
+		</div>
+	</dialog>
 }
