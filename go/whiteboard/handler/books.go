@@ -9,8 +9,8 @@ import (
 
 	"whiteboard/ack"
 	"whiteboard/auth"
-	"whiteboard/bus"
 	"whiteboard/board"
+	"whiteboard/bus"
 	"whiteboard/db"
 	"whiteboard/view"
 
