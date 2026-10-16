@@ -113,12 +113,15 @@
      grid is restated here, where it wins) */
   :where(.tool) { display: inline-grid; grid-template-areas: "stack"; inline-size: 2.4em; block-size: 2.4em; aspect-ratio: 1; padding: 0; min-inline-size: 0; min-block-size: 0; place-items: center; overflow: visible; flex: none; }
   :where(.tool) > :where(svg) { inline-size: 1.1em; block-size: 1.1em; }
-  :where(.tool) > :where(kbd) {
+  :where(.tool) > :where(kbd, .keys) {
     justify-self: end; align-self: start; translate: 40% -40%; z-index: 2;
     --type: -3; min-block-size: 1.3em; min-inline-size: 1.3em; padding-inline: 0.25em; margin: 0; border-block-end-width: 1px;
     --bg: 0.15; background-color: var(--_bg); opacity: 0; pointer-events: none; transition: opacity calc(var(--cfg-motion) * 0.12s);
   }
-  :where(.tool):where(:hover, :focus-visible) > :where(kbd) { opacity: 1; }
+  :where(.tool):where(:hover, :focus-visible) > :where(kbd, .keys) { opacity: 1; }
+  /* a chord: its keycaps side by side, each its own cap (the wrapper is no cap) */
+  :where(.tool) > :where(.keys) { display: inline-flex; gap: 1px; min-block-size: 0; min-inline-size: 0; padding: 0; background: none; --bg: initial; justify-self: center; translate: 0 -55%; }
+  :where(.tool) > :where(.keys) > :where(kbd) { --type: -3; min-block-size: 1.3em; min-inline-size: 1.3em; padding-inline: 0.25em; margin: 0; border-block-end-width: 1px; --bg: 0.15; background-color: var(--_bg); }
   :where(.board-panel) :where(button.icon) > :where(svg, span > svg) { inline-size: 1em; block-size: 1em; }
   :where(.panel-menus) { gap: 0.15em; }
   :where(.tool-now) { --lift: 0.14; }
@@ -437,6 +440,9 @@
     border: 1px solid var(--border); border-block-end-width: 2px; border-radius: calc(var(--cfg-radius, .5rem) * 0.6);
     --type: -1; line-height: 1; vertical-align: 0.05em;
   }
+  /* a modifier's cap reads as printed on a real one: a word set tight */
+  :where(kbd.mod) { font-family: var(--font-ui, system-ui, sans-serif); letter-spacing: -0.05em; padding-inline: 0.2em; }
+  :where(kbd) + :where(kbd) { margin-inline-start: 0.12em; }
 }
 
 /* utility: mike.css's .oneline stops a row wrapping; here it also keeps the

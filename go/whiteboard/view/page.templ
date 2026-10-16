@@ -199,7 +199,7 @@ templ toolRail(name string, student bool) {
 			</button>
 			<button class="tool stack sec" data-on:click={ post(name, "ungroup") } data-attr:disabled="!$grouped" aria-label="Ungroup" title="Ungroup">
 				@Icon("ungroup")
-				<kbd>⇧G</kbd>
+				<span class="keys"><kbd class="mod">shift</kbd><kbd>G</kbd></span>
 			</button>
 			<button class="tool stack sec" data-on:click={ post(name, "delete") } data-attr:disabled="$nsel < 1" aria-label="Delete" title="Delete">
 				@Icon("trash")
@@ -213,15 +213,15 @@ templ toolRail(name string, student bool) {
 		<div class="button-group tools rail-sec" role="toolbar" aria-label="History">
 			<button class="tool stack sec" data-on:click={ postKept(name, "undo") } aria-label="Undo" title="Undo (Ctrl Z)">
 				@Icon("undo")
-				<kbd>⌃Z</kbd>
+				<span class="keys"><kbd class="mod">ctrl</kbd><kbd>Z</kbd></span>
 			</button>
 			<button class="tool stack sec" data-on:click={ postKept(name, "redo") } aria-label="Redo" title="Redo (Ctrl R)">
 				@Icon("redo")
-				<kbd>⌃R</kbd>
+				<span class="keys"><kbd class="mod">ctrl</kbd><kbd>R</kbd></span>
 			</button>
-			<button class="tool stack sec" popovertarget="history-drawer" aria-label="History" title="History (⇧H)">
+			<button class="tool stack sec" popovertarget="history-drawer" aria-label="History" title="History (Shift H)">
 				@Icon("history")
-				<kbd>⇧H</kbd>
+				<span class="keys"><kbd class="mod">shift</kbd><kbd>H</kbd></span>
 			</button>
 		</div>
 		<!-- at the foot: the page (send, or save the page back on the
@@ -500,7 +500,7 @@ templ keysDialog() {
 		<dl class="keylist">
 			<dt><kbd>R</kbd> <kbd>L</kbd> <kbd>A</kbd> <kbd>5</kbd> <kbd>P</kbd></dt>
 			<dd>box, line, arrow, laser, pen</dd>
-			<dt><kbd>Ctrl</kbd> <kbd>Z</kbd> · <kbd>Ctrl</kbd> <kbd>R</kbd></dt>
+			<dt><kbd class="mod">ctrl</kbd><kbd>Z</kbd> · <kbd class="mod">ctrl</kbd><kbd>R</kbd></dt>
 			<dd>undo · redo</dd>
 			<dt><kbd>Esc</kbd></dt>
 			<dd>the select tool</dd>
@@ -508,11 +508,11 @@ templ keysDialog() {
 			<dd>nudge the selection (in the select tool); the arrows anywhere</dd>
 			<dt><kbd>Enter</kbd></dt>
 			<dd>label the selected shape; Enter again to finish</dd>
-			<dt><kbd>G</kbd> · <kbd>⇧</kbd> <kbd>G</kbd></dt>
+			<dt><kbd>G</kbd> · <kbd class="mod">shift</kbd><kbd>G</kbd></dt>
 			<dd>group · ungroup</dd>
 			<dt><kbd>Del</kbd></dt>
 			<dd>delete the selection</dd>
-			<dt><kbd>⇧</kbd> <kbd>H</kbd></dt>
+			<dt><kbd class="mod">shift</kbd><kbd>H</kbd></dt>
 			<dd>show or hide the history</dd>
 			<dt><kbd>F</kbd></dt>
 			<dd>the whiteboard full screen, or back</dd>
