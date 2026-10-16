@@ -51,3 +51,29 @@ func TestLessonAskValidate(t *testing.T) {
 		t.Fatal("same")
 	}
 }
+
+// The pen's points are filled in: no gap wider than a few units, and every
+// point the script gave is on the stroke.
+func TestDensify(t *testing.T) {
+	in := [][2]int32{{100, 100}, {300, 100}, {300, 400}}
+	out := densify(in, penStep)
+	for i := 1; i < len(out); i++ {
+		dx, dy := out[i][0]-out[i-1][0], out[i][1]-out[i-1][1]
+		if dx*dx+dy*dy > 12*12 {
+			t.Fatalf("gap at %d: %v → %v", i, out[i-1], out[i])
+		}
+	}
+	has := func(p [2]int32) bool {
+		for _, q := range out {
+			if q == p {
+				return true
+			}
+		}
+		return false
+	}
+	for _, p := range in {
+		if !has(p) {
+			t.Fatalf("%v is not on the stroke", p)
+		}
+	}
+}

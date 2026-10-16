@@ -485,8 +485,12 @@ func labelMax(text string) int {
 // same compares answers loosely: case and surrounding space aside.
 func same(a, b string) bool { return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b)) }
 
-// pen draws a stroke through the points, at a hand's pace.
+// pen draws a stroke through the points, at a hand's pace. The points a
+// script gives are few and far apart; the pen is sampled densely along a
+// smooth curve through them (Catmull-Rom), so the board's own smoothing has
+// a real line to follow instead of rounding off corners between sparse ones.
 func (p *presenter) pen(points [][2]int32) {
+	points = densify(points, penStep)
 	p.glide(0, points[0][0], points[0][1], 0)
 	p.seq++
 	down := p.seq
@@ -495,10 +499,49 @@ func (p *presenter) pen(points [][2]int32) {
 		p.seq++
 		p.x, p.y = pt[0], pt[1]
 		p.cmd(board.Cmd{Op: "move", Tool: 5, Seq: p.seq, DSeq: down, X: pt[0], Y: pt[1]})
-		p.pause(24 * time.Millisecond)
+		p.pause(penBeat)
 	}
 	p.seq++
 	p.cmd(board.Cmd{Op: "up", Tool: 5, Seq: p.seq, DSeq: down, X: p.x, Y: p.y})
+}
+
+// The presenter's pen: a sample every penStep board units, one every penBeat
+// (about 330 units a second at pace 1: a steady hand).
+const (
+	penStep = 6
+	penBeat = 18 * time.Millisecond
+)
+
+// densify samples a Catmull-Rom curve through pts every ~step units; the
+// ends and every given point stay on it.
+func densify(pts [][2]int32, step float64) [][2]int32 {
+	if len(pts) < 2 {
+		return pts
+	}
+	at := func(i int) (float64, float64) {
+		i = min(max(i, 0), len(pts)-1)
+		return float64(pts[i][0]), float64(pts[i][1])
+	}
+	out := [][2]int32{pts[0]}
+	for i := 0; i+1 < len(pts); i++ {
+		x0, y0 := at(i - 1)
+		x1, y1 := at(i)
+		x2, y2 := at(i + 1)
+		x3, y3 := at(i + 2)
+		n := max(1, int(math.Ceil(math.Hypot(x2-x1, y2-y1)/step)))
+		for k := 1; k <= n; k++ {
+			t := float64(k) / float64(n)
+			t2, t3 := t*t, t*t*t
+			cr := func(a, b, c, d float64) float64 {
+				return 0.5 * (2*b + (-a+c)*t + (2*a-5*b+4*c-d)*t2 + (-a+3*b-3*c+d)*t3)
+			}
+			pt := onBoard(int32(math.Round(cr(x0, x1, x2, x3))), int32(math.Round(cr(y0, y1, y2, y3))))
+			if pt != out[len(out)-1] {
+				out = append(out, pt)
+			}
+		}
+	}
+	return out
 }
 
 // ring loops the pen round (cx, cy): rx across, ry down (ry 0: r*0.6), a
