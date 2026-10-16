@@ -639,7 +639,7 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request) {
 	case "link":
 		c.X, c.Y = clamp(s.Lx, 0, board.W), clamp(s.Ly, 0, board.H) // the double-click's own coordinate
 	case "label":
-		c.Shape, c.Label = s.Sel, cleanText(s.Label, board.LabelMax)
+		c.Shape, c.Label = s.Sel, cleanLabel(s.Label)
 	}
 	if err := h.Hub.Apply(r.Context(), n, c); err != nil {
 		slog.Error("command", "board", n, "op", op, "err", err)
@@ -893,6 +893,31 @@ func renderString(r *http.Request, c templ.Component) string {
 }
 
 // Control characters dropped, capped at max bytes on a rune boundary.
+// cleanLabel: a plain label is one short line; a code block (```lang …)
+// keeps its lines and indentation, up to CodeMax.
+func cleanLabel(s string) string {
+	if !board.IsCode(strings.TrimSpace(s)) {
+		return cleanText(s, board.LabelMax)
+	}
+	s = strings.TrimSpace(strings.ReplaceAll(s, "\r", ""))
+	out := make([]rune, 0, len(s))
+	n := 0
+	for _, c := range s {
+		if c == '\t' {
+			c = ' ' // tabs as spaces: the box is narrow
+		}
+		if (c < 32 && c != '\n') || c == 127 {
+			continue
+		}
+		if n+len(string(c)) > board.CodeMax {
+			break
+		}
+		n += len(string(c))
+		out = append(out, c)
+	}
+	return string(out)
+}
+
 func cleanText(s string, max int) string {
 	s = strings.TrimSpace(s)
 	out := make([]rune, 0, len(s))

@@ -147,8 +147,13 @@ func (p *presenter) label(text string) {
 		p.cmd(board.Cmd{Op: "label", Shape: sel, Label: text})
 		return
 	}
-	// typed a few letters at a time, as the label field sends them
-	for i := 3; i < len(text); i += 3 {
+	// typed a few letters at a time, as the label field sends them (code a
+	// line's worth)
+	step := 3
+	if board.IsCode(text) {
+		step = 14
+	}
+	for i := step; i < len(text); i += step {
 		p.cmd(board.Cmd{Op: "label", Shape: sel, Label: text[:i]})
 		p.pause(45 * time.Millisecond)
 	}

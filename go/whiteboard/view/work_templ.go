@@ -504,7 +504,7 @@ func doneLine(t db.Todo) string {
 // ─── Notes ──────────────────────────────────────────────────────────────────
 
 // noteLangs are the highlighter's languages (static/highlight.js).
-var noteLangs = []string{"css", "html", "python", "javascript", "go", "sqlite"}
+var noteLangs = []string{"css", "html", "python", "javascript", "go", "sqlite", "odin", "mojo"}
 
 // NoteLang reports whether l is a language the notes can be highlighted as.
 func NoteLang(l string) bool {

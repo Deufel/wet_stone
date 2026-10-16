@@ -105,14 +105,19 @@ func onUp(name string) string {
 // keeps a change of $label from reopening it.
 const labelBoxStyle = "{left: $lbox[0] / 10 + '%', top: $lbox[1] / 10 + '%', width: $lbox[2] / 10 + '%', height: $lbox[3] / 10 + '%'}"
 
-const labelOpen = "if ($edit > 0 && $edit !== el._seen) { el._seen = $edit; $_ledit = true; el.textContent = $label; " +
+const labelOpen = "if ($edit > 0 && $edit !== el._seen) { el._seen = $edit; $_ledit = true; el.textContent = $label; el.classList.toggle('code', $label.startsWith('```')); " +
 	"requestAnimationFrame(() => { el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r) }) }"
 
 // Enter or leaving the editor saves; Esc puts it back. Its keys stop here.
-const labelKeys = "evt.stopPropagation(); if (evt.key === 'Enter') { evt.preventDefault(); el.blur() } else if (evt.key === 'Escape') { evt.preventDefault(); el._cancel = true; el.blur() }"
+// In a code block (a label that starts ```), Enter is a new line and Tab
+// indents; Ctrl Enter or leaving saves.
+const labelKeys = "evt.stopPropagation(); const code = el.innerText.trimStart().startsWith('```'); " +
+	"if (evt.key === 'Enter' && (!code || evt.ctrlKey || evt.metaKey)) { evt.preventDefault(); el.blur() } " +
+	"else if (code && evt.key === 'Tab') { evt.preventDefault(); document.execCommand('insertText', false, '    ') } " +
+	"else if (evt.key === 'Escape') { evt.preventDefault(); el._cancel = true; el.blur() }"
 
 func labelCommit(name string) string {
-	return "if ($_ledit) { $_ledit = false; const t = el.textContent.replace(/\\s+/g, ' ').trim().slice(0, 48); " +
+	return "if ($_ledit) { $_ledit = false; const raw = el.innerText; const t = raw.trimStart().startsWith('```') ? raw.trim().slice(0, 1500) : raw.replace(/\\s+/g, ' ').trim().slice(0, 48); " +
 		"if (!el._cancel && t !== $label) { $label = t; " + postKept(name, "label") + " } el._cancel = false }"
 }
 

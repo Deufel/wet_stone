@@ -197,6 +197,7 @@ templ boardCard(name string) {
 					data-style={ labelBoxStyle }
 					data-effect={ labelOpen }
 					data-on:keydown={ labelKeys }
+					data-on:input="el.classList.toggle('code', el.innerText.trimStart().startsWith('```'))"
 					data-on:blur={ labelCommit(name) }
 					data-on:pointerdown="evt.stopPropagation()"
 				></div>

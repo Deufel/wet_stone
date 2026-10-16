@@ -1,6 +1,6 @@
 // v1.3 🎨 highlight.js — Custom Highlight API syntax highlighting
 // Pattern: <pre><code class="language">…</code></pre>
-// Languages registered: css, html, python, javascript, go, sqlite
+// Languages registered: css, html, python, javascript, go, sqlite, odin, mojo
 // By: Michael Deufel
 
 if (typeof window !== 'undefined' && window.__highlightLoaded) {
@@ -121,6 +121,56 @@ const GO_LANG = [
   ['go-punctuation', /[{}()[\],;.:]/g],
 ];
 
+const ODIN_KEYWORDS =
+  'asm|auto_cast|bit_field|bit_set|break|case|cast|context|continue|defer|distinct|do|dynamic|'
+  + 'else|enum|fallthrough|for|foreign|if|import|in|map|matrix|not_in|or_break|or_continue|'
+  + 'or_else|or_return|package|proc|return|struct|switch|transmute|union|using|when|where';
+
+const ODIN_BUILTINS =
+  'true|false|nil|bool|b8|b16|b32|b64|int|i8|i16|i32|i64|i128|uint|u8|u16|u32|u64|u128|uintptr|'
+  + 'f16|f32|f64|complex32|complex64|complex128|quaternion64|quaternion128|quaternion256|'
+  + 'rune|string|cstring|rawptr|any|typeid|byte|'
+  + 'len|cap|size_of|align_of|offset_of|type_of|type_info_of|typeid_of|swizzle|'
+  + 'make|new|delete|free|append|clear|resize|reserve|copy|min|max|abs|clamp|panic|assert|unreachable';
+
+const ODIN_LANG = [
+  ['odin-string',      /`[^`]*`/g],
+  ['odin-string',      /"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/g],
+  ['odin-comment',     /\/\/[^\n]*|\/\*[\s\S]*?\*\//g],
+  // directives (#partial, #no_bounds_check) and attributes (@(private))
+  ['odin-directive',   /#[a-zA-Z_]\w*|@\(?[\w, ="]*\)?/g],
+  // name :: proc — a procedure; name :: struct/enum/union/distinct — a type
+  ['odin-function',    /[a-zA-Z_]\w*(?=\s*::\s*(?:#\w+\s+)?proc\b)/g],
+  ['odin-class',       /[a-zA-Z_]\w*(?=\s*::\s*(?:struct|enum|union|distinct|bit_set|bit_field)\b)/g],
+  ['odin-keyword',     new RegExp(`\\b(?:${ODIN_KEYWORDS})\\b`, 'g')],
+  ['odin-builtin',     new RegExp(`\\b(?:${ODIN_BUILTINS})\\b`, 'g')],
+  ['odin-number',      /\b(?:0[xX][\da-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?[ijk]?)\b/g],
+  ['odin-operator',    /::|:=|->|\.\.[<=]|\.\.\.|==|!=|<=|>=|&&|\|\||<<|>>|&~|%%|[+\-*\/%&|~^<>=!?]/g],
+  ['odin-punctuation', /[{}()[\],;.:^]/g],
+];
+
+const MOJO_KEYWORDS = PY_KEYWORDS
+  + '|fn|struct|trait|var|alias|inout|owned|borrowed|raises|ref|out|mut|read|deinit|capturing|comptime';
+
+const MOJO_BUILTINS = PY_BUILTINS
+  + '|Int|UInt|Int8|Int16|Int32|Int64|UInt8|UInt16|UInt32|UInt64|Float16|Float32|Float64|'
+  + 'Bool|String|StringLiteral|SIMD|DType|List|Dict|Set|Optional|Tuple|Self|Pointer|UnsafePointer|'
+  + 'Span|Variant|Scalar|AnyType|Movable|Copyable|Stringable|Sized';
+
+const MOJO_LANG = [
+  ['mojo-string',      /(?:[fFrRbB]{1,2})?(?:"""[\s\S]*?"""|'''[\s\S]*?''')/g],
+  ['mojo-string',      /(?:[fFrRbB]{1,2})?(?:"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*')/g],
+  ['mojo-comment',     /#[^\n]*/g],
+  ['mojo-decorator',   /@[\w.]+/g],
+  ['mojo-function',    /(?<=\b(?:def|fn)\s+)[a-zA-Z_]\w*/g],
+  ['mojo-class',       /(?<=\b(?:class|struct|trait)\s+)[a-zA-Z_]\w*/g],
+  ['mojo-keyword',     new RegExp(`\\b(?:${MOJO_KEYWORDS})\\b`, 'g')],
+  ['mojo-builtin',     new RegExp(`\\b(?:${MOJO_BUILTINS})\\b`, 'g')],
+  ['mojo-number',      /\b(?:0[xX][\da-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?)\b/g],
+  ['mojo-operator',    /->|:=|==|!=|<=|>=|\*\*|\/\/|<<|>>|[+\-*\/%<>=&|^~]/g],
+  ['mojo-punctuation', /[{}()[\],;:]/g],
+];
+
 // SQL is case-insensitive, so keyword/type/function patterns carry the `i` flag.
 const SQLITE_KEYWORDS =
   'ABORT|ACTION|ADD|AFTER|ALL|ALTER|ALWAYS|ANALYZE|AND|AS|ASC|ATTACH|'
@@ -188,6 +238,8 @@ const languages = new Map([
   ['javascript', JAVASCRIPT_LANG],
   ['go',         GO_LANG],
   ['sqlite',     SQLITE_LANG],
+  ['odin',       ODIN_LANG],
+  ['mojo',       MOJO_LANG],
 ]);
 
 function allTokenNames() {

@@ -32,7 +32,7 @@ PAGE:
  "checklist": ["…", "…"],              // 3–6 short points: the page's outline, shown first
  "steps": [STEP, …]}
 
-notes.lang is one of: go, python, javascript, sqlite, css, html, or "" for prose.
+notes.lang is one of: go, python, javascript, sqlite, css, html, odin, mojo, or "" for prose.
 Lines are at most ~64 characters; put comments in the code to explain it.
 
 ` + stepsSpec + `
@@ -76,6 +76,9 @@ const stepsSpec = `STEPS (coordinates are board units: the board is 1000 × 1000
                                                            arrow, its middle)
  {"do": "erase"}                                           wipes the whole board: a fresh start mid-page
  {"do": "penarrow", "from": [x, y], "to": [x, y]}         an arrow drawn by hand (pen)
+ {"do": "code", "at": [x1, y1, x2, y2], "lang": "go",     a code block on the board, typed in and
+  "text": "s := []int{1, 2}\ns = append(s, 3)"}          highlighted (monospace, 15 units a line,
+                                                           ~9 units a character): size the box to fit
  {"do": "say", "text": "…"}                               the presenter speaks: a caption over the board,
                                                            held as long as it takes to read (≤ 240 bytes)
  {"do": "notes", "n": 5}                                   shows the first n lines of the notes

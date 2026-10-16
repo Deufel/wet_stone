@@ -34,6 +34,7 @@ import (
 //	    {"do": "erase", "at": [x, y]},                     // the shape there; no at: the whole board
 //	    {"do": "penarrow", "from": [x, y], "to": [x, y]},  // an arrow by hand
 //	    {"do": "say", "text": "…"},                        // a caption over the board
+//	    {"do": "code", "at": [x1, y1, x2, y2], "lang": "go", "text": "…"}, // a code block, typed in
 //	    {"do": "laser", "at": [cx, cy], "r": 120},
 //	    {"do": "click", "at": [x, y]},  {"do": "dblclick", "at": [x, y]},
 //	    {"do": "drag", "from": [x, y], "to": [x, y]},     // select tool
@@ -73,6 +74,7 @@ type Step struct {
 	By     []int8     `json:"by,omitempty"`
 	Label  string     `json:"label,omitempty"`
 	Text   string     `json:"text,omitempty"`
+	Lang   string     `json:"lang,omitempty"` // a code block's language
 	Item   string     `json:"item,omitempty"`
 	N      int        `json:"n,omitempty"`
 	Ms     int        `json:"ms,omitempty"`
@@ -99,7 +101,7 @@ func (l *Lesson) Validate() error {
 		return fmt.Errorf("pace %v: 0 to 5", l.Pace)
 	}
 	if l.Notes != nil && !view.NoteLang(l.Notes.Lang) {
-		return fmt.Errorf("notes lang %q: one of css, html, python, javascript, go, sqlite, or none", l.Notes.Lang)
+		return fmt.Errorf("notes lang %q: one of css, html, python, javascript, go, sqlite, odin, mojo, or none", l.Notes.Lang)
 	}
 	if len(l.Checklist) > 12 {
 		return fmt.Errorf("checklist: at most 12 items")
@@ -157,8 +159,18 @@ func (l *Lesson) check(steps []Step, at string) error {
 				return bad("at: [x, y] on the board")
 			}
 		case "label":
-			if len(s.Text) > board.LabelMax {
-				return bad(fmt.Sprintf("text: at most %d bytes", board.LabelMax))
+			if max := labelMax(s.Text); len(s.Text) > max {
+				return bad(fmt.Sprintf("text: at most %d bytes", max))
+			}
+		case "code":
+			if !in(s.At, 4) {
+				return bad("at: [x1, y1, x2, y2] on the board")
+			}
+			if strings.TrimSpace(s.Text) == "" || len(s.Text)+len(s.Lang)+4 > board.CodeMax {
+				return bad(fmt.Sprintf("text: the code, at most %d bytes", board.CodeMax-20))
+			}
+			if s.Lang != "" && !view.NoteLang(s.Lang) {
+				return bad("lang: one of css, html, python, javascript, go, sqlite, odin, mojo")
 			}
 		case "group", "ungroup", "delete":
 		case "nudge":
@@ -296,6 +308,8 @@ func (pl *player) run(steps []Step) {
 		switch s.Do {
 		case "box":
 			p.box(s.At[0], s.At[1], s.At[2], s.At[3], s.Label)
+		case "code":
+			p.box(s.At[0], s.At[1], s.At[2], s.At[3], "```"+s.Lang+"\n"+s.Text)
 		case "arrow":
 			p.stroke(3, s.From[0], s.From[1], s.To[0], s.To[1])
 		case "line":
@@ -458,6 +472,14 @@ func (p *presenter) penarrow(x1, y1, x2, y2 int32) {
 		return onBoard(x2-int32(head*(ux*0.87-side*uy*0.5)), y2-int32(head*(uy*0.87+side*ux*0.5)))
 	}
 	p.pen([][2]int32{wing(1), {x2, y2}, wing(-1)})
+}
+
+// labelMax: a code block's label may be long; a plain one is a few words.
+func labelMax(text string) int {
+	if board.IsCode(text) {
+		return board.CodeMax
+	}
+	return board.LabelMax
 }
 
 // same compares answers loosely: case and surrounding space aside.

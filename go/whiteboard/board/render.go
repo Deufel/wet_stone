@@ -111,6 +111,9 @@ func (b *Board) onLabel(s *Shape, x, y int32) bool {
 		return false
 	}
 	box := b.labelBox(s)
+	if IsCode(s.Label) { // a code block is all label: a click in it edits
+		return x >= box[0] && x <= box[0]+box[2] && y >= box[1] && y <= box[1]+box[3]
+	}
 	cx, cy := box[0]+box[2]/2, box[1]+box[3]/2
 	width := n*15 + 16
 	lines := int32(1)
@@ -125,6 +128,10 @@ func (b *Board) onLabel(s *Shape, x, y int32) bool {
 func (w *writer) label(s *Shape, box [4]int32) {
 	x, y, width, height := box[0], box[1], box[2], box[3]
 	if s.Label == "" {
+		return
+	}
+	if IsCode(s.Label) {
+		w.code(s, box)
 		return
 	}
 	w.s("<foreignObject")
