@@ -324,22 +324,31 @@ templ navDrawer(d BoardData) {
 				@Icon("home")
 				Home
 			</a>
-			<details class="nav-sec" open aria-label="Boards" data-init={ navSecInit("Boards") } data-on:toggle={ navSecSave("Boards") }>
-				<summary><h3>Boards</h3></summary>
+			<section class="nav-sec" aria-label="Boards" data-init={ navSecInit("Boards") }>
+				<button class="nav-sec-head" aria-expanded="true" data-on:click={ navSecToggle("Boards") }>
+					<h3>Boards</h3>
+					@Icon("chevron")
+				</button>
 				@DrawerBoards(d.Name, d.Meta, d.Tabs)
 				@newBoardRow()
-			</details>
-			<details class="nav-sec" open aria-label="Books" data-init={ navSecInit("Books") } data-on:toggle={ navSecSave("Books") }>
-				<summary><h3>Books</h3></summary>
+			</section>
+			<section class="nav-sec" aria-label="Books" data-init={ navSecInit("Books") }>
+				<button class="nav-sec-head" aria-expanded="true" data-on:click={ navSecToggle("Books") }>
+					<h3>Books</h3>
+					@Icon("chevron")
+				</button>
 				<a href="/#books">
 					@Icon("home")
 					Your books
 				</a>
 				@newBookRow()
-			</details>
+			</section>
 			@learnSection()
-			<details class="nav-sec" open aria-label="This board" data-init={ navSecInit("This board") } data-on:toggle={ navSecSave("This board") }>
-				<summary><h3>This board</h3></summary>
+			<section class="nav-sec" aria-label="This board" data-init={ navSecInit("This board") }>
+				<button class="nav-sec-head" aria-expanded="true" data-on:click={ navSecToggle("This board") }>
+					<h3>This board</h3>
+					@Icon("chevron")
+				</button>
 				<a href={ templ.SafeURL("/b/" + d.Name + "/print") }>
 					@Icon("printer")
 					Print
@@ -348,7 +357,7 @@ templ navDrawer(d BoardData) {
 					@Icon("keys")
 					Keyboard shortcuts
 				</button>
-			</details>
+			</section>
 		</nav>
 		<p class="fine"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
 	</aside>

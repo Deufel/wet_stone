@@ -221,12 +221,14 @@ func sketchPost(name string) string {
 	return "@post('/b/" + name + "/sketch', {payload: {text: $_sketch, inst: $inst}}); $_sketch = ''; setTimeout(() => document.getElementById('sketch-menu')?.hidePopover(), 1200)"
 }
 
-// navSecInit and navSecSave keep a drawer section open or closed, as this
-// viewer left it (their browser only: a convenience, not state).
+// navSecInit and navSecToggle fold a drawer section and keep it as this
+// viewer left it (their browser only: a convenience, not state). Closed, it
+// carries data-closed; its header button says so (aria-expanded).
 func navSecInit(label string) string {
-	return "try { if (localStorage.getItem('nav:" + label + "') === 'closed') el.open = false } catch {}"
+	return "try { if (localStorage.getItem('nav:" + label + "') === 'closed') { el.setAttribute('data-closed', ''); el.querySelector('.nav-sec-head').setAttribute('aria-expanded', 'false') } } catch {}"
 }
 
-func navSecSave(label string) string {
-	return "try { localStorage.setItem('nav:" + label + "', el.open ? 'open' : 'closed') } catch {}"
+func navSecToggle(label string) string {
+	return "const sec = el.parentElement, closed = sec.toggleAttribute('data-closed'); el.setAttribute('aria-expanded', String(!closed)); " +
+		"try { localStorage.setItem('nav:" + label + "', closed ? 'closed' : 'open') } catch {}"
 }
