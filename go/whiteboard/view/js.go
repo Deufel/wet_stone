@@ -50,7 +50,10 @@ func onInit(name string) string {
 func onDown(name string) string {
 	// a press on the board ends an open label edit first (preventDefault keeps
 	// focus where it was, so the editor would never hear its blur)
+	// and leaves no toolbar button holding the focus: the keys that follow
+	// (Enter to label, letters to type) are the board's, not the button's
 	return "if ($_ledit) { document.getElementById('label-edit').blur() } " +
+		"else if (document.activeElement && document.activeElement !== document.body && document.activeElement.closest('.tool-rail, .teach-bar, .panel-menu')) { document.activeElement.blur() } " +
 		"if (evt.button === 0) { evt.preventDefault(); try { el.setPointerCapture(evt.pointerId) } catch {} $_drag = true; " + pointer +
 		"$dseq = $seq; " + postKept(name, "down") + " }"
 }
@@ -97,16 +100,34 @@ func onMove(name string) string {
 }
 
 func onUp(name string) string {
-	return "$_drag = false; " + pointer + postKept(name, "up")
+	// a shape just drawn: its Enter comes before the frame that selects it
+	// an Enter pressed before this up (window._editAfterUp) asks for the
+	// editor once the up has landed: the server has the shape by then
+	return "$_drag = false; if ($tool === 6) { window._lwait = Date.now() } if ([1, 2, 3, 6].includes($tool)) { window._drew = Date.now() } " + pointer +
+		"window._upP = " + postKept(name, "up") + "; " +
+		"if (window._editAfterUp) { window._editAfterUp = false; window._lwait = Date.now(); window._upP.finally(() => " + postKept(name, "editsel") + ") }"
 }
+
+// The editor opens a round trip after the gesture that asks for it (Enter on
+// a selection, a double-click, the code tool's box). Keys typed in between
+// are held (window._lbuf) instead of reaching the shortcuts, and typed into
+// the editor when it opens; an Enter among them saves, as in the editor.
+const holdKeys = "if (window._lwait && Date.now() - window._lwait < 1200 && !evt.ctrlKey && !evt.metaKey && !evt.altKey && (k.length === 1 || k === 'Enter' || k === 'Backspace')) { " +
+	"evt.preventDefault(); window._lbuf = (window._lbuf || '') + (k === 'Enter' ? '\\n' : k === 'Backspace' ? '\\b' : k) }"
 
 // The label editor. It opens when the server bumps $edit (sending the
 // shape's label box, $lbox, and its text, $label) and only then: el._seen
 // keeps a change of $label from reopening it.
 const labelBoxStyle = "{left: $lbox[0] / 10 + '%', top: $lbox[1] * 100 / $_bh + '%', width: $lbox[2] / 10 + '%', height: $lbox[3] * 100 / $_bh + '%'}"
 
-const labelOpen = "if ($edit > 0 && $edit !== el._seen) { el._seen = $edit; $_ledit = true; el.textContent = $label; el.classList.toggle('code', $label.startsWith('```')); " +
-	"requestAnimationFrame(() => { el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r) }) }"
+const labelOpen = "if ($edit > 0 && $edit !== el._seen) { el._seen = $edit; $_ledit = true; " +
+	// what was typed while the editor was on its way, replayed into it; keys
+	// keep being held until it has the focus (a frame later), then those too
+	"const replay = (txt) => { let save = false; const buf = window._lbuf || ''; window._lbuf = ''; " +
+	"for (const c of buf) { if (c === '\\b') { txt = txt.slice(0, -1) } else if (c === '\\n') { if (txt.trimStart().startsWith('```')) { txt += '\\n' } else { save = true; break } } else { txt += c } } return [txt, save] }; " +
+	"window._lwait = Date.now(); let [txt, save] = replay($label); el.textContent = txt; el.classList.toggle('code', txt.trimStart().startsWith('```')); " +
+	"requestAnimationFrame(() => { el.focus(); const [t2, s2] = replay(el.textContent); el.textContent = t2; save = save || s2; window._lwait = 0; " +
+	"el.classList.toggle('code', t2.trimStart().startsWith('```')); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); if (save) { el.blur() } }) }"
 
 // Enter or leaving the editor saves; Esc puts it back. Its keys stop here.
 // In a code block (a label that starts ```), Enter is a new line and Tab
@@ -122,7 +143,7 @@ func labelCommit(name string) string {
 }
 
 func onDblclick(name string) string {
-	return "const r = stage.getBoundingClientRect(); $lx = Math.round((evt.clientX - r.left) * 1000 / r.width); $ly = Math.round((evt.clientY - r.top) * $_bh / r.height); " +
+	return "window._lwait = Date.now(); const r = stage.getBoundingClientRect(); $lx = Math.round((evt.clientX - r.left) * 1000 / r.width); $ly = Math.round((evt.clientY - r.top) * $_bh / r.height); " +
 		postKept(name, "link")
 }
 
@@ -135,6 +156,8 @@ func onKey(name string) string {
 		"const k = evt.key, t = evt.target;",
 		"const d = {ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], h: [-1, 0], j: [0, 1], k: [0, -1], l: [1, 0]}[k];",
 		"if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.isContentEditable) {}",
+		"else if ((($_drag && k !== 'Enter') || (window._lwait && Date.now() - window._lwait < 1200)) && !evt.ctrlKey && !evt.metaKey && !evt.altKey && (k.length === 1 || k === 'Enter' || k === 'Backspace')) { " +
+			"if (!window._lwait || Date.now() - window._lwait >= 1200) { window._lwait = Date.now() } evt.preventDefault(); window._lbuf = (window._lbuf || '') + (k === 'Enter' ? '\\n' : k === 'Backspace' ? '\\b' : k) }",
 		"else if ((evt.ctrlKey || evt.metaKey) && !evt.altKey && (k === 'z' || k === 'Z')) { evt.preventDefault(); " + postKept(name, "undo") + " }",
 		"else if ((evt.ctrlKey || evt.metaKey) && !evt.altKey && (k === 'r' || k === 'y')) { evt.preventDefault(); " + postKept(name, "redo") + " }",
 		"else if (evt.ctrlKey || evt.metaKey || evt.altKey) {}",
@@ -143,7 +166,9 @@ func onKey(name string) string {
 		"else if (k === 'H') { document.getElementById('history-drawer').togglePopover() }",
 		"else if (k === 'f' || k === 'F') { " + fullToggle + " }",
 		"else if (k === 'Escape') { $tool = 0 }",
-		"else if (k === 'Enter' && $sel >= 0) { evt.preventDefault(); " + postKept(name, "editsel") + " }",
+		"else if (k === 'Enter' && $_drag) { evt.preventDefault(); window._editAfterUp = true; window._lwait = Date.now() }",
+		"else if (k === 'Enter' && ($sel >= 0 || Date.now() - (window._drew || 0) < 1500)) { evt.preventDefault(); window._lwait = Date.now(); window._drew = 0; " +
+			"const go = () => " + postKept(name, "editsel") + "; window._upP ? window._upP.finally(go) : go() }",
 		"else if (d && $nsel > 0 && (k.startsWith('Arrow') || $tool === 0)) { evt.preventDefault(); $ndx = d[0]; $ndy = d[1]; " + postKept(name, "nudge") + " }",
 		"else if (k === 'Delete' || k === 'Backspace') { " + post(name, "delete") + " }",
 		"else if (k === 'g') { " + post(name, "group") + " }",
