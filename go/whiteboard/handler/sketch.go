@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"whiteboard/ack"
@@ -22,7 +23,8 @@ import (
 // lesson's vocabulary (no questions, no checklist, no notes), checked like a
 // lesson's, played like one.
 //
-//	POST /b/{name}/sketch   payload {text: the request}
+//	POST /b/{name}/sketch        payload {text: the request}
+//	POST /b/{name}/sketch/stop   Claude stops (thinking or drawing)
 
 const sketchUID = 0xC1A0 // Claude's viewer id on the board
 
@@ -53,21 +55,49 @@ func (h *Handler) sketch(w http.ResponseWriter, r *http.Request) {
 		ack.Bad(datastar.NewSSE(w, r), "sketch", "A lesson is playing here")
 		return
 	}
-	if _, busy := h.sketching.LoadOrStore(n, true); busy {
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
+	if _, busy := h.sketching.LoadOrStore(n, cancel); busy {
+		cancel()
 		ack.Bad(datastar.NewSSE(w, r), "sketch", "Claude is drawing already")
 		return
 	}
+	sketchVersion.Add(1)
 	go func() {
-		defer h.sketching.Delete(n)
-		h.sketchOn(n, apiKey{key, ws}, ask)
+		defer func() {
+			cancel()
+			h.sketching.Delete(n)
+			sketchVersion.Add(1)
+			h.Hub.Publish(n) // the Stop button goes
+		}()
+		h.sketchOn(ctx, n, apiKey{key, ws}, ask)
 	}()
 	ack.Saved(datastar.NewSSE(w, r), "sketch", "Claude is on it…")
 }
 
-// sketchOn asks for the steps and plays them as "Claude".
-func (h *Handler) sketchOn(name string, key apiKey, ask string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
-	defer cancel()
+// sketchStop: Claude stops, wherever it is.
+func (h *Handler) sketchStop(w http.ResponseWriter, r *http.Request) {
+	n, _, _, ok := h.open(w, r, false)
+	if !ok {
+		return
+	}
+	if v, ok := h.sketching.Load(n); ok {
+		v.(context.CancelFunc)()
+	}
+	datastar.NewSSE(w, r)
+}
+
+// sketchVersion counts Claude starting and stopping anywhere: a stream
+// re-sends the Stop button when it moves.
+var sketchVersion atomic.Int64
+
+// sketching: is Claude drawing on the board?
+func (h *Handler) sketchingOn(name string) bool {
+	_, ok := h.sketching.Load(name)
+	return ok
+}
+
+// sketchOn asks for the steps and plays them as "Claude", until ctx ends.
+func (h *Handler) sketchOn(ctx context.Context, name string, key apiKey, ask string) {
 	b, _, err := h.Hub.Board(ctx, name)
 	if err != nil {
 		return
@@ -78,10 +108,16 @@ func (h *Handler) sketchOn(name string, key apiKey, ask string) {
 		b.Leave(sketchUID)
 		h.Hub.Settle(name, nil)
 		h.Hub.Publish(name)
+		if ctx.Err() == context.Canceled {
+			slog.Info("sketch stopped", "board", name)
+		}
 	}()
 	h.Hub.Settle(name, &hub.Ask{Say: "Claude is thinking about: " + short(ask, 120)})
 	steps, err := sketchSteps(ctx, key, b.Snapshot(), ask)
 	p := &presenter{h: h, ctx: ctx, name: name, b: b, uid: sketchUID, x: 980, y: 980, pace: 1}
+	if ctx.Err() != nil {
+		return // stopped while thinking
+	}
 	if err != nil {
 		slog.Error("sketch", "board", name, "err", err)
 		p.say("Couldn't sketch that: " + err.Error())

@@ -638,3 +638,9 @@
   :where(.sketch-menu) > :where(.meta) { margin: 0; --fg: -0.5; --type: -1; }
   :where(.sketch-menu) :where(input) { flex: 1; min-inline-size: 0; }
 }
+
+@layer block {
+  :where(.sketch-stop):where(:empty) { display: none; }
+  :where(.sketch-stop) > :where(button) { display: inline-flex; align-items: center; gap: 0.35em; padding: 0.2lh 0.7em; }
+  :where(.sketch-stop) :where(svg) { inline-size: 0.85em; block-size: 0.85em; }
+}

@@ -69,3 +69,16 @@ func playTitle(st LessonState) string {
 	}
 	return "Play"
 }
+
+// SketchStop: while Claude draws on the board, the way to stop it (anyone
+// on the board may). A morph target on the board's stream.
+templ SketchStop(name string, drawing bool) {
+	<div id="sketch-stop" class="sketch-stop">
+		if drawing {
+			<button class="dgr sec" data-on:click={ "@post('/b/" + name + "/sketch/stop', {requestCancellation: 'disabled'})" } aria-label="Stop Claude drawing" title="Stop Claude drawing">
+				@Icon("square")
+				Stop
+			</button>
+		}
+	</div>
+}

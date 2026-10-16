@@ -155,6 +155,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/b/{name}/lesson/{op}", h.lessonControl)
 	r.Post("/b/{name}/help", h.help)
 	r.Post("/b/{name}/sketch", h.sketch)
+	r.Post("/b/{name}/sketch/stop", h.sketchStop)
 	r.Post("/course/{kind}", h.course)
 	r.Post("/me/key", h.setKey)
 	r.Post("/me/workspace", h.setWorkspace)
@@ -503,7 +504,7 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 		return true
 	}
 	var sentTodo int64
-	sentAsk, sentRun := int64(-1), int64(-1)
+	sentAsk, sentRun, sentSketch := int64(-1), int64(-1), int64(-1)
 	hasLesson := h.DB.HasLesson(r.Context(), meta0.ID)
 	push := func() bool {
 		ctx := r.Context()
@@ -518,6 +519,13 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 				return false
 			}
 			sentAsk = v
+		}
+		// Claude drawing here: its Stop button, while it does
+		if v := sketchVersion.Load(); v != sentSketch {
+			if sse.PatchElements(renderString(r, view.SketchStop(n, h.sketchingOn(n)))) != nil {
+				return false
+			}
+			sentSketch = v
 		}
 		// the lesson's player bar, when the run moves
 		if st := h.lessonState(n, u, meta0.OwnerID, hasLesson); st.Version != sentRun {
