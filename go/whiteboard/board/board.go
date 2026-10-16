@@ -78,7 +78,7 @@ type Turn struct {
 }
 
 // Turns are the motion commands, by name.
-var Turns = map[string]bool{"spin": true, "turn45": true, "turn180": true, "flipx": true, "flipy": true, "grow": true, "shrink": true, "unturn": true}
+var Turns = map[string]bool{"cw45": true, "ccw45": true, "cw30": true, "ccw30": true}
 
 func (t Turn) apply(op string) Turn {
 	sc := int32(t.Scale)
@@ -86,12 +86,14 @@ func (t Turn) apply(op string) Turn {
 		sc = 100
 	}
 	switch op {
-	case "spin":
-		t.Rot += 360
-	case "turn45":
+	case "cw45":
 		t.Rot += 45
-	case "turn180":
-		t.Rot += 180
+	case "ccw45":
+		t.Rot -= 45
+	case "cw30":
+		t.Rot += 30
+	case "ccw30":
+		t.Rot -= 30
 	case "flipx":
 		t.FX = !t.FX
 	case "flipy":

@@ -338,14 +338,14 @@ func PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing i
 			return templ_7745c5c3_Err
 		}
 		if owner && editing > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<button class=\"tool stack suc\" data-on:click=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<button class=\"tool stack pri suc\" data-on:click=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.ResolveAttributeValue(postKept(name, "sendpage"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 72, Col: 76}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 72, Col: 80}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 			if templ_7745c5c3_Err != nil {
@@ -358,7 +358,7 @@ func PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing i
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue("Save page " + strconv.Itoa(editing))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 72, Col: 128}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 72, Col: 132}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 			if templ_7745c5c3_Err != nil {
@@ -371,7 +371,7 @@ func PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing i
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue("Save the whiteboard as page " + strconv.Itoa(editing) + " again")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 72, Col: 204}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 72, Col: 208}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
 			if templ_7745c5c3_Err != nil {
@@ -381,7 +381,7 @@ func PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing i
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Icon("book").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = Icon("page-in").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -398,14 +398,14 @@ func PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing i
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</span></button> <button class=\"tool stack\" data-on:click=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</span></button> <button class=\"tool stack sec\" data-on:click=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue(postKept(name, "newpage"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 76, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 76, Col: 75}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var20)
 			if templ_7745c5c3_Err != nil {
@@ -418,7 +418,7 @@ func PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing i
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue("Leave page " + strconv.Itoa(editing) + " as it was and start a clean page")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 76, Col: 179}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 76, Col: 183}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
 			if templ_7745c5c3_Err != nil {
@@ -432,14 +432,14 @@ func PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing i
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "</button> <button class=\"tool stack dgr\" data-on:click=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "</button> <button class=\"tool stack sec dgr\" data-on:click=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.ResolveAttributeValue("$_delpage = " + strconv.Itoa(editing) + "; document.getElementById('delete-page-confirm').showModal()")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 79, Col: 153}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 79, Col: 157}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var22)
 			if templ_7745c5c3_Err != nil {
@@ -452,7 +452,7 @@ func PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing i
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.ResolveAttributeValue("Delete page " + strconv.Itoa(editing))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 79, Col: 207}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 79, Col: 211}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var23)
 			if templ_7745c5c3_Err != nil {
@@ -465,7 +465,7 @@ func PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing i
 			var templ_7745c5c3_Var24 string
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.ResolveAttributeValue("Delete page " + strconv.Itoa(editing) + " from the book")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 79, Col: 275}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 79, Col: 279}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var24)
 			if templ_7745c5c3_Err != nil {
@@ -484,14 +484,14 @@ func PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing i
 				return templ_7745c5c3_Err
 			}
 		} else if owner {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<button class=\"tool stack\" data-on:click=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<button class=\"tool stack pri\" data-on:click=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.ResolveAttributeValue(postKept(name, "sendpage"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 83, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 83, Col: 76}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var25)
 			if templ_7745c5c3_Err != nil {
@@ -501,7 +501,7 @@ func PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing i
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Icon("book").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = Icon("page-in").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

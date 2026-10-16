@@ -75,7 +75,7 @@ type Step struct {
 	Label  string     `json:"label,omitempty"`
 	Text   string     `json:"text,omitempty"`
 	Lang   string     `json:"lang,omitempty"` // a code block's language
-	Kind   string     `json:"kind,omitempty"` // turn: spin, turn45, turn180, flipx, flipy, grow, shrink, unturn
+	Kind   string     `json:"kind,omitempty"` // turn: cw45, ccw45, cw30, ccw30
 
 	// a teacher's ink, on any drawing step (or a "style" step, on the
 	// selection): an absolute hue (1..360), a strength (-1..1), a meaning
@@ -187,7 +187,7 @@ func (l *Lesson) check(steps []Step, at string) error {
 		case "group", "ungroup", "delete":
 		case "turn":
 			if !board.Turns[s.Kind] {
-				return bad("kind: spin, turn45, turn180, flipx, flipy, grow, shrink or unturn")
+				return bad("kind: cw45, ccw45, cw30 or ccw30")
 			}
 		case "style":
 			if s.Hue == 0 && s.Fg == 0 && s.Sem == "" {

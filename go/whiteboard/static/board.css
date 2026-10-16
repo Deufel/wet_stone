@@ -859,3 +859,38 @@
 @media (prefers-reduced-motion: reduce) {
   :where(#board) :where(.shapes) > :where(g) { transition: none; }
 }
+
+/* the rail: Claude, drawing, turning, the selection, history; the page and
+   full screen at its foot. Groups part by space and a hairline, not labels;
+   .pri marks the strongest verbs, .sec the supporting ones */
+@layer block {
+  :where(.tool-rail) { gap: 0; padding-block: 0.25lh; }
+  :where(.tool-rail) > :where(.button-group) + :where(.button-group) { margin-block-start: 0.25lh; padding-block-start: 0.25lh; border-block-start: 1px solid var(--border); }
+  :where(.tool-rail) > :where(.rail-foot) { margin-block-start: auto; padding-block-start: 0.25lh; display: flex; flex-direction: column; align-items: center; gap: 0.2lh; }
+  :where(.tool-rail) :where(.rail-foot) > :where(.button-group) { flex-direction: column; }
+  :where(.tool-rail) :where(.rail-foot) > :where(.page-save):where(:empty) { display: none; }
+  :where(.tool-rail) :where(.rail-ai) { border-block-end: 0; }
+  :where(.tool-rail) :where(.tool.pri) { border-radius: var(--cfg-radius); }
+  :where(.tool-rail) :where(.rail-sec) > :where(.tool) { --fg: -0.3; }
+  :where(.tool-rail) :where(.tool):where([disabled]) { opacity: 0.45; }
+}
+/* the whiteboard stands on its own: no card round the paper */
+@layer block {
+  .workspace > .board-card.card { background: none; border: 0; box-shadow: none; padding: 0; }
+}
+@layer block {
+  /* the rail's squares a touch smaller, its scrollbar hidden (it still
+     scrolls, on a very short screen) */
+  :where(.tool-rail) :where(.tool) { inline-size: 2.15em; block-size: 2.15em; }
+  :where(.tool-rail) { scrollbar-width: none; }
+  :where(.tool-rail)::-webkit-scrollbar { display: none; }
+}
+/* a short screen (a laptop at 700): the rail's squares and its group
+   spacing smaller, the page strip's thumbnails half as tall */
+@media (max-height: 760px) {
+  :where(.tool-rail) :where(.tool) { inline-size: 1.75em; block-size: 1.75em; }
+  :where(.tool-rail) :where(.tool) > :where(svg, .mo, span > svg) { inline-size: 0.95em; block-size: 0.95em; }
+  :where(.tool-rail) > :where(.button-group) + :where(.button-group) { margin-block-start: 0.12lh; padding-block-start: 0.12lh; }
+  :where(.strip-pages) :where(.mini) { block-size: 2lh; }
+  :where(.page-strip) { padding-block: 0.1lh; }
+}

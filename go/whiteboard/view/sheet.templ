@@ -69,19 +69,19 @@ templ PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing 
 	</div>
 	<div id="page-save" class="button-group tools page-save">
 		if owner && editing > 0 {
-			<button class="tool stack suc" data-on:click={ postKept(name, "sendpage") } aria-label={ "Save page " + strconv.Itoa(editing) } title={ "Save the whiteboard as page " + strconv.Itoa(editing) + " again" }>
-				@Icon("book")
+			<button class="tool stack pri suc" data-on:click={ postKept(name, "sendpage") } aria-label={ "Save page " + strconv.Itoa(editing) } title={ "Save the whiteboard as page " + strconv.Itoa(editing) + " again" }>
+				@Icon("page-in")
 				<span class="badge">{ strconv.Itoa(editing) }</span>
 			</button>
-			<button class="tool stack" data-on:click={ postKept(name, "newpage") } aria-label="New page" title={ "Leave page " + strconv.Itoa(editing) + " as it was and start a clean page" }>
+			<button class="tool stack sec" data-on:click={ postKept(name, "newpage") } aria-label="New page" title={ "Leave page " + strconv.Itoa(editing) + " as it was and start a clean page" }>
 				@Icon("plus")
 			</button>
-			<button class="tool stack dgr" data-on:click={ "$_delpage = " + strconv.Itoa(editing) + "; document.getElementById('delete-page-confirm').showModal()" } aria-label={ "Delete page " + strconv.Itoa(editing) } title={ "Delete page " + strconv.Itoa(editing) + " from the book" }>
+			<button class="tool stack sec dgr" data-on:click={ "$_delpage = " + strconv.Itoa(editing) + "; document.getElementById('delete-page-confirm').showModal()" } aria-label={ "Delete page " + strconv.Itoa(editing) } title={ "Delete page " + strconv.Itoa(editing) + " from the book" }>
 				@Icon("trash")
 			</button>
 		} else if owner {
-			<button class="tool stack" data-on:click={ postKept(name, "sendpage") } aria-label="Send to page" title="Send the whole whiteboard to the book's next page, and turn to a clean one">
-				@Icon("book")
+			<button class="tool stack pri" data-on:click={ postKept(name, "sendpage") } aria-label="Send to page" title="Send the whole whiteboard to the book's next page, and turn to a clean one">
+				@Icon("page-in")
 			</button>
 		}
 	</div>

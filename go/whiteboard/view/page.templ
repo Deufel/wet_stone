@@ -164,6 +164,14 @@ templ toolRail(name string, student bool) {
 		</nav>
 	} else {
 	<nav class="pg-toolbar tool-rail tablet desktop" aria-label="Tools">
+		<!-- Claude first: the board's strongest verb (.pri) -->
+		<div class="button-group tools rail-ai" role="toolbar" aria-label="Claude">
+			<button class="tool stack pri" popovertarget="sketch-menu" aria-label="Ask Claude to draw" title="Ask Claude to draw (beta)">
+				@Icon("sparkles")
+			</button>
+			<div id="sketch-stop" class="sketch-stop"></div>
+		</div>
+		<!-- drawing: the tool in hand is the pressed one -->
 		<div class="button-group tools" role="toolbar" aria-label="Drawing tools">
 			@railTool(0, "select", "Select", "Esc")
 			@railTool(1, "box", "Box", "R")
@@ -173,103 +181,82 @@ templ toolRail(name string, student bool) {
 			@railTool(5, "pen", "Pen", "P")
 			@railTool(6, "code", "Code or math (```go, ```math)", "C")
 		</div>
-		<div class="button-group tools" role="toolbar" aria-label="The selection">
-			<button class="tool stack" data-on:click={ post(name, "group") } data-attr:disabled="$nsel < 2" aria-label="Group" title="Group">
+		<!-- motion: the selection turned (left click clockwise, right click
+		     counter-clockwise); each icon turns as its button does -->
+		<div class="button-group tools rail-sec motion" role="toolbar" aria-label="Turn" data-signals__ifmissing="{_r45: 0, _r30: 0}">
+			@turnTool(name, 45)
+			@turnTool(name, 30)
+		</div>
+		<!-- the selection -->
+		<div class="button-group tools rail-sec" role="toolbar" aria-label="The selection">
+			<button class="tool stack sec" data-on:click={ post(name, "group") } data-attr:disabled="$nsel < 2" aria-label="Group" title="Group">
 				@Icon("group")
 				<kbd>G</kbd>
 			</button>
-			<button class="tool stack" data-on:click={ post(name, "ungroup") } data-attr:disabled="!$grouped" aria-label="Ungroup" title="Ungroup">
+			<button class="tool stack sec" data-on:click={ post(name, "ungroup") } data-attr:disabled="!$grouped" aria-label="Ungroup" title="Ungroup">
 				@Icon("ungroup")
 				<kbd>⇧G</kbd>
 			</button>
-			<button class="tool stack" data-on:click={ post(name, "delete") } data-attr:disabled="$nsel < 1" aria-label="Delete" title="Delete">
+			<button class="tool stack sec" data-on:click={ post(name, "delete") } data-attr:disabled="$nsel < 1" aria-label="Delete" title="Delete">
 				@Icon("trash")
 				<kbd>Del</kbd>
 			</button>
-			<button class="tool stack dgr" data-on:click="document.getElementById('clear-confirm').showModal()" aria-label="Clear the board" title="Clear the board">
+			<button class="tool stack sec dgr" data-on:click="document.getElementById('clear-confirm').showModal()" aria-label="Clear the board" title="Clear the board">
 				@Icon("eraser")
 			</button>
 		</div>
-		<!-- motion: the selection spun, turned, flipped, scaled (stored on
-		     the shapes, animated by a CSS transition on every page). Each
-		     icon moves as its button does, by a client signal of its own -->
-		<div class="button-group tools motion" role="toolbar" aria-label="Motion" data-signals__ifmissing="{_spins: 0, _t45: 0, _t180: false, _fx: false, _fy: false, _gs: 0}">
-			<button class="tool stack" data-on:click={ "$_spins++; " + post(name, "spin") } data-attr:disabled="$nsel < 1" aria-label="Spin 360" title="Spin 360°">
-				<span class="mo" data-attr:style="`transform: rotate(${$_spins * 360}deg); transition: transform 0.5s ease`">
-					@Icon("spin")
-				</span>
-			</button>
-			<button class="tool stack" data-on:click={ "$_t45++; " + post(name, "turn45") } data-attr:disabled="$nsel < 1" aria-label="Turn 45" title="Turn 45°">
-				<span class="mo" data-attr:style="`transform: rotate(${$_t45 * 45}deg); transition: transform 0.3s ease`">
-					@Icon("turn")
-				</span>
-			</button>
-			<button class="tool stack" data-on:click={ "$_t180 = !$_t180; " + post(name, "turn180") } data-attr:disabled="$nsel < 1" aria-label="Turn 180" title="Turn 180°">
-				<span class="mo" style="transition: transform 0.3s ease" data-style:transform="$_t180 ? 'rotate(180deg)' : ''">
-					@Icon("turn180")
-				</span>
-			</button>
-			<button class="tool stack" data-on:click={ "$_fx = !$_fx; " + post(name, "flipx") } data-attr:disabled="$nsel < 1" aria-label="Flip across" title="Flip across (mirror left and right)">
-				<span class="mo" style="transition: transform 0.3s ease" data-style:transform="$_fx ? 'scaleX(-1)' : ''">
-					@Icon("flipx")
-				</span>
-			</button>
-			<button class="tool stack" data-on:click={ "$_fy = !$_fy; " + post(name, "flipy") } data-attr:disabled="$nsel < 1" aria-label="Flip over" title="Flip over (mirror top and bottom)">
-				<span class="mo" style="transition: transform 0.3s ease" data-style:transform="$_fy ? 'scaleY(-1)' : ''">
-					@Icon("flipy")
-				</span>
-			</button>
-			<button class="tool stack" data-on:click={ "$_gs = 1; setTimeout(() => $_gs = 0, 200); " + post(name, "grow") } data-attr:disabled="$nsel < 1" aria-label="Grow" title="Grow">
-				<span class="mo" style="transition: transform 0.2s ease" data-style:transform="$_gs === 1 ? 'scale(1.3)' : ''">
-					@Icon("grow")
-				</span>
-			</button>
-			<button class="tool stack" data-on:click={ "$_gs = -1; setTimeout(() => $_gs = 0, 200); " + post(name, "shrink") } data-attr:disabled="$nsel < 1" aria-label="Shrink" title="Shrink">
-				<span class="mo" style="transition: transform 0.2s ease" data-style:transform="$_gs === -1 ? 'scale(0.7)' : ''">
-					@Icon("shrink")
-				</span>
-			</button>
-			<button class="tool stack" data-on:click={ "$_spins = 0; $_t45 = 0; $_t180 = false; $_fx = false; $_fy = false; " + post(name, "unturn") } data-attr:disabled="$nsel < 1" aria-label="As drawn" title="Back as drawn">
-				@Icon("restart")
-			</button>
-		</div>
-		<!-- the page: send the whiteboard to the book, or save the page back
-		     on it (the board's stream fills it) -->
-		<div id="page-save" class="button-group tools page-save"></div>
-		<!-- Claude: ask it to draw, and stop it -->
-		<div class="button-group tools" role="toolbar" aria-label="Claude">
-			<button class="tool stack" popovertarget="sketch-menu" aria-label="Ask Claude to draw" title="Ask Claude to draw (beta)">
-				@Icon("sparkles")
-			</button>
-			<div id="sketch-stop" class="sketch-stop"></div>
-		</div>
-		<div class="button-group tools" role="toolbar" aria-label="Undo">
-			<button class="tool stack" data-on:click={ postKept(name, "undo") } aria-label="Undo" title="Undo (Ctrl Z)">
+		<!-- time: undo, redo, the whole history -->
+		<div class="button-group tools rail-sec" role="toolbar" aria-label="History">
+			<button class="tool stack sec" data-on:click={ postKept(name, "undo") } aria-label="Undo" title="Undo (Ctrl Z)">
 				@Icon("undo")
 				<kbd>⌃Z</kbd>
 			</button>
-			<button class="tool stack" data-on:click={ postKept(name, "redo") } aria-label="Redo" title="Redo (Ctrl R)">
+			<button class="tool stack sec" data-on:click={ postKept(name, "redo") } aria-label="Redo" title="Redo (Ctrl R)">
 				@Icon("redo")
 				<kbd>⌃R</kbd>
 			</button>
-		</div>
-		<div class="button-group tools" role="toolbar" aria-label="View">
-			<button class="tool stack" popovertarget="history-drawer" aria-label="History" title="History (⇧H)">
+			<button class="tool stack sec" popovertarget="history-drawer" aria-label="History" title="History (⇧H)">
 				@Icon("history")
 				<kbd>⇧H</kbd>
 			</button>
-			<button class="tool stack" data-on:click={ fullToggle } aria-label="Full screen" title="Full screen (F)">
-				<span data-show="!$_full">
-					@Icon("maximize")
-				</span>
-				<span data-show="$_full">
-					@Icon("minimize")
-				</span>
-				<kbd>F</kbd>
-			</button>
+		</div>
+		<!-- at the foot: the page (send, or save the page back on the
+		     whiteboard; the board's stream fills it), and full screen -->
+		<div class="rail-foot">
+			<div id="page-save" class="button-group tools page-save"></div>
+			<div class="button-group tools rail-sec" role="toolbar" aria-label="View">
+				<button class="tool stack sec" data-on:click={ fullToggle } aria-label="Full screen" title="Full screen (F)">
+					<span data-show="!$_full">
+						@Icon("maximize")
+					</span>
+					<span data-show="$_full">
+						@Icon("minimize")
+					</span>
+					<kbd>F</kbd>
+				</button>
+			</div>
 		</div>
 	</nav>
 	}
+}
+
+// turnTool turns the selection by deg: a left click clockwise, a right
+// click (the context menu, kept from opening) counter-clockwise; its icon
+// turns the same way, by a signal of its own.
+templ turnTool(name string, deg int) {
+	<button
+		class="tool stack sec"
+		data-on:click={ "$_r" + strconv.Itoa(deg) + "++; " + post(name, "cw"+strconv.Itoa(deg)) }
+		data-on:contextmenu={ "evt.preventDefault(); $_r" + strconv.Itoa(deg) + "--; " + post(name, "ccw"+strconv.Itoa(deg)) }
+		data-attr:disabled="$nsel < 1"
+		aria-label={ "Turn " + strconv.Itoa(deg) + "°" }
+		title={ "Turn " + strconv.Itoa(deg) + "°: click clockwise, right click counter-clockwise" }
+	>
+		<span class="mo" data-attr:style={ "`transform: rotate(${$_r" + strconv.Itoa(deg) + " * " + strconv.Itoa(deg) + "}deg); transition: transform 0.3s ease`" }>
+			@Icon("turn")
+		</span>
+		<kbd>{ strconv.Itoa(deg) + "°" }</kbd>
+	</button>
 }
 
 // boardCard is the whiteboard: the paper, and a lesson's question over it.

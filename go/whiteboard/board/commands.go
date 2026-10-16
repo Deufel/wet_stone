@@ -32,7 +32,7 @@ func (b *Board) Apply(c Cmd) (change string) {
 	switch c.Op {
 	case "style": // a teacher's ink: the selection, or what they drew last
 		return b.style(c)
-	case "spin", "turn45", "turn180", "flipx", "flipy", "grow", "shrink", "unturn":
+	case "cw45", "ccw45", "cw30", "ccw30":
 		return b.turn(c)
 	case "down":
 		b.down(c)

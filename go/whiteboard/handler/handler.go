@@ -102,7 +102,7 @@ var ops = map[string]bool{
 	"down": true, "move": true, "up": true, "delete": true, "clear": true, "link": true,
 	"label": true, "editsel": true, "nudge": true, "group": true, "ungroup": true, "locktoggle": true,
 	// motion: the selection turned, flipped, scaled
-	"spin": true, "turn45": true, "turn180": true, "flipx": true, "flipy": true, "grow": true, "shrink": true, "unturn": true,
+	"cw45": true, "ccw45": true, "cw30": true, "ccw30": true,
 }
 
 var histOps = map[string]bool{"undo": true, "redo": true, "checkout": true, "switch": true, "delbranch": true, "mainbranch": true}
