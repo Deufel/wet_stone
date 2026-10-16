@@ -28,7 +28,7 @@ import (
 //
 //	POST /me/key         keep the key (payload {text}; "" removes it)
 //	POST /me/workspace   the workspace its requests name (payload {text}; "" for none)
-//	POST /lessons/write  write a book (payload {text: the topic, n: pages})
+//	POST /lessons/write  write a book (payload {text: the topic, n: pages, free: figures as SVG})
 
 // WriteModel writes the lessons.
 const WriteModel = "claude-opus-5-5"
@@ -131,7 +131,7 @@ func (h *Handler) write(w http.ResponseWriter, r *http.Request) {
 	}
 	h.writing.Store(u.ID, job)
 	h.Hub.PublishUser(u.ID)
-	go h.writeBook(*u, apiKey{key, ws}, topic, pages, job)
+	go h.writeBook(*u, apiKey{key, ws}, topic, pages, p.Free, job)
 	ack.Saved(datastar.NewSSE(w, r), "write", "Writing…")
 }
 
@@ -144,14 +144,14 @@ func short(s string, n int) string {
 
 // writeBook asks Claude for the course, checks it (one repair round), and
 // stores it as the user's book.
-func (h *Handler) writeBook(u db.User, key apiKey, topic string, pages int, job *writeJob) {
+func (h *Handler) writeBook(u db.User, key apiKey, topic string, pages int, free bool, job *writeJob) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 	done := func(j writeJob) {
 		h.writing.Store(u.ID, &j)
 		h.Hub.PublishUser(u.ID)
 	}
-	c, err := writeCourse(ctx, key, topic, pages)
+	c, err := writeCourse(ctx, key, topic, pages, free)
 	if err != nil {
 		slog.Error("write lesson", "user", u.ID, "err", err)
 		done(writeJob{Topic: job.Topic, State: "failed", Err: err.Error()})
@@ -168,10 +168,10 @@ func (h *Handler) writeBook(u db.User, key apiKey, topic string, pages int, job 
 
 // writeCourse asks Claude for the course and checks it, with one round of
 // repair (the checker's complaint sent back).
-func writeCourse(ctx context.Context, key apiKey, topic string, pages int) (*Course, error) {
+func writeCourse(ctx context.Context, key apiKey, topic string, pages int, free bool) (*Course, error) {
 	msgs := []message{{Role: "user", Content: writePrompt(topic, pages)}}
 	for try := 0; try < 2; try++ {
-		text, err := claude(ctx, key, writeSystem(), msgs)
+		text, err := claude(ctx, key, writeSystem(free), msgs)
 		if err != nil {
 			return nil, err
 		}

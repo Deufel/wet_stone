@@ -13,7 +13,14 @@ import (
 // in the box's place, fitted to it, with no box drawn round it. The SVG is
 // whatever the teacher (or Claude, in free draw) made, kept only after it is
 // cleaned: drawing elements and SMIL animation, no script, no handlers, no
-// foreign content, no links or url()s out of the drawing.
+// links or url()s out of the drawing. A foreignObject may hold a little HTML
+// (a button, some text), nothing else.
+//
+// Triggers: an element with data-trigger="name" is a button: a click on it
+// starts every animation in the drawing whose data-anim names it (an
+// animation that should wait for it says begin="indefinite"). The drawing
+// never carries its own handlers: the click is a fixed Datastar expression
+// written here, with the name (a plain word) the only thing taken from it.
 
 // SvgMax is a fenced SVG's limit.
 const SvgMax = 24000
@@ -24,7 +31,8 @@ var svgElems = map[string]bool{
 	"text": true, "tspan": true, "textPath": true,
 	"linearGradient": true, "radialGradient": true, "stop": true, "pattern": true, "clipPath": true, "mask": true, "marker": true,
 	"animate": true, "animateTransform": true, "animateMotion": true, "set": true, "mpath": true,
-	"filter": true, "feGaussianBlur": true, "feOffset": true, "feBlend": true, "feColorMatrix": true, "feMerge": true, "feMergeNode": true, "feDropShadow": true,
+	"foreignObject": true,
+	"filter":        true, "feGaussianBlur": true, "feOffset": true, "feBlend": true, "feColorMatrix": true, "feMerge": true, "feMergeNode": true, "feDropShadow": true,
 }
 
 var svgAttrs = map[string]bool{
@@ -46,9 +54,19 @@ var svgAttrs = map[string]bool{
 	"href": true, "xlink:href": true, "visibility": true, "display": true, "vector-effect": true, "paint-order": true, "mix-blend-mode": true,
 }
 
+// the HTML a foreignObject may hold, and its attributes
+var htmlElems = map[string]bool{
+	"button": true, "div": true, "span": true, "p": true, "b": true, "i": true, "em": true, "strong": true,
+	"code": true, "small": true, "br": true, "sub": true, "sup": true,
+}
+var htmlAttrs = map[string]bool{"class": true, "style": true, "title": true}
+
+// a trigger's or an animation's name
+var triggerName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,30}$`)
+
 // a url() may only name something in the same drawing (#id)
 var badURL = regexp.MustCompile(`(?i)url\(\s*['"]?\s*[^#'"\s)]`)
-var badStyle = regexp.MustCompile(`(?i)expression|javascript:|@import|behavior`)
+var badStyle = regexp.MustCompile(`(?i)expression|javascript:|@import|behavior|position|url\(`)
 
 // CleanSVG keeps what is safe of an SVG document; it errs when nothing of
 // one is left or it is too big.
@@ -62,6 +80,10 @@ func CleanSVG(src string) (string, error) {
 	enc := xml.NewEncoder(&out)
 	skip := 0 // inside an element we drop
 	root := false
+	var stack []string // the open elements kept
+	inFO := 0          // inside a foreignObject: HTML, not SVG
+	inHTML := false    // inside the HTML of one (its first element names the namespace)
+	htmlDepth := 0
 	for {
 		tok, err := dec.Token()
 		if err == io.EOF {
@@ -73,21 +95,35 @@ func CleanSVG(src string) (string, error) {
 		switch t := tok.(type) {
 		case xml.StartElement:
 			name := t.Name.Local
-			if skip > 0 || !svgElems[name] || (!root && name != "svg") {
+			html := inFO > 0 && htmlElems[name]
+			if skip > 0 || !(html || inFO == 0 && svgElems[name]) || (!root && name != "svg") {
 				skip++
 				continue
 			}
 			root = true
 			el := xml.StartElement{Name: xml.Name{Local: name}}
+			if html && !inHTML {
+				el.Attr = append(el.Attr, xml.Attr{Name: xml.Name{Local: "xmlns"}, Value: "http://www.w3.org/1999/xhtml"})
+			}
+			trigger := ""
 			for _, a := range t.Attr {
 				an := a.Name.Local
 				if a.Name.Space == "xlink" || a.Name.Space == "http://www.w3.org/1999/xlink" {
 					an = "xlink:" + an
 				}
-				if !svgAttrs[an] || strings.HasPrefix(strings.ToLower(an), "on") {
+				v := a.Value
+				if an == "data-trigger" || an == "data-anim" {
+					if v = strings.TrimSpace(v); triggerName.MatchString(v) {
+						el.Attr = append(el.Attr, xml.Attr{Name: xml.Name{Local: an}, Value: v})
+						if an == "data-trigger" {
+							trigger = v
+						}
+					}
 					continue
 				}
-				v := a.Value
+				if html && !htmlAttrs[an] || !html && !svgAttrs[an] || strings.HasPrefix(strings.ToLower(an), "on") {
+					continue
+				}
 				if (an == "href" || an == "xlink:href") && !strings.HasPrefix(v, "#") {
 					continue // only the drawing's own parts
 				}
@@ -96,18 +132,40 @@ func CleanSVG(src string) (string, error) {
 				}
 				el.Attr = append(el.Attr, xml.Attr{Name: xml.Name{Local: an}, Value: v})
 			}
+			if trigger != "" {
+				el.Attr = append(el.Attr,
+					xml.Attr{Name: xml.Name{Local: "data-on:pointerdown__stop"}, Value: "evt.preventDefault()"},
+					xml.Attr{Name: xml.Name{Local: "data-on:click__stop"}, Value: "el.closest('svg.art').querySelectorAll('[data-anim=" + trigger + "]').forEach(a => a.beginElement && a.beginElement())"})
+			}
 			if name == "svg" && len(out.Bytes()) == 0 {
 				el.Attr = append(el.Attr, xml.Attr{Name: xml.Name{Local: "xmlns"}, Value: "http://www.w3.org/2000/svg"})
 			}
 			if err := enc.EncodeToken(el); err != nil {
 				return "", err
 			}
+			stack = append(stack, name)
+			if name == "foreignObject" {
+				inFO++
+			}
+			if html {
+				inHTML = true
+				htmlDepth++
+			}
 		case xml.EndElement:
 			if skip > 0 {
 				skip--
 				continue
 			}
-			if err := enc.EncodeToken(xml.EndElement{Name: xml.Name{Local: t.Name.Local}}); err != nil {
+			name := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			if name == "foreignObject" {
+				inFO--
+			} else if inFO > 0 && htmlElems[name] {
+				if htmlDepth--; htmlDepth == 0 {
+					inHTML = false
+				}
+			}
+			if err := enc.EncodeToken(xml.EndElement{Name: xml.Name{Local: name}}); err != nil {
 				return "", err
 			}
 		case xml.CharData:

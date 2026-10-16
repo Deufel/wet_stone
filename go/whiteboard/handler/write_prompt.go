@@ -10,7 +10,16 @@ import (
 // same one the presenter plays, lesson.go), the board's geometry, how a good
 // page teaches, and a real page as the example.
 
-func writeSystem() string {
+func writeSystem(free bool) string {
+	art := `Pictures: draw with the board's shapes and the pen; use an "svg" step only for a figure the
+shapes cannot make (a curve, a molecule, a chart).`
+	if free {
+		art = `FREE DRAW is on, and it is how pictures are best made here: draw each figure as one "svg" step
+(diagrams, memory layouts, molecules, waves, graphs, timelines), animated where motion teaches, with
+buttons in it the viewer presses to run each stage (see TRIGGERS). Build a page up with several
+figures as the ideas land; keep words to read in boxes and code in code blocks, and point at the
+figures with laser, ring and underline as you "say" them.`
+	}
 	example, _ := json.Marshal(Courses["go"].Chapters[0].Pages[1])
 	return strings.TrimSpace(`
 You write lesson books for "draw", a shared whiteboard. A book is chapters of
@@ -37,6 +46,10 @@ comments in the code to explain it; grow a block as the lesson goes by
 selecting it and labelling it again with more lines.
 
 ` + stepsSpec + `
+` + shapesSpec + `
+` + art + `
+
+` + artSpec + `
 TEACHING. One idea per page, taught densely: draw the model, point at it,
 change it, erase and redraw when the picture moves on, keep the code beside the
 picture it explains, "say" each point as it lands, and ask 1–2 questions that check the idea rather than
@@ -54,6 +67,62 @@ func writePrompt(topic string, pages int) string {
 	}
 	return fmt.Sprintf("Write a lesson book on this, %s (never more than %d pages in all):\n\n%s", size, maxPages, topic)
 }
+
+// shapesSpec: naming what a script draws, and the steps that work with
+// shapes by name (shared by the sketcher and the book writer).
+const shapesSpec = `NAMES. The ids of shapes you create are not known in advance: name what you draw with "as" on its
+step ({"do": "box", …, "as": "store"}) and refer to it later with "refs": ["store"]. A name is
+better than a "click" at a point: it cannot miss. Use "ids" only for shapes already on the board
+when you were given its list (#n).
+
+WORKING WITH SHAPES (by "ids" [#n] or "refs" [names]):
+ {"do": "select", "refs": ["api"]}                        selects shapes (then label, style, turn,
+                                                           delete, group act on them)
+ {"do": "move", "refs": ["api"], "delta": [0, 120]}        moves shapes by dx, dy (connectors follow)
+ {"do": "connect", "refs": ["api", "db"], "label": "calls"}  an arrow from one to the other, side to side,
+                                                           linked (kind "line" for no head); ink inline
+ {"do": "laser", "at": [cx, cy], "r": 80}                  point at something while you "say" it
+ {"do": "turn", "kind": "cw45"}                            animates a turn (cw45, ccw45, cw30, ccw30)
+ {"do": "svg", "at": [x1, y1, x2, y2], "svg": "<svg viewBox='0 0 100 60'>…</svg>", "as": "fig"}
+                                                           a figure of your own, fitted into the box
+                                                           (see ART)
+`
+
+// artSpec is how to draw an "svg" figure that suits the board: the theme's
+// ink API instead of colours, SMIL for motion, and triggers for buttons.
+const artSpec = `ART ("svg" steps). Give the svg a viewBox and draw in its own units; it is fitted into its box,
+with no frame. Keep one under ~4000 characters (the limit is 24000). Text inside is fine.
+
+COLOUR: never write a colour (no hex, rgb, or names like "red"): the board is themed, light and
+dark, and its ink comes from the theme. Paint with currentColor, and set the ink with the theme's
+custom properties in style; they inherit, so set them on a <g>:
+ --fg     the ink: -1…0 is neutral (-1 full ink, -0.6 quiet, -0.3 faint), 0…1 is coloured (0.8 vivid,
+          1 strongest). Neutral for structure and text, coloured for what matters.
+ --hue    the hue, 0–360, for it and everything inside (210 blue, 145 green, 25 red, 75 amber, 290 violet)
+ --hue-shift  a turn from the hue around it (style="--hue-shift: 120"), --hue-lock pins a hue absolutely
+ class    "suc" green, "inf" blue, "wrn" amber, "dgr" red: a meaning (pair it with --fg: 0.8)
+ tints    style="fill: color-mix(in oklch, currentColor 15%, transparent)" for a soft fill
+An SVG shape's fill is black unless set: give every shape fill="currentColor", fill="none", or a tint.
+ <g style="--hue: 210; --fg: 0.8" fill="none" stroke="currentColor" stroke-width="2">…</g>
+ <circle class="dgr" style="--fg: 0.9" fill="currentColor" r="6"/>
+ <text style="--fg: -0.8" fill="currentColor" font-size="14">label</text>
+
+MOTION (SMIL): <animate>, <animateTransform>, <animateMotion>, <set>; repeatCount="indefinite"
+loops, fill="freeze" holds the end, begin="a.end" chains after the animation with id "a" (make ids
+unique: prefix them with the figure's name).
+
+TRIGGERS: a figure can carry its own buttons. Give the animations that wait begin="indefinite" and
+data-anim="NAME"; give a button data-trigger="NAME" (a plain lowercase word): a click on it starts
+all of them, again on every click. A button is an SVG group or HTML in a foreignObject:
+ <g data-trigger="spin"><rect x="4" y="4" width="60" height="22" rx="6" style="--fg: 0.8" fill="none" stroke="currentColor"/><text x="34" y="20" text-anchor="middle" fill="currentColor" font-size="12">▶ Spin</text></g>
+ <foreignObject x="4" y="4" width="80" height="30"><button data-trigger="spin" class="inf">Spin</button></foreignObject>
+A foreignObject's HTML fills it, its text sized by its height (about 45% of it, at most 14): give a
+button height 26–34 and width ≥ 9 × characters + 16, or its words are cut.
+Use several triggers for the steps of a process ("push", "pop"), so the viewer drives it.
+Allowed: drawing elements, gradients, patterns, masks, filters, SMIL, foreignObject holding only
+button, div, span, p, b, i, em, strong, code, small, br, sub, sup (with class, style, title). No
+script, no on* handlers, no links, no images, no url() outside the figure.
+`
 
 // stepsSpec is the step vocabulary and the board's geometry, shared by the
 // book writer and the explainer.

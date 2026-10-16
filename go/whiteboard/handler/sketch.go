@@ -268,12 +268,15 @@ func describeBoard(snap board.Snapshot, height int32) string {
 // does, how the board behaves; free, it may also draw any SVG it likes.
 func sketchSystem(free bool) string {
 	mode := `Draw with the board's own shapes (boxes, arrows, code and math blocks, the pen) wherever they say it;
-use an "svg" step only for a figure the shapes cannot make (a curve, a molecule, a chart).`
+use an "svg" step only for a figure the shapes cannot make (a curve, a molecule, a chart).
+
+` + artSpec
 	if free {
-		mode = `FREE DRAW is on: you may draw anything as SVG ("svg" steps), animated with SMIL if motion helps
-(<animate>, <animateTransform>, <animateMotion>): diagrams, molecules, waves, orbits, charts, icons.
-Give each svg a viewBox and draw in its own units; it is fitted into its box. Use stroke="currentColor"
-or explicit colors; text inside an svg is fine. Still use boxes for words to be read, and "say" to narrate.`
+		mode = `FREE DRAW is on: you may draw anything as SVG ("svg" steps), animated if motion helps:
+diagrams, molecules, waves, orbits, charts, icons, a figure with its own play button. Still use
+boxes and code blocks for words to be read, and "say" to narrate.
+
+` + artSpec
 	}
 	return strings.TrimSpace(`
 You draw on "draw", a shared whiteboard shaped like a letter page, as the presenter "Claude": the
@@ -292,21 +295,7 @@ character, and wraps inside the box. A box whose label starts with a fence is a 
 selects its whole group. A shape you have just drawn is the one "style" and "turn" act on if
 nothing is selected.
 
-NAMES. The ids of shapes you create are not known in advance: name what you draw with "as" on its
-step ({"do": "box", …, "as": "store"}) and refer to it later with "refs": ["store"]. Use "ids" only
-for shapes already on the board (#n in the list above).
-
-WORKING WITH SHAPES (by "ids" [#n] or "refs" [names]):
- {"do": "select", "refs": ["api"]}                        selects shapes (then label, style, turn,
-                                                           delete, group act on them)
- {"do": "move", "ids": [3], "delta": [0, 120]}             moves shapes by dx, dy (connectors follow)
- {"do": "connect", "refs": ["api", "db"], "label": "calls"}  an arrow from one to the other, side to side,
-                                                           linked (kind "line" for no head); ink inline
- {"do": "laser", "at": [cx, cy], "r": 80}                  point at something while you "say" it
- {"do": "turn", "kind": "cw45"}                            animates a turn (cw45, ccw45, cw30, ccw30)
- {"do": "svg", "at": [x1, y1, x2, y2], "svg": "<svg viewBox='0 0 100 60'>…</svg>"}
-                                                           a figure of your own, fitted into the box
-
+` + shapesSpec + `
 ` + stepsSpec + `
 
 Draw like a teacher: say what you are showing, build it up in order, point at what matters, keep

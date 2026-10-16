@@ -50,7 +50,7 @@ func WriteDialog() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<dialog id=\"write-lesson\" class=\"modal content-1 write-lesson\" closedby=\"any\" aria-label=\"Write a lesson\" data-signals__ifmissing=\"{_topic: '', _pages: '4', _akey: ''}\" data-init=\"location.hash === '#write' && el.showModal()\"><header class=\"spread\"><h3>Write a lesson book</h3><button class=\"icon\" data-on:click=\"document.getElementById('write-lesson').close()\" aria-label=\"Close\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<dialog id=\"write-lesson\" class=\"modal content-1 write-lesson\" closedby=\"any\" aria-label=\"Write a lesson\" data-signals__ifmissing=\"{_topic: '', _pages: '4', _akey: '', _wfree: true}\" data-init=\"location.hash === '#write' && el.showModal()\"><header class=\"spread\"><h3>Write a lesson book</h3><button class=\"icon\" data-on:click=\"document.getElementById('write-lesson').close()\" aria-label=\"Close\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -58,7 +58,7 @@ func WriteDialog() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</button></header><div id=\"writer-key\"></div><div class=\"write-topic\"><span id=\"write-topic-label\">What should it teach?</span> <textarea rows=\"4\" aria-labelledby=\"write-topic-label\" maxlength=\"1500\" placeholder=\"Go interfaces: what satisfies one, nil interfaces, embedding\" data-bind:_topic data-on:keydown=\"evt.stopPropagation()\"></textarea></div><div class=\"row spread\"><label class=\"row oneline\"><span>Pages</span> <select data-bind:_pages><option value=\"1\">1</option> <option value=\"4\">about 4</option> <option value=\"8\">about 8</option> <option value=\"14\">about 14</option></select></label> <button class=\"suc\" data-on:click=\"$_topic.trim() && @post('/lessons/write', {payload: {text: $_topic, n: +$_pages}})\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</button></header><div id=\"writer-key\"></div><div class=\"write-topic\"><span id=\"write-topic-label\">What should it teach?</span> <textarea rows=\"4\" aria-labelledby=\"write-topic-label\" maxlength=\"1500\" placeholder=\"Go interfaces: what satisfies one, nil interfaces, embedding\" data-bind:_topic data-on:keydown=\"evt.stopPropagation()\"></textarea></div><div class=\"row spread\"><label class=\"row oneline\"><span>Pages</span> <select data-bind:_pages><option value=\"1\">1</option> <option value=\"4\">about 4</option> <option value=\"8\">about 8</option> <option value=\"14\">about 14</option></select></label> <label class=\"row oneline free-draw\" title=\"Claude draws its figures as SVG, animated, with buttons to run them\"><input type=\"checkbox\" data-bind:_wfree> <span>Free draw</span></label> <button class=\"suc\" data-on:click=\"$_topic.trim() && @post('/lessons/write', {payload: {text: $_topic, n: +$_pages, free: $_wfree}})\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -121,7 +121,7 @@ func WriterParts(s WriterState) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs("Your Anthropic key, ending " + s.KeyEnd)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/write.templ`, Line: 69, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/write.templ`, Line: 73, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -134,7 +134,7 @@ func WriterParts(s WriterState) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue("{_ws: " + jsString(s.Workspace) + "}")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/write.templ`, Line: 72, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/write.templ`, Line: 76, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 			if templ_7745c5c3_Err != nil {
@@ -208,7 +208,7 @@ func writerLine(s WriterState) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs("Writing “" + s.Topic + "”…")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/write.templ`, Line: 92, Col: 74}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/write.templ`, Line: 96, Col: 74}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -226,7 +226,7 @@ func writerLine(s WriterState) templ.Component {
 			var templ_7745c5c3_Var7 templ.SafeURL
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/b/" + s.Board))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/write.templ`, Line: 94, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/write.templ`, Line: 98, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -243,7 +243,7 @@ func writerLine(s WriterState) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs("Ready: " + s.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/write.templ`, Line: 96, Col: 25}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/write.templ`, Line: 100, Col: 25}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -261,7 +261,7 @@ func writerLine(s WriterState) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs("Not written: " + s.Err)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/write.templ`, Line: 99, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/write.templ`, Line: 103, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {

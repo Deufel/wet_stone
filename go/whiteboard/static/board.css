@@ -248,15 +248,15 @@
   :where(#stage) :where(svg) * { vector-effect: non-scaling-stroke; }
   :where(#stage) .plus  { fill: none; stroke: color-mix(in oklch, currentColor 34%, transparent); stroke-width: 1; }
   :where(#stage) .major { fill: none; stroke: color-mix(in oklch, currentColor 18%, transparent); stroke-width: 1; }
-  :where(#board) rect { fill: color-mix(in oklch, currentColor 14%, transparent); stroke: currentColor; stroke-width: 2; }
-  :where(#board) line { stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  :where(#board) rect:where(:not(.art *)) { fill: color-mix(in oklch, currentColor 14%, transparent); stroke: currentColor; stroke-width: 2; }
+  :where(#board) line:where(:not(.art *)) { stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
   :where(#board) .pen { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
   :where(#board) [data-ui-selected] .pen { stroke-width: 4.5; }
   :where(#board) .head { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; } /* open: the line stops at its base */
   :where(#board) .node { fill: color-mix(in oklch, currentColor 10%, Canvas); stroke: currentColor; stroke-width: 1.5; }
   :where(#board) .node[data-ui-linked] { fill: currentColor; }
   :where(#board) [data-ui-selected] { --fg: 1; }
-  :where(#board) [data-ui-selected] rect, :where(#board) [data-ui-selected] line { stroke-width: 3; }
+  :where(#board) [data-ui-selected] rect:where(:not(.art *)), :where(#board) [data-ui-selected] line:where(:not(.art *)) { stroke-width: 3; }
   :where(#board) .handles circle { fill: color-mix(in oklch, currentColor 35%, transparent); stroke: currentColor; stroke-width: 2; }
   :where(#board) .guide { stroke: currentColor; stroke-width: 1; stroke-dasharray: 6 6; }
   :where(#board) .anchor { fill: none; stroke: currentColor; stroke-width: 2; }
@@ -908,6 +908,15 @@
   .print-board rect.art-frame { fill: none; stroke: none; }
   :where(#stage) svg.art, :where(#stage) svg.art * { vector-effect: none; pointer-events: none; }
   .print-board svg.art * { vector-effect: none; }
+  /* its triggers (data-trigger: a click starts its data-anim animations) take the pointer */
+  :where(#stage) svg.art [data-trigger], :where(#stage) svg.art [data-trigger] * { pointer-events: auto; cursor: pointer; }
+  :where(#stage) svg.art :where(g[data-trigger]):where(:hover) { opacity: 0.85; }
+  /* HTML in a figure is sized by the figure, not the page: it fills its
+     foreignObject, and its type follows the foreignObject's height (the page's
+     fluid type and control padding would wrap a button the figure sized) */
+  svg.art foreignObject { container-type: size; overflow: visible; }
+  svg.art foreignObject > * { box-sizing: border-box; inline-size: 100%; block-size: 100%; margin: 0; font-size: min(45cqh, 14px); line-height: 1.15; }
+  svg.art foreignObject > button { display: flex; align-items: center; justify-content: center; min-block-size: 0; padding: 0 0.3em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; }
 }
 
 /* the teaching bar on a wider screen: only while a lesson plays, or it is

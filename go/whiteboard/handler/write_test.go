@@ -43,7 +43,7 @@ func TestClaudeWritesAndRepairs(t *testing.T) {
 	defer srv.Close()
 	anthropicURL = srv.URL
 
-	got, err := writeCourse(context.Background(), apiKey{"sk-ant-test", "wrkspc_test"}, "maps", 1)
+	got, err := writeCourse(context.Background(), apiKey{"sk-ant-test", "wrkspc_test"}, "maps", 1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
