@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"whiteboard/db"
 	"whiteboard/view"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/starfederation/datastar-go/datastar"
 )
 
@@ -26,74 +28,109 @@ import (
 // book in the user's books. The key is kept on the server and only ever sent
 // to Anthropic.
 //
-//	POST /me/key         keep the key (payload {text}; "" removes it)
-//	POST /me/workspace   the workspace its requests name (payload {text}; "" for none)
+//	POST /me/keys        the user's AI keys (see addKey)
 //	POST /lessons/write  write a book (payload {text: the topic, n: pages, free: figures as SVG})
 
 // WriteModel writes the lessons.
 const WriteModel = "claude-opus-5-5"
 
-// setWorkspace: a key made for the whole organization (not inside a
-// workspace) must name one on every request; this keeps which.
-func (h *Handler) setWorkspace(w http.ResponseWriter, r *http.Request) {
+// AI keys: a user keeps keys for AI services (Anthropic now), one active a
+// service; the active Anthropic key writes lessons and draws.
+//
+//	POST /me/keys                  add one (payload {text: the key, label, ws}); it becomes active
+//	POST /me/keys/{id}/{op}        on, off, remove, workspace (payload {ws})
+func (h *Handler) addKey(w http.ResponseWriter, r *http.Request) {
 	u := auth.User(r.Context())
 	if u == nil {
 		http.Error(w, "sign in first", http.StatusUnauthorized)
 		return
 	}
-	var p payload
+	var p keyPayload
 	_ = datastar.ReadSignals(r, &p)
-	ws := strings.TrimSpace(p.Text)
-	if len(ws) > 100 || strings.IndexFunc(ws, func(c rune) bool {
-		return !(c == '_' || c == '-' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z')
-	}) >= 0 {
-		ack.Bad(datastar.NewSSE(w, r), "workspace", "A workspace ID is letters, digits, _ and -")
+	key := strings.TrimSpace(p.Text)
+	if !strings.HasPrefix(key, "sk-ant-") || len(key) > 300 || strings.ContainsAny(key, " \t\r\n") {
+		ack.Bad(datastar.NewSSE(w, r), "key", "That does not look like an Anthropic key")
 		return
 	}
-	if err := h.DB.SetAnthropicWorkspace(r.Context(), u.ID, ws); err != nil {
-		slog.Error("set workspace", "err", err)
-		ack.Bad(datastar.NewSSE(w, r), "workspace", "Not saved")
+	ws, ok := workspaceID(p.WS)
+	if !ok {
+		ack.Bad(datastar.NewSSE(w, r), "key", "A workspace ID is letters, digits, _ and -")
+		return
+	}
+	if err := h.DB.AddAIKey(r.Context(), u.ID, "anthropic", short(strings.TrimSpace(p.Label), 40), key, ws); err != nil {
+		slog.Error("add key", "err", err)
+		ack.Bad(datastar.NewSSE(w, r), "key", "Not saved")
 		return
 	}
 	h.Hub.PublishUser(u.ID)
-	ack.Saved(datastar.NewSSE(w, r), "workspace", "Saved")
+	ack.Saved(datastar.NewSSE(w, r), "key", "Kept, and active")
+}
+
+type keyPayload struct {
+	Text  string `json:"text"`
+	Label string `json:"label"`
+	WS    string `json:"ws"`
+}
+
+// workspaceID checks a workspace ID ("" for none).
+func workspaceID(s string) (string, bool) {
+	ws := strings.TrimSpace(s)
+	return ws, len(ws) <= 100 && strings.IndexFunc(ws, func(c rune) bool {
+		return !(c == '_' || c == '-' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z')
+	}) < 0
+}
+
+func (h *Handler) keyOp(w http.ResponseWriter, r *http.Request) {
+	u := auth.User(r.Context())
+	if u == nil {
+		http.Error(w, "sign in first", http.StatusUnauthorized)
+		return
+	}
+	id, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	ctx := r.Context()
+	var err error
+	msg := ""
+	switch chi.URLParam(r, "op") {
+	case "on":
+		err, msg = h.DB.SetAIKeyActive(ctx, u.ID, id, true), "Active"
+	case "off":
+		err, msg = h.DB.SetAIKeyActive(ctx, u.ID, id, false), "Inactive"
+	case "remove":
+		err, msg = h.DB.RemoveAIKey(ctx, u.ID, id), "Removed"
+	case "workspace":
+		var p keyPayload
+		_ = datastar.ReadSignals(r, &p)
+		ws, ok := workspaceID(p.WS)
+		if !ok {
+			ack.Bad(datastar.NewSSE(w, r), "key", "A workspace ID is letters, digits, _ and -")
+			return
+		}
+		err, msg = h.DB.SetAIKeyWorkspace(ctx, u.ID, id, ws), "Workspace saved"
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		slog.Error("key", "err", err)
+		ack.Bad(datastar.NewSSE(w, r), "key", "Not done")
+		return
+	}
+	h.Hub.PublishUser(u.ID)
+	ack.Saved(datastar.NewSSE(w, r), "key", msg)
 }
 
 type writeJob struct {
 	Topic, State, Title, Board, Err string
 }
 
-func (h *Handler) setKey(w http.ResponseWriter, r *http.Request) {
-	u := auth.User(r.Context())
-	if u == nil {
-		http.Error(w, "sign in first", http.StatusUnauthorized)
-		return
-	}
-	var p payload
-	_ = datastar.ReadSignals(r, &p)
-	key := strings.TrimSpace(p.Text)
-	if key != "" && (!strings.HasPrefix(key, "sk-ant-") || len(key) > 300 || strings.ContainsAny(key, " \t\r\n")) {
-		ack.Bad(datastar.NewSSE(w, r), "key", "That does not look like an Anthropic key")
-		return
-	}
-	if err := h.DB.SetAnthropicKey(r.Context(), u.ID, key); err != nil {
-		slog.Error("set key", "err", err)
-		ack.Bad(datastar.NewSSE(w, r), "key", "Not saved")
-		return
-	}
-	h.Hub.PublishUser(u.ID)
-	msg := "Kept"
-	if key == "" {
-		msg = "Removed"
-	}
-	ack.Saved(datastar.NewSSE(w, r), "key", msg)
-}
-
 // writerState is what the writer's lines show this user.
 func (h *Handler) writerState(ctx context.Context, u *db.User) view.WriterState {
 	var s view.WriterState
-	if key, ws, _ := h.DB.AnthropicKey(ctx, u.ID); len(key) > 4 {
-		s.KeyEnd, s.Workspace = key[len(key)-4:], ws
+	s.Keys, _ = h.DB.AIKeys(ctx, u.ID)
+	for _, k := range s.Keys {
+		if k.Active && k.Service == "anthropic" {
+			s.KeyEnd, s.Workspace = k.Hint, k.Workspace
+		}
 	}
 	if v, ok := h.writing.Load(u.ID); ok {
 		j := v.(*writeJob)
@@ -120,7 +157,7 @@ func (h *Handler) write(w http.ResponseWriter, r *http.Request) {
 	}
 	key, ws, err := h.DB.AnthropicKey(r.Context(), u.ID)
 	if err != nil || key == "" {
-		ack.Bad(datastar.NewSSE(w, r), "write", "Keep your Anthropic key first")
+		ack.Bad(datastar.NewSSE(w, r), "write", "Add an AI key in your profile first")
 		return
 	}
 	pages := min(max(p.N, 1), maxPages)

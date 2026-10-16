@@ -31,35 +31,16 @@ templ Board(d BoardData) {
 		     declared before data-init reads them (a map of body attributes has no
 		     order, and $uid once lost that race) -->
 		<div class="page board-page" data-class:full="$_full" data-signals={ pageSignals(d.Inst, boardHeight(d.Meta)) } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
-			<header class="pg-header app-header">
-				<button class="brand" popovertarget="nav-drawer" aria-label="Menu" title="Your boards">
-					@Mark()
-				</button>
-				<div class="title-stack">
-					@boardTitle(d.Name, d.User, d.Meta)
-				</div>
-				<div class="row end">
-					<span class="presence tablet desktop" title="People on this board"><span data-text="$users"></span> here</span>
-					<button class="share" data-on:click="document.getElementById('share').showModal()">
-						@Icon("share")
-						<span class="tablet desktop">Share</span>
-					</button>
-					<button class="icon desktop" data-on:click="document.getElementById('keys').showModal()" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
-						@Icon("keys")
-					</button>
-					@avatarButton(d.User)
-				</div>
-			</header>
 			<!-- the teaching controls: the lesson, the page, Claude; then the
 			     history and full screen (a phone: its tool menus first) -->
-			@teachBar(d.Name, d.User != nil && d.Meta.OwnerID == d.User.ID)
+			@teachBar(d.Name, d.User != nil && d.Meta.OwnerID == d.User.ID, d.User)
 			<!-- the tools, the selection's actions, undo: a rail at the left -->
-			@toolRail(d.Name, d.Student)
+			@toolRail(d.Name, d.Student, d.User)
 			<!-- the workspace: the board, its checklist and your notes, laid out
 			     by container queries on the space they get -->
 			<main class="pg-main workspace-wrap">
 				<div class="workspace" style={ "--ar: " + aspect(boardHeight(d.Meta)) }>
-					@boardCard(d.Name, boardHeight(d.Meta))
+					@boardCard(d, boardHeight(d.Meta))
 					@TodoCard(d.Name)
 					@NotesCard(d.Name)
 					<!-- the book this is the whiteboard of: its pages -->
@@ -102,7 +83,7 @@ templ Board(d BoardData) {
 			@shareBody(d.Name, d.Link, d.User, d.Meta)
 		</dialog>
 		@keysDialog()
-		@MeMenu(d.User)
+		@meMenu(d.User, true)
 		@WriteDialog()
 		@newMenu()
 		<script src="/static/highlight.js"></script>
@@ -113,7 +94,7 @@ templ Board(d BoardData) {
 // teachBar is the subheader: the teaching controls (the lesson's player,
 // sending the whiteboard to a page, Claude), then the history and full
 // screen. A phone has its tool menus here too.
-templ teachBar(name string, owner bool) {
+templ teachBar(name string, owner bool, u *db.User) {
 	<nav class="pg-subheader teach-bar" aria-label="Teaching" data-class:acking="['sheet', 'sketch', 'label'].includes($_saved.k)">
 		<div class="row oneline panel-menus mobile">
 			<button class="icon tool-now" popovertarget="tools-menu" aria-label="Tools" title="Tools">
@@ -146,6 +127,7 @@ templ teachBar(name string, owner bool) {
 				<button class="icon" data-on:click={ fullToggle } aria-label="Full screen" title="Full screen">
 					@Icon("maximize")
 				</button>
+				@avatarButton(u)
 			</span>
 		</div>
 	</nav>
@@ -153,7 +135,7 @@ templ teachBar(name string, owner bool) {
 
 // toolRail is the toolbar: the drawing tools, then what to do with the
 // selection, then undo and redo; square buttons, each key on hover.
-templ toolRail(name string, student bool) {
+templ toolRail(name string, student bool, u *db.User) {
 	if student {
 		<!-- a student: a pencil of their own, and a way to clear it -->
 		<nav class="pg-toolbar tool-rail tablet desktop" aria-label="Your pencil" data-init="$tool = 5">
@@ -165,6 +147,7 @@ templ toolRail(name string, student bool) {
 					@Icon("eraser")
 				</button>
 			</div>
+			@railMe(u)
 		</nav>
 	} else {
 	<nav class="pg-toolbar tool-rail tablet desktop" aria-label="Tools">
@@ -239,9 +222,18 @@ templ toolRail(name string, student bool) {
 					<kbd>F</kbd>
 				</button>
 			</div>
+			@railMe(u)
 		</div>
 	</nav>
 	}
+}
+
+// railMe is the rail's foot: you, as a stack of your own (your avatar opens
+// your profile: theme, boards, shortcuts, sign out).
+templ railMe(u *db.User) {
+	<div class="rail-me">
+		@avatarButton(u)
+	</div>
 }
 
 // turnTool turns the selection by deg: a left click clockwise, a right
@@ -264,8 +256,22 @@ templ turnTool(name string, deg int) {
 }
 
 // boardCard is the whiteboard: the paper, and a lesson's question over it.
-templ boardCard(name string, h int32) {
+templ boardCard(d BoardData, h int32) {
+	{{ name := d.Name }}
 	<section class="card board-card" data-init={ fullSync } aria-label="Whiteboard">
+		<!-- the notebook itself says what it is: its menu, its title (click to
+		     rename), who may open it, who is here, and sharing; over the
+		     paper's top-left corner (the page has no header) -->
+		<div class="board-head glass">
+			<button class="brand" popovertarget="nav-drawer" aria-label="Menu" title="Your boards">
+				@Mark()
+			</button>
+			@boardTitle(d.Name, d.User, d.Meta)
+			<span class="presence" title="People on this board"><span data-text="$users"></span> here</span>
+			<button class="icon share" data-on:click="document.getElementById('share').showModal()" aria-label="Share" title="Share">
+				@Icon("share")
+			</button>
+		</div>
 		<!-- the lesson's player, over the paper's top-right corner -->
 		<div id="lesson-bar" class="lesson-fabs"></div>
 		<div class="stage-box">
@@ -576,8 +582,11 @@ func visWord(v string) string {
 // sketchMenu asks Claude to draw: at page level, so a phone (no toolbar)
 // opens it too from its bar.
 templ sketchMenu(name string) {
-	<div id="sketch-menu" class="menu sketch-menu" popover data-signals__ifmissing="{_sketch: '', _free: false}">
+	<div id="sketch-menu" class="menu sketch-menu" popover data-signals__ifmissing="{_sketch: '', _free: false, _haskey: true}">
 		<p class="meta">Claude draws it on this board, around what is there. <span class="tag">beta</span></p>
+		<div data-show="!$_haskey">
+			@needKey("Claude draws with your own AI key.")
+		</div>
 		<label class="row oneline free-draw" title="Claude may draw any SVG it likes, animated">
 			<input type="checkbox" data-bind:_free/>
 			<span>Free draw: any figure, animated</span>

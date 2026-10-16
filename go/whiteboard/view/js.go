@@ -267,3 +267,5 @@ func editingID(sheets []db.Sheet, no int) int64 {
 	}
 	return 0
 }
+
+func boolJS(b bool) string { return strconv.FormatBool(b) }

@@ -52,7 +52,7 @@ func (h *Handler) sketch(w http.ResponseWriter, r *http.Request) {
 	}
 	key, ws, err := h.DB.AnthropicKey(r.Context(), u.ID)
 	if err != nil || key == "" {
-		ack.Bad(datastar.NewSSE(w, r), "sketch", "Keep your Anthropic key first (Learn, Write a lesson)")
+		ack.Bad(datastar.NewSSE(w, r), "sketch", "Add an AI key in your profile first")
 		return
 	}
 	if h.running(n) {

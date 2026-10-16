@@ -106,35 +106,100 @@ func (d *DB) ClearTodos(ctx context.Context, boardID int64) error {
 	return err
 }
 
-// ─── The user's Anthropic key ───────────────────────────────────────────────
+// AIKey is one of a user's keys for an AI service; its secret never leaves
+// the server (Hint is its last four characters).
+type AIKey struct {
+	ID        int64
+	Service   string // "anthropic"
+	Label     string
+	Hint      string
+	Workspace string
+	Active    bool
+}
 
-// SetAnthropicKey keeps the key ("" removes it).
-func (d *DB) SetAnthropicKey(ctx context.Context, userID int64, key string) error {
-	if key == "" {
-		_, err := d.sql.ExecContext(ctx, `DELETE FROM user_keys WHERE user_id = ?`, userID)
+// AIKeys is a user's keys, active first, then newest.
+func (d *DB) AIKeys(ctx context.Context, userID int64) ([]AIKey, error) {
+	ctx, cancel := reading(ctx)
+	defer cancel()
+	rows, err := d.rd.QueryContext(ctx, `SELECT id, service, label, substr(secret, -4), workspace, active FROM ai_keys
+		WHERE user_id = ? ORDER BY active DESC, id DESC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AIKey
+	for rows.Next() {
+		var k AIKey
+		if err := rows.Scan(&k.ID, &k.Service, &k.Label, &k.Hint, &k.Workspace, &k.Active); err != nil {
+			return nil, err
+		}
+		out = append(out, k)
+	}
+	return out, rows.Err()
+}
+
+// AddAIKey keeps a new key, active (the service's others go inactive).
+func (d *DB) AddAIKey(ctx context.Context, userID int64, service, label, secret, workspace string) error {
+	tx, err := d.sql.BeginTx(ctx, nil)
+	if err != nil {
 		return err
 	}
-	_, err := d.sql.ExecContext(ctx, `INSERT INTO user_keys (user_id, anthropic) VALUES (?, ?)
-		ON CONFLICT (user_id) DO UPDATE SET anthropic = excluded.anthropic, updated_at = unixepoch()`, userID, key)
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `UPDATE ai_keys SET active = 0 WHERE user_id = ? AND service = ?`, userID, service); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO ai_keys (user_id, service, label, secret, workspace, active) VALUES (?, ?, ?, ?, ?, 1)`,
+		userID, service, label, secret, workspace); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// SetAIKeyActive turns a key on (its service's others off) or off.
+func (d *DB) SetAIKeyActive(ctx context.Context, userID, id int64, on bool) error {
+	tx, err := d.sql.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if on {
+		if _, err := tx.ExecContext(ctx, `UPDATE ai_keys SET active = 0 WHERE user_id = ? AND service = (SELECT service FROM ai_keys WHERE id = ? AND user_id = ?)`, userID, id, userID); err != nil {
+			return err
+		}
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE ai_keys SET active = ? WHERE id = ? AND user_id = ?`, on, id, userID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return errors.New("no such key")
+	}
+	return tx.Commit()
+}
+
+// RemoveAIKey forgets a key.
+func (d *DB) RemoveAIKey(ctx context.Context, userID, id int64) error {
+	_, err := d.sql.ExecContext(ctx, `DELETE FROM ai_keys WHERE id = ? AND user_id = ?`, id, userID)
 	return err
 }
 
-// AnthropicKey is the user's key and the workspace its requests name ("" for
-// none), for the server's own calls only.
+// SetAIKeyWorkspace names the workspace a key's requests name ("" none).
+func (d *DB) SetAIKeyWorkspace(ctx context.Context, userID, id int64, workspace string) error {
+	_, err := d.sql.ExecContext(ctx, `UPDATE ai_keys SET workspace = ? WHERE id = ? AND user_id = ?`, workspace, id, userID)
+	return err
+}
+
+// AnthropicKey is the user's active Anthropic key and the workspace its
+// requests name ("" for none), for the server's own calls only.
 func (d *DB) AnthropicKey(ctx context.Context, userID int64) (key, workspace string, err error) {
 	ctx, cancel := reading(ctx)
 	defer cancel()
-	err = d.rd.QueryRowContext(ctx, `SELECT anthropic, workspace FROM user_keys WHERE user_id = ?`, userID).Scan(&key, &workspace)
+	err = d.rd.QueryRowContext(ctx, `SELECT secret, workspace FROM ai_keys WHERE user_id = ? AND service = 'anthropic' AND active = 1
+		ORDER BY id DESC LIMIT 1`, userID).Scan(&key, &workspace)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", nil
 	}
 	return key, workspace, err
-}
-
-// SetAnthropicWorkspace names the workspace for the user's key ("" for none).
-func (d *DB) SetAnthropicWorkspace(ctx context.Context, userID int64, workspace string) error {
-	_, err := d.sql.ExecContext(ctx, `UPDATE user_keys SET workspace = ? WHERE user_id = ?`, workspace, userID)
-	return err
 }
 
 const boardLetter = board.Letter

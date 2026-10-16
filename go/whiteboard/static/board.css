@@ -46,13 +46,13 @@
   :where(.workspace) {
     block-size: 100%; display: grid; gap: 0.25lh 0.4em; max-inline-size: 110rem; margin-inline: auto;
     padding: 0.2lh max(0.3em, env(safe-area-inset-right)) max(0.2lh, env(safe-area-inset-bottom)) max(0.3em, env(safe-area-inset-left));
-    grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.7fr) minmax(7lh, 1fr) auto; grid-template-areas: "board" "notes" "pages";
+    grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, calc((100cqi - 0.6em) * var(--ar, 1))) minmax(6lh, 1fr) auto; grid-template-areas: "board" "notes" "pages";
   }
   :where(.workspace) > :where(.board-card) { grid-area: board; }
   :where(.workspace) > :where(.todo-card) { grid-area: todo; }
   :where(.workspace) > :where(.notes-card) { grid-area: notes; }
   :where(.workspace) > :where(.page-strip) { grid-area: pages; }
-  :where(.workspace) > :where(.card) { display: grid; align-content: start; gap: 0.25lh; padding: 0.45lh 0.7em; min-inline-size: 0; min-block-size: 0; overflow: hidden; }
+  :where(.workspace) > :where(.card) { grid-template-columns: minmax(0, 1fr); display: grid; align-content: start; gap: 0.25lh; padding: 0.45lh 0.7em; min-inline-size: 0; min-block-size: 0; overflow: hidden; }
   :where(.workspace) > :where(.board-card) { grid-template-rows: minmax(0, 1fr); align-content: stretch; }
   :where(.workspace) > :where(.todo-card) { grid-template-rows: auto minmax(0, 1fr) auto; align-content: stretch; }
   :where(.workspace) > :where(.notes-card) { grid-template-rows: auto minmax(0, 1fr); align-content: stretch; }
@@ -66,19 +66,22 @@
   }
   /* a tall screen with room (a tablet upright): the board on top, the
      checklist and notes side by side under it */
-  @container work (min-width: 40rem) and (max-aspect-ratio: 1/1) {
+  @container work (min-width: 40rem) and (max-aspect-ratio: 3/4) {
     /* the board's row is the paper's height at the full width: the
        checklist and notes take the rest */
     :where(.workspace) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, calc((100cqi - 2.6em - 0.8rem - 4px) * var(--ar, 1) + 0.9lh + 0.8rem + 4px)) minmax(8lh, 1fr) auto; grid-template-areas: "board board" "todo notes" "pages pages"; }
     :where(.workspace) > :where(.todo-card) { display: grid; }
     :where(.workspace) :where(.todo-open) { display: none; }
   }
-  /* a wide screen: the board, and beside it the checklist over the notes */
-  @container work (min-width: 40rem) and (min-aspect-ratio: 1/1) and (min-height: 30.01rem) {
+  /* a wide screen, or a tablet near square: the board, as big as the height
+     lets it (leaving the side column 15rem), and beside it the checklist over
+     the notes. The checklist is as tall as its items, up to 40%, then
+     scrolls; the notes take the rest, however much that is. */
+  @container work (min-width: 40rem) and (min-aspect-ratio: 3/4) and (min-height: 30.01rem) {
     /* the board's column is the paper's width at the full height (its
        height over --ar, the paper's shape): no dead space beside it; the
        checklist and notes take the rest */
-    :where(.workspace) { max-inline-size: none; grid-template-columns: minmax(0, calc((100cqb - 1.9lh - 0.8rem - 4px) / var(--ar, 1) + 1.4em + 0.8rem + 4px)) minmax(17rem, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1.3fr) auto; grid-template-areas: "board todo" "board notes" "board pages"; }
+    :where(.workspace) { max-inline-size: none; grid-template-columns: minmax(0, min(calc((100cqb - 1.9lh - 0.8rem - 4px) / var(--ar, 1) + 1.4em + 0.8rem + 4px), calc(100cqi - 15rem))) minmax(15rem, 1fr); grid-template-rows: fit-content(40%) minmax(8lh, 1fr) auto; grid-template-areas: "board todo" "board notes" "board pages"; }
     :where(.workspace) > :where(.todo-card) { display: grid; }
     :where(.workspace) :where(.todo-open) { display: none; }
   }
@@ -387,8 +390,8 @@
   :where(.seg) > :where(label:has(:checked)) { --lift: 0.14; background-color: var(--_bg); --fg: -1; font-weight: 600; }
   :where(.seg) input { position: absolute; opacity: 0; pointer-events: none; }
   :where(.theme-menu, .me-theme) .hue { display: grid; gap: 0.15lh; --fg: -0.55; --type: -1; }
-  :where(.me-menu) .who { display: grid; padding: 0.3lh 0.5em 0.4lh; border-block-end: 1px solid var(--border); margin-block-end: 0.2lh; }
-  :where(.me-menu) .who > span { --fg: -0.5; --type: -1; }
+  :where(.me-menu) :where(.who) { display: grid; padding: 0.3lh 0.5em 0.4lh; border-block-end: 1px solid var(--border); margin-block-end: 0.2lh; }
+  :where(.me-menu) :where(.who) > :where(span) { --fg: -0.5; --type: -1; }
   :where(.me-theme) { display: grid; gap: 0.25lh; padding: 0.2lh 0.5em 0.45lh; border-block-end: 1px solid var(--border); margin-block-end: 0.2lh; }
   :where(.me-menu, .new-menu) :where(a, button) { display: flex; align-items: center; gap: 0.4em; inline-size: 100%; justify-content: flex-start; text-decoration: none; color: inherit; padding: 0.3lh 0.5em; }
   :where(.me-menu, .new-menu) :where(a, button) > :where(svg) { inline-size: 1.05em; block-size: 1.05em; }
@@ -695,6 +698,7 @@
   :where(.page-strip):where(:empty) { display: none; }
   :where(.strip-book) { display: inline-flex; align-items: center; gap: 0.35em; white-space: nowrap; color: inherit; text-decoration: none; font-weight: 600; }
   :where(.strip-pages) { display: flex; gap: 0.4em; list-style: none; margin: 0; padding: 0; }
+  :where(.strip-pages) > :where(li) { flex: none; }
   :where(.strip-pages) :where(a) { display: grid; justify-items: center; gap: 0.1lh; color: inherit; text-decoration: none; }
   :where(.strip-pages) :where(.mini) { position: relative; display: block; block-size: 3.2lh; aspect-ratio: 8.5 / 11; background: white; border-radius: 2px; padding: 3px; box-sizing: border-box; box-shadow: 0 1px 3px color-mix(in oklch, black 35%, transparent); overflow: hidden; }
   :where(.strip-pages) :where(.no) { position: absolute; inset-block-end: 1px; inset-inline-end: 3px; --type: -2; line-height: 1; color: #555; font-variant-numeric: tabular-nums; }
@@ -989,4 +993,74 @@
   :where(.lesson-menu) :where(.speed-row) { justify-content: space-between; padding: 0.15lh 0.5em; gap: 0.5em; }
   :where(.lesson-menu) :where(.scrub-row) { display: grid; gap: 0.1lh; padding: 0.2lh 0.5em; }
   :where(.lesson-menu) :where(.scrub) { inline-size: 100%; }
+}
+
+/* the page has no header: the notebook says what it is on itself (its menu,
+   title, who may open it, who is here, sharing, over the paper's top-left
+   corner), and you are at the foot of the rail */
+@layer block {
+  :where(.board-card) > :where(.board-head) {
+    position: absolute; inset-block-start: 0.4lh; inset-inline-start: 0.4lh; z-index: 5; max-inline-size: calc(100% - 6lh);
+    display: flex; align-items: center; gap: 0.15em 0.5em; padding: 0.15lh 0.6em 0.15lh 0.25em; border-radius: var(--cfg-radius);
+    border: 1px solid var(--border); min-inline-size: 0;
+  }
+  :where(.board-head) > :where(.brand) { appearance: none; border: 0; background: none; box-shadow: none; padding: 0.1lh; min-block-size: 0; cursor: pointer; display: grid; place-items: center; flex: none; }
+  :where(.board-head) > :where(.brand) :where(svg) { inline-size: 1.3em; block-size: 1.3em; }
+  :where(.board-head) > :where(.board-title) { min-inline-size: 0; }
+  :where(.board-head) :where(.board-title h1) { --type: 0; }
+  :where(.board-head) > :where(.presence) { --type: -2; }
+  :where(.board-head) > :where(.share) { flex: none; padding: 0.15lh; min-block-size: 0; inline-size: auto; }
+  :where(.board-head) > :where(.share) > :where(svg) { inline-size: 1em; block-size: 1em; }
+  :where(.board-page.full) :where(.board-head) { display: none; }
+
+  /* you: the rail's last stack, on a surface of its own */
+  :where(.tool-rail) :where(.rail-me) { display: grid; place-items: center; margin-block-start: 0.25lh; padding: 0.25lh 0.2em; border-radius: var(--cfg-radius); --bg: -0.25; background-color: var(--_bg); border: 1px solid var(--border); }
+  :where(.rail-me) > :where(.avatar) { inline-size: 2em; block-size: 2em; }
+  /* your profile opens beside you: from the rail's foot, out to the right;
+     on a phone, under the avatar at the bar's end */
+  @supports (top: anchor(bottom)) {
+    @media (width >= 576px) {
+      :where(.board-page) ~ :where(#me-menu) { top: auto; right: auto; left: anchor(right); bottom: anchor(bottom); margin: 0 0 0 0.4em; }
+    }
+  }
+  :where(.me-menu) { min-inline-size: min(24rem, 94vw); max-inline-size: min(27rem, 94vw); }
+  :where(.me-menu) > :where(.me-head) { display: flex; align-items: center; gap: 0.6em; padding: 0.35lh 0.4em 0.45lh 0.5em; border-block-end: 1px solid var(--border); margin-block-end: 0.2lh; }
+  :where(.me-head) > :where(.me-pic) { inline-size: 2.6em; block-size: 2.6em; flex: none; border-radius: calc(var(--cfg-radius) * 0.8); display: grid; place-items: center; font-weight: 650; --lift: 0.1; background-color: var(--_bg); border: 1px solid var(--border); overflow: hidden; }
+  :where(.me-head) > :where(.me-pic) > :where(img) { inline-size: 100%; block-size: 100%; object-fit: cover; }
+  :where(.me-head) > :where(.who) { display: grid; min-inline-size: 0; margin-inline-end: auto; padding: 0; border: 0; margin-block-end: 0; }
+  :where(.me-head) > :where(.who) > :where(span) { --fg: -0.5; --type: -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  :where(.me-menu) :where(.me-head) > :where(button) { inline-size: auto; flex: none; padding: 0.25lh 0.7em; }
+  :where(.me-menu) :where(.me-head) > :where(button.icon) { padding: 0.25lh; }
+}
+
+/* your profile: tabs, and the AI tab's keys (one active a service) */
+@layer block {
+  :where(.me-menu) > :where(.me-tabs) { margin-inline: 0.5em; margin-block-end: 0.25lh; }
+  :where(.me-menu) > :where(.me-tabs) > :where(:first-child) { margin-inline-start: -0.4em; }
+  :where(.me-menu) :where(.me-tabs) > :where(button) { inline-size: auto; padding: 0.3lh 0.7em; }
+  :where(.me-panel) { display: grid; gap: 0.1lh; }
+  :where(.me-panel) > :where(.me-theme) { border-block-end: 0; }
+  :where(.me-ai) { display: grid; gap: 0.25lh; padding: 0.1lh 0.5em 0.4lh; max-block-size: 60svh; overflow-y: auto; }
+  :where(.me-ai) > :where(p) { margin: 0; --type: -1; }
+  :where(.ai-keys) { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25lh; }
+  :where(.ai-keys) > :where(li) { display: grid; gap: 0.2lh; padding: 0.3lh 0.5em; border: 1px solid var(--border); border-radius: calc(var(--cfg-radius) * 0.8); }
+  :where(.ai-keys) > :where(li[data-ui-active]) { --lift: 0.05; background-color: var(--_bg); border-color: var(--focus); }
+  :where(.ai-key-head) { gap: 0.5em; align-items: center; }
+  :where(.ai-key-head) > :where(.meta) { margin-inline-end: auto; --type: -1; overflow: hidden; text-overflow: ellipsis; }
+  :where(.me-menu) :where(.me-ai) :where(button) { inline-size: auto; padding: 0.2lh 0.7em; flex: none; }
+  :where(.me-menu) :where(.me-ai) :where(button.icon) { padding: 0.2lh; }
+  :where(.me-ai) :where(input, select) { --type: -1; min-inline-size: 0; flex: 1 1 auto; }
+  :where(.me-ai) :where(.row) { gap: 0.3em; }
+  :where(.ai-add) { display: grid; gap: 0.25lh; padding-block-start: 0.25lh; border-block-start: 1px solid var(--border); }
+  /* an on/off switch: a pill, its knob right and coloured when on */
+  :where(.me-menu) :where(button.switch) {
+    position: relative; inline-size: 2.2em; block-size: 1.25em; min-block-size: 0; padding: 0; border-radius: 1em; flex: none;
+    border: 1px solid var(--border); --bg: -0.3; background-color: var(--_bg);
+  }
+  :where(button.switch)::after { content: ""; position: absolute; inset-block: 2px; inset-inline-start: 2px; aspect-ratio: 1; border-radius: 50%; background: currentColor; --fg: -0.5; transition: translate calc(var(--cfg-motion) * 0.15s) ease; }
+  :where(.me-menu) :where(button.switch.on) { --hue-lock: var(--hue-suc); --bg: 0.55; }
+  :where(button.switch.on)::after { translate: 0.95em 0; background: white; }
+  :where(.need-key) { margin: 0; }
+  :where(.need-key) > :where(.link) { padding: 0; min-block-size: 0; border: 0; background: none; box-shadow: none; font: inherit; }
+  :where(.writer-key) :where(button.link) { padding: 0; min-block-size: 0; border: 0; background: none; box-shadow: none; font: inherit; }
 }

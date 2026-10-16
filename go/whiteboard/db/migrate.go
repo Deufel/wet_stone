@@ -182,6 +182,25 @@ var migrations = []string{
 	ALTER TABLE todos ADD COLUMN started_ms INTEGER;
 	ALTER TABLE todos ADD COLUMN budget_s INTEGER NOT NULL DEFAULT 0;
 	`,
+
+	// 12: AI keys: several a user, each for a service, one active a service;
+	// the single Anthropic key before becomes the first, active
+	`
+	CREATE TABLE IF NOT EXISTS ai_keys (
+		id         INTEGER PRIMARY KEY,
+		user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		service    TEXT NOT NULL,             -- "anthropic"
+		label      TEXT NOT NULL DEFAULT '',
+		secret     TEXT NOT NULL,
+		workspace  TEXT NOT NULL DEFAULT '',  -- the workspace its requests name
+		active     INTEGER NOT NULL DEFAULT 0,
+		created_at INTEGER NOT NULL DEFAULT (unixepoch())
+	);
+	CREATE INDEX IF NOT EXISTS ai_keys_user ON ai_keys (user_id, service);
+	INSERT INTO ai_keys (user_id, service, label, secret, workspace, active)
+		SELECT user_id, 'anthropic', '', anthropic, workspace, 1 FROM user_keys;
+	DROP TABLE user_keys;
+	`,
 }
 
 func migrate(db *sql.DB) error {

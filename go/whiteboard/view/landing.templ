@@ -174,19 +174,66 @@ templ avatarButton(u *db.User) {
 
 // MeMenu: who you are, and the way out.
 templ MeMenu(u *db.User) {
-	<div id="me-menu" class="menu me-menu" popover>
-		<div class="who">
-			<strong>{ u.Name }</strong>
-			<span>{ u.Email }</span>
-		</div>
-		<div class="me-theme">
-			@ThemeControls()
-		</div>
-		<a href="/">Your boards</a>
-		<button data-on:click="@post('/auth/logout')">
-			@Icon("logout")
-			Sign out
-		</button>
+	@meMenu(u, false)
+}
+
+// meMenu is your profile card: who you are, sign out; then your theme, your
+// boards and (on a board) its keyboard shortcuts.
+templ meMenu(u *db.User, board bool) {
+	<div id="me-menu" class="menu me-menu" popover data-signals__ifmissing="{_metab: 'profile'}">
+		<header class="me-head">
+			<span class="avatar me-pic">
+				if u.Picture != "" {
+					<img src={ u.Picture } alt="" referrerpolicy="no-referrer"/>
+				} else {
+					{ initial(u) }
+				}
+			</span>
+			<div class="who">
+				<strong>{ u.Name }</strong>
+				<span>{ u.Email }</span>
+			</div>
+			<button class="sign-out" data-on:click="@post('/auth/logout')">Sign out</button>
+			<button class="icon" popovertarget="me-menu" popovertargetaction="hide" aria-label="Close">
+				@Icon("x")
+			</button>
+		</header>
+		<nav class="tabs-underline me-tabs" role="tablist" aria-label="Your profile">
+			<button role="tab" data-attr:aria-selected="$_metab === 'profile'" data-on:click="$_metab = 'profile'">Profile</button>
+			<button role="tab" data-attr:aria-selected="$_metab === 'prefs'" data-on:click="$_metab = 'prefs'">Preferences</button>
+			<button role="tab" data-attr:aria-selected="$_metab === 'ai'" data-on:click="$_metab = 'ai'">
+				@Icon("sparkles")
+				<span>AI</span>
+			</button>
+		</nav>
+		<section class="me-panel" data-show="$_metab === 'profile'">
+			if board {
+				<button data-on:click="document.getElementById('me-menu').hidePopover(); document.getElementById('nav-drawer').showPopover()">
+					@Icon("book")
+					Boards and lessons
+				</button>
+			}
+			<a href="/">
+				@Icon("home")
+				Your boards
+			</a>
+		</section>
+		<section class="me-panel" data-show="$_metab === 'prefs'">
+			<div class="me-theme">
+				@ThemeControls()
+			</div>
+			if board {
+				<button data-on:click="document.getElementById('me-menu').hidePopover(); document.getElementById('keys').showModal()">
+					@Icon("keys")
+					Keyboard shortcuts
+				</button>
+			}
+		</section>
+		<section class="me-panel" data-show="$_metab === 'ai'">
+			<div id="me-ai" class="me-ai">
+				<p class="meta">Your keys show here on your home page and your boards.</p>
+			</div>
+		</section>
 	</div>
 }
 
