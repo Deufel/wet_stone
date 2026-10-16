@@ -18,6 +18,13 @@ type Ask struct {
 	Answered string // the answer given, "" while waiting
 	Result   string // the feedback once answered
 	Correct  bool
+
+	// a book page's lesson, done: the card stays with the way on
+	Done      bool
+	Book      string // the book's name and title
+	BookTitle string
+	Next      string // the next page's board, "" on the last
+	NextTitle string
 }
 
 var askVersion atomic.Int64

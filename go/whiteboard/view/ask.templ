@@ -11,7 +11,18 @@ import (
 // answered it says how it went, for a moment.
 templ AskCard(name string, u *db.User, q *hub.Ask) {
 	<div id="lesson-ask" class="lesson-ask">
-		if q != nil {
+		if q != nil && q.Done {
+			<div class="ask-card card done" role="status" aria-label="Page done">
+				<p class="q">That's this page.</p>
+				<div class="options">
+					if q.Next != "" {
+						<a class="button-like" href={ templ.SafeURL("/b/" + q.Next) }>{ "Next: " + q.NextTitle + " →" }</a>
+					} else {
+						<a class="button-like" href={ templ.SafeURL("/book/" + q.Book) }>{ "The end of " + q.BookTitle + " · contents" }</a>
+					}
+				</div>
+			</div>
+		} else if q != nil {
 			<div class="ask-card card" role="dialog" aria-label="Question" data-ui-answered?={ q.Answered != "" } data-ui-correct?={ q.Answered != "" && q.Correct }>
 				<p class="q">{ q.Question }</p>
 				if q.Answered != "" {

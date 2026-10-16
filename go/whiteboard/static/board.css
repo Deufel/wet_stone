@@ -582,3 +582,25 @@
   :where(.ask-card[data-ui-correct]) > :where(.result) { --hue-lock: var(--hue-suc); }
   :where(.ask-card[data-ui-answered]) > :where(.result) > :where(strong) { --fg: 0.85; }
 }
+
+/* a lesson page's end card: compact, the way on */
+@layer block {
+  :where(.ask-card.done) { inline-size: auto; max-inline-size: min(34rem, 100%); grid-auto-flow: column; align-items: center; gap: 0.8em; padding-block: 0.4lh; }
+  :where(.ask-card.done) > :where(.q) { --type: 0; font-weight: 500; --fg: -0.5; }
+}
+
+/* writing a lesson book: the dialog, its key line, the drawer's status */
+@layer block {
+  :where(.write-lesson) { padding: 0.9lh 1.1em; gap: 0.6lh; block-size: fit-content; inline-size: min(36rem, calc(100% - 1.5rem)); }
+  :where(.write-lesson[open]) { display: grid; }
+  :where(.write-lesson) > :where(header) > :where(h3) { margin: 0; --type: 1; }
+  :where(.write-topic) { display: grid; gap: 0.25lh; }
+  :where(.write-topic) > :where(textarea) { display: block; resize: vertical; inline-size: 100%; block-size: auto; min-block-size: 5lh; }
+  :where(.write-lesson) > :where(.meta), :where(.writer-key) :where(.meta) { margin: 0; --fg: -0.5; --type: -1; }
+  :where(.writer-key) { display: grid; gap: 0.3lh; }
+  :where(.writer-key) :where(input) { flex: 1; min-inline-size: 0; }
+  :where(.writer-status):where(:empty) { display: none; }
+  :where(.writer-status) { padding-inline: 0.6em; }
+  :where(.writer-status) > :where(p) { margin: 0; --type: -1; }
+  :where(.writer-status) > :where(.dgr) { --fg: 0.85; }
+}

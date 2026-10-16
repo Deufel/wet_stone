@@ -46,7 +46,7 @@ func (h *Handler) demo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.Hub.PublishUser(u.ID)
-	go h.play(l, name, *u)
+	go h.play(l, name, *u, nil)
 	_ = datastar.NewSSE(w, r).Redirect("/b/" + name)
 }
 

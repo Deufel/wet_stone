@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"path"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"whiteboard/board"
 	"whiteboard/db"
 	"whiteboard/hub"
+	"whiteboard/view"
 )
 
 // A Lesson is a script the presenter plays on a board: what a demo is, and
@@ -27,6 +29,9 @@ import (
 //	    {"do": "box", "at": [x1, y1, x2, y2], "label": "10"},
 //	    {"do": "arrow", "from": [x, y], "to": [x, y]},   // also "line"
 //	    {"do": "pen", "points": [[x, y], [x, y], …]},
+//	    {"do": "ring", "at": [cx, cy], "r": 120, "ry": 60}, // a pen loop round something
+//	    {"do": "underline", "from": [x, y], "to": [x, y]},   // a pen stroke under it
+//	    {"do": "erase", "at": [x, y]},                     // the shape there; no at: the whole board
 //	    {"do": "laser", "at": [cx, cy], "r": 120},
 //	    {"do": "click", "at": [x, y]},  {"do": "dblclick", "at": [x, y]},
 //	    {"do": "drag", "from": [x, y], "to": [x, y]},     // select tool
@@ -42,6 +47,7 @@ import (
 //	  ]
 //	}
 type Lesson struct {
+	Use       string   `json:"use,omitempty"` // a book's page: a built-in lesson by name
 	Title     string   `json:"title"`
 	Pace      float64  `json:"pace"`
 	Notes     *Notes   `json:"notes,omitempty"`
@@ -60,6 +66,7 @@ type Step struct {
 	From   []int32    `json:"from,omitempty"`
 	To     []int32    `json:"to,omitempty"`
 	R      int32      `json:"r,omitempty"`
+	Ry     int32      `json:"ry,omitempty"`
 	Points [][2]int32 `json:"points,omitempty"`
 	By     []int8     `json:"by,omitempty"`
 	Label  string     `json:"label,omitempty"`
@@ -89,6 +96,12 @@ func (l *Lesson) Validate() error {
 	if l.Pace < 0 || l.Pace > 5 {
 		return fmt.Errorf("pace %v: 0 to 5", l.Pace)
 	}
+	if l.Notes != nil && !view.NoteLang(l.Notes.Lang) {
+		return fmt.Errorf("notes lang %q: one of css, html, python, javascript, go, sqlite, or none", l.Notes.Lang)
+	}
+	if len(l.Checklist) > 12 {
+		return fmt.Errorf("checklist: at most 12 items")
+	}
 	return l.check(l.Steps, "")
 }
 
@@ -112,7 +125,7 @@ func (l *Lesson) check(steps []Step, at string) error {
 			if !in(s.At, 4) {
 				return bad("at: [x1, y1, x2, y2] on the board")
 			}
-		case "arrow", "line", "drag":
+		case "arrow", "line", "drag", "underline":
 			if !in(s.From, 2) || !in(s.To, 2) {
 				return bad("from and to: [x, y] on the board")
 			}
@@ -125,9 +138,13 @@ func (l *Lesson) check(steps []Step, at string) error {
 					return bad("a point off the board")
 				}
 			}
-		case "laser":
-			if !in(s.At, 2) || s.R <= 0 {
+		case "laser", "ring":
+			if !in(s.At, 2) || s.R <= 0 || s.R > board.W || s.Ry < 0 || s.Ry > board.W {
 				return bad("at: [cx, cy] and r")
+			}
+		case "erase":
+			if len(s.At) != 0 && !in(s.At, 2) {
+				return bad("at: [x, y] on the board, or none for all of it")
 			}
 		case "click", "dblclick":
 			if !in(s.At, 2) {
@@ -202,9 +219,15 @@ func init() {
 }
 
 // play runs a lesson on a board as the presenter "Demo"; the notes go into
-// the viewer's own notebook, the checklist onto the board's.
-func (h *Handler) play(l *Lesson, name string, user db.User) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+// the viewer's own notebook, the checklist onto the board's. end, when given,
+// is the card left on the board after (a book's page: the way to the next).
+// One lesson plays on a board at a time.
+func (h *Handler) play(l *Lesson, name string, user db.User, end *hub.Ask) {
+	if _, busy := h.playing.LoadOrStore(name, true); busy {
+		return
+	}
+	defer h.playing.Delete(name)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 	b, _, err := h.Hub.Board(ctx, name)
 	if err != nil {
@@ -216,9 +239,12 @@ func (h *Handler) play(l *Lesson, name string, user db.User) {
 		return
 	}
 	b.Join(demoUID, "Demo")
-	h.Hub.Publish(name)
+	h.Hub.Settle(name, nil)
 	defer func() {
 		b.Leave(demoUID)
+		if end != nil && ctx.Err() == nil {
+			h.Hub.Settle(name, end)
+		}
 		h.Hub.Publish(name)
 	}()
 	p := &presenter{h: h, ctx: ctx, name: name, b: b, x: 500, y: 950, pace: l.Pace}
@@ -252,6 +278,12 @@ func (h *Handler) play(l *Lesson, name string, user db.User) {
 				p.stroke(2, s.From[0], s.From[1], s.To[0], s.To[1])
 			case "pen":
 				p.pen(s.Points)
+			case "ring":
+				p.ring(s.At[0], s.At[1], s.R, s.Ry)
+			case "underline":
+				p.underline(s.From[0], s.From[1], s.To[0], s.To[1])
+			case "erase":
+				p.erase(s.At)
 			case "laser":
 				p.laser(s.At[0], s.At[1], s.R)
 			case "click":
@@ -340,4 +372,141 @@ func (p *presenter) pen(points [][2]int32) {
 	}
 	p.seq++
 	p.cmd(board.Cmd{Op: "up", Tool: 5, Seq: p.seq, DSeq: down, X: p.x, Y: p.y})
+}
+
+// ring loops the pen round (cx, cy): rx across, ry down (ry 0: r*0.6), a
+// little past the start, as a hand closes a circle.
+func (p *presenter) ring(cx, cy, rx, ry int32) {
+	if ry == 0 {
+		ry = rx * 6 / 10
+	}
+	const n = 36
+	pts := make([][2]int32, 0, n+4)
+	for i := 0; i <= n+3; i++ {
+		a := -math.Pi/2 + float64(i)/n*2*math.Pi
+		pts = append(pts, onBoard(cx+int32(float64(rx)*math.Cos(a)), cy+int32(float64(ry)*math.Sin(a))))
+	}
+	p.pen(pts)
+}
+
+// underline draws a hand's line from one point to another, gently wavering.
+func (p *presenter) underline(x1, y1, x2, y2 int32) {
+	const n = 12
+	pts := make([][2]int32, 0, n+1)
+	for i := 0; i <= n; i++ {
+		t := float64(i) / n
+		wob := 3 * math.Sin(t*math.Pi*3)
+		pts = append(pts, onBoard(x1+int32(float64(x2-x1)*t), y1+int32(float64(y2-y1)*t+wob)))
+	}
+	p.pen(pts)
+}
+
+// erase takes away the shape at a point (a click, then delete), or with no
+// point wipes the whole board, as the clear button does.
+func (p *presenter) erase(at []int32) {
+	if len(at) == 2 {
+		p.click(at[0], at[1])
+		p.pause(300 * time.Millisecond)
+		if p.b.SelectedBy(demoUID) >= 0 {
+			p.act("delete", 0, 0)
+		}
+		return
+	}
+	p.glide(0, 40, 40, 0)
+	p.pause(300 * time.Millisecond)
+	p.cmd(board.Cmd{Op: "clear"})
+}
+
+func onBoard(x, y int32) [2]int32 {
+	return [2]int32{min(max(x, 0), board.W), min(max(y, 0), board.W)}
+}
+
+// ─── Lesson books ───────────────────────────────────────────────────────────
+
+// A Course is a lesson book: chapters of pages, each page a lesson played on
+// its own board when it is first opened. Small pages, many of them: a page
+// teaches one idea, densely (draw, erase, draw again; notes; a question).
+//
+//	{"title": "Learning Go", "chapters": [
+//	  {"title": "Slices", "pages": [{"use": "go", "title": "The header"}, {lesson…}]}]}
+//
+// "use" takes a built-in lesson (lessons/{use}.json), its title replaced by
+// the page's when one is given.
+type Course struct {
+	Title    string          `json:"title"`
+	Chapters []CourseChapter `json:"chapters"`
+}
+
+type CourseChapter struct {
+	Title string   `json:"title"`
+	Pages []Lesson `json:"pages"`
+}
+
+// The most a book holds: enough for a short course, little enough to read.
+const maxChapters, maxPages = 8, 24
+
+// resolve swaps each "use" page for its built-in lesson, then checks it all.
+func (c *Course) resolve() error {
+	if strings.TrimSpace(c.Title) == "" {
+		return fmt.Errorf("a book needs a title")
+	}
+	if len(c.Chapters) == 0 || len(c.Chapters) > maxChapters {
+		return fmt.Errorf("1 to %d chapters", maxChapters)
+	}
+	n := 0
+	for i := range c.Chapters {
+		ch := &c.Chapters[i]
+		if strings.TrimSpace(ch.Title) == "" {
+			return fmt.Errorf("chapter %d needs a title", i+1)
+		}
+		if len(ch.Pages) == 0 {
+			return fmt.Errorf("chapter %d needs a page", i+1)
+		}
+		for j := range ch.Pages {
+			pg := &ch.Pages[j]
+			if pg.Use != "" {
+				base, ok := Lessons[pg.Use]
+				if !ok {
+					return fmt.Errorf("chapter %d page %d: no lesson %q", i+1, j+1, pg.Use)
+				}
+				title := pg.Title
+				*pg = *base
+				if title != "" {
+					pg.Title = title
+				}
+			}
+			if err := pg.Validate(); err != nil {
+				return fmt.Errorf("chapter %d page %d: %w", i+1, j+1, err)
+			}
+			n++
+		}
+	}
+	if n > maxPages {
+		return fmt.Errorf("at most %d pages", maxPages)
+	}
+	return nil
+}
+
+//go:embed courses/*.json
+var courseFiles embed.FS
+
+// Courses are the built-in lesson books, by file name.
+var Courses = map[string]*Course{}
+
+func init() {
+	entries, _ := courseFiles.ReadDir("courses")
+	for _, e := range entries {
+		b, err := courseFiles.ReadFile("courses/" + e.Name())
+		if err != nil {
+			panic(err)
+		}
+		var c Course
+		if err := json.Unmarshal(b, &c); err != nil {
+			panic(fmt.Sprintf("course %s: %v", e.Name(), err))
+		}
+		if err := c.resolve(); err != nil {
+			panic(fmt.Sprintf("course %s: %v", e.Name(), err))
+		}
+		Courses[strings.TrimSuffix(e.Name(), path.Ext(e.Name()))] = &c
+	}
 }

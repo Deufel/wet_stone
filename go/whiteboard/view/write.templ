@@ -1,0 +1,86 @@
+package view
+
+// Writing a lesson book with the user's own Anthropic key. The dialog is a
+// shell; its key line (#writer-key) and the drawer's status line
+// (#writer-status) are morph targets the page's stream fills from the
+// user's subject: the key set or not, a book being written, ready, or not.
+
+// WriterState is what the two lines show.
+type WriterState struct {
+	KeyEnd string // the key's last four characters; "" for no key
+	State  string // "", "writing", "ready" or "failed"
+	Topic  string
+	Title  string // the book, once ready
+	Board  string // its first page
+	Err    string
+}
+
+// openWriter: from the drawer, the dialog where there is one (home, a
+// board), else home with it open.
+const openWriter = "document.getElementById('nav-drawer')?.hidePopover(); " +
+	"const d = document.getElementById('write-lesson'); d ? d.showModal() : location.assign('/#write')"
+
+templ WriteDialog() {
+	<dialog id="write-lesson" class="modal content-1 write-lesson" closedby="any" aria-label="Write a lesson" data-signals__ifmissing="{_topic: '', _pages: '4', _akey: ''}" data-init="location.hash === '#write' && el.showModal()">
+		<header class="spread">
+			<h3>Write a lesson book</h3>
+			<button class="icon" data-on:click="document.getElementById('write-lesson').close()" aria-label="Close">
+				@Icon("x")
+			</button>
+		</header>
+		<div id="writer-key"></div>
+		<div class="write-topic">
+			<span id="write-topic-label">What should it teach?</span>
+			<textarea rows="4" aria-labelledby="write-topic-label" maxlength="1500" placeholder="Go interfaces: what satisfies one, nil interfaces, embedding" data-bind:_topic data-on:keydown="evt.stopPropagation()"></textarea>
+		</div>
+		<div class="row spread">
+			<label class="row oneline">
+				<span>Pages</span>
+				<select data-bind:_pages>
+					<option value="1">1</option>
+					<option value="4">about 4</option>
+					<option value="8">about 8</option>
+					<option value="14">about 14</option>
+				</select>
+			</label>
+			<button class="suc" data-on:click="$_topic.trim() && @post('/lessons/write', {payload: {text: $_topic, n: +$_pages}})">
+				@Icon("pen")
+				Write it
+			</button>
+		</div>
+		@Saved("write")
+		<p class="meta">Each page teaches one idea, drawn on its own board, with notes, a checklist and a question or two. It takes a minute or two; it lands in Your books, and here.</p>
+	</dialog>
+}
+
+// WriterParts are the dialog's key line and the drawer's status line.
+templ WriterParts(s WriterState) {
+	<div id="writer-key" class="writer-key">
+		if s.KeyEnd == "" {
+			<p class="meta">Lessons are written with your own Anthropic key. It stays on the server: it is never sent back to a page.</p>
+			<div class="row oneline">
+				<input type="password" autocomplete="off" placeholder="sk-ant-…" aria-label="Anthropic API key" data-bind:_akey data-on:keydown="evt.stopPropagation()"/>
+				<button data-on:click="$_akey.trim() && @post('/me/key', {payload: {text: $_akey}}); $_akey = ''">Keep it</button>
+			</div>
+		} else {
+			<p class="row oneline meta">
+				{ "Your Anthropic key, ending " + s.KeyEnd }
+				<button class="sec" data-on:click="@post('/me/key', {payload: {text: ''}})">Remove</button>
+			</p>
+		}
+		@Saved("key")
+	</div>
+	<div id="writer-status" class="writer-status">
+		switch s.State {
+			case "writing":
+				<p class="meta" aria-live="polite">{ "Writing “" + s.Topic + "”…" }</p>
+			case "ready":
+				<a href={ templ.SafeURL("/b/" + s.Board) }>
+					@Icon("book")
+					{ "Ready: " + s.Title }
+				</a>
+			case "failed":
+				<p class="meta dgr">{ "Not written: " + s.Err }</p>
+		}
+	</div>
+}

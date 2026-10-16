@@ -35,6 +35,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"whiteboard/ack"
@@ -64,6 +65,9 @@ type Handler struct {
 	// the old: the view froze. A page carries the instance it landed on ($inst)
 	// and reloads when it reaches another.
 	Instance string
+
+	playing sync.Map // board name → a lesson playing there
+	writing sync.Map // user id → *writeJob, their lesson being written
 }
 
 // reloadJS reloads the page, at most once in 10 s (two processes answering
@@ -147,6 +151,10 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/b/{name}/todo/{id}/{op}", h.todoOp)
 	r.Post("/b/{name}/notes", h.notes)
 	r.Post("/b/{name}/answer", h.answer)
+	r.Post("/b/{name}/replay", h.replay)
+	r.Post("/course/{kind}", h.course)
+	r.Post("/me/key", h.setKey)
+	r.Post("/lessons/write", h.write)
 	r.Get("/b/{name}/print", h.print)
 	r.Post("/b/{name}/{op}", h.command)
 }
@@ -264,7 +272,10 @@ func (h *Handler) homeStream(w http.ResponseWriter, r *http.Request) {
 		if err := view.HomeBoards(tabs, books).Render(r.Context(), &buf); err != nil {
 			return true
 		}
-		return sse.PatchElements(buf.String()) == nil
+		if sse.PatchElements(buf.String()) != nil {
+			return false
+		}
+		return sse.PatchElements(renderString(r, view.WriterParts(h.writerState(r.Context(), u)))) == nil
 	}
 	keep := time.NewTicker(Beat) // the heartbeat, as on the board's stream
 	defer keep.Stop()
@@ -369,12 +380,13 @@ func (h *Handler) page(w http.ResponseWriter, r *http.Request) {
 			h.Hub.PublishUser(u.ID) // your other devices gain the tab
 		}
 	}
+	h.lessonOnOpen(r, u, meta, n)
 	tabs, err := h.tabs(r.Context(), u)
 	if err != nil {
 		slog.Error("tabs", "err", err)
 	}
 	html(w)
-	if err := view.Board(view.BoardData{Nav: h.bookNav(r, meta.ID, n), Inst: h.Instance, Name: n, Link: h.Auth.BaseURL + "/b/" + n, User: u, Meta: meta, Hist: hist, Tabs: tabs}).Render(r.Context(), w); err != nil {
+	if err := view.Board(view.BoardData{Lesson: h.DB.HasLesson(r.Context(), meta.ID), Nav: h.bookNav(r, meta.ID, n), Inst: h.Instance, Name: n, Link: h.Auth.BaseURL + "/b/" + n, User: u, Meta: meta, Hist: hist, Tabs: tabs}).Render(r.Context(), w); err != nil {
 		slog.Error("page", "err", err)
 	}
 }
@@ -460,7 +472,10 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 		if err := view.DrawerBoards(n, meta, list).Render(ctx, &buf); err != nil {
 			return true
 		}
-		return sse.PatchElements(buf.String()) == nil
+		if sse.PatchElements(buf.String()) != nil {
+			return false
+		}
+		return sse.PatchElements(renderString(r, view.WriterParts(h.writerState(ctx, u)))) == nil
 	}
 	history := func() bool {
 		hist := h.Hub.History(n)
@@ -698,6 +713,7 @@ type payload struct {
 	Text string `json:"text"`
 	Lang string `json:"lang"`
 	Inst string `json:"inst"`
+	N    int    `json:"n"`
 }
 
 func (h *Handler) todoAdd(w http.ResponseWriter, r *http.Request) {

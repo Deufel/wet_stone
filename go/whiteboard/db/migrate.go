@@ -102,6 +102,22 @@ var migrations = []string{
 	);
 	CREATE INDEX IF NOT EXISTS book_pages_chapter ON book_pages (chapter_id, position);
 	`,
+
+	// 5: lessons on boards (a page of a lesson book: the script the presenter
+	// plays when the page is first opened), and a user's own Anthropic key
+	// (it writes their lessons; it never leaves the server)
+	`
+	CREATE TABLE IF NOT EXISTS board_lessons (
+		board_id  INTEGER PRIMARY KEY REFERENCES boards(id) ON DELETE CASCADE,
+		script    TEXT NOT NULL,
+		played_at INTEGER -- NULL until first played
+	);
+	CREATE TABLE IF NOT EXISTS user_keys (
+		user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+		anthropic  TEXT NOT NULL,
+		updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+	);
+	`,
 }
 
 func migrate(db *sql.DB) error {
