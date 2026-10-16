@@ -92,6 +92,9 @@ func (p *presenter) pause(d time.Duration) {
 	if p.fast {
 		return
 	}
+	if p.run != nil {
+		d = p.run.over(d)
+	}
 	if p.pace > 0 {
 		d = time.Duration(float64(d) * p.pace)
 	}

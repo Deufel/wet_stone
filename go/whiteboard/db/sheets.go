@@ -24,6 +24,7 @@ type Sheet struct {
 	Drawing      board.Snapshot
 	Box          [4]int32 // the drawing's extent: x1, y1, x2, y2
 	Made         string   // the date it was sent, as SQLite writes it
+	Lesson       string   // a lesson presented on the whiteboard (JSON), "" for none
 }
 
 // WhiteboardBook is the book a board is the whiteboard of ("" for none).
@@ -106,7 +107,7 @@ func (d *DB) Sheets(ctx context.Context, bookID int64) ([]Sheet, error) {
 	ctx, cancel := reading(ctx)
 	defer cancel()
 	rows, err := d.rd.QueryContext(ctx, `SELECT s.id, c.title, (SELECT count(*) FROM book_chapters c2 WHERE c2.book_id = c.book_id AND (c2.position < c.position OR (c2.position = c.position AND c2.id <= c.id))),
-		s.snapshot, s.x1, s.y1, s.x2, s.y2, date(s.created_at, 'unixepoch', 'localtime')
+		s.snapshot, s.x1, s.y1, s.x2, s.y2, date(s.created_at, 'unixepoch', 'localtime'), s.lesson
 		FROM book_sheets s JOIN book_chapters c ON c.id = s.chapter_id
 		WHERE s.book_id = ? ORDER BY c.position, c.id, s.position`, bookID)
 	if err != nil {
@@ -117,7 +118,7 @@ func (d *DB) Sheets(ctx context.Context, bookID int64) ([]Sheet, error) {
 	for rows.Next() {
 		var s Sheet
 		var snap string
-		if err := rows.Scan(&s.ID, &s.ChapterTitle, &s.ChapterNo, &snap, &s.Box[0], &s.Box[1], &s.Box[2], &s.Box[3], &s.Made); err != nil {
+		if err := rows.Scan(&s.ID, &s.ChapterTitle, &s.ChapterNo, &snap, &s.Box[0], &s.Box[1], &s.Box[2], &s.Box[3], &s.Made, &s.Lesson); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal([]byte(snap), &s.Drawing); err != nil {
@@ -196,4 +197,15 @@ func (d *DB) UpdateSheet(ctx context.Context, bookID, sheetID int64, drawing boa
 		return err
 	}
 	return tx.Commit()
+}
+
+// SaveDrawing keeps the whiteboard as a page's drawing (a lesson presented:
+// what it drew), the page staying on the whiteboard.
+func (d *DB) SaveDrawing(ctx context.Context, sheetID int64, drawing board.Snapshot) error {
+	snap, err := json.Marshal(drawing)
+	if err != nil {
+		return err
+	}
+	_, err = d.sql.ExecContext(ctx, `UPDATE book_sheets SET snapshot = ? WHERE id = ?`, string(snap), sheetID)
+	return err
 }

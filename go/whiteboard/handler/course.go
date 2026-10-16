@@ -33,16 +33,17 @@ func (h *Handler) course(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	_, first, err := h.makeCourse(r.Context(), u, c, db.Public)
+	_, board, err := h.makeCourse(r.Context(), u, c, db.Public)
 	if err != nil {
 		slog.Error("course", "err", err)
 		http.Error(w, "could not make the book", http.StatusInternalServerError)
 		return
 	}
-	_ = datastar.NewSSE(w, r).Redirect("/b/" + first)
+	_ = datastar.NewSSE(w, r).Redirect("/b/" + board)
 }
 
-// makeCourse stores a (resolved) course as a book of lesson pages.
+// makeCourse stores a (resolved) course as a lesson book: a whiteboard and
+// its pages, each carrying its lesson; it returns the book and its whiteboard.
 func (h *Handler) makeCourse(ctx context.Context, u *db.User, c *Course, vis string) (string, string, error) {
 	var chapters []db.CourseChapter
 	for _, ch := range c.Chapters {
@@ -81,30 +82,6 @@ func (h *Handler) startLesson(script string, boardID int64, name string, u db.Us
 		slog.Error("lesson script", "board", name, "err", err)
 		return false
 	}
-	h.startRun(&l, name, boardID, u, 0)
+	h.startRun(&l, name, boardID, u, 0, 0)
 	return true
-}
-
-// pageEnd is the card a book page's lesson leaves: done, and what is next.
-func (h *Handler) pageEnd(ctx context.Context, boardID int64, name string) *hub.Ask {
-	bookName := h.DB.BookOf(ctx, boardID)
-	if bookName == "" {
-		return nil
-	}
-	b, err := h.DB.Book(ctx, bookName)
-	if err != nil {
-		return nil
-	}
-	pages := b.Pages()
-	for i, p := range pages {
-		if p.Board != name {
-			continue
-		}
-		end := &hub.Ask{Done: true, Book: b.Name, BookTitle: b.Title}
-		if i+1 < len(pages) {
-			end.Next, end.NextTitle = pages[i+1].Board, pages[i+1].Title
-		}
-		return end
-	}
-	return nil
 }

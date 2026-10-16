@@ -26,8 +26,6 @@ import (
 //	POST /book/{name}/title                     the owner renames it (payload {text})
 //	POST /book/{name}/chapter                   adds a chapter (and its first page)
 //	POST /book/{name}/chapter/{id}/title        renames a chapter
-//	POST /book/{name}/chapter/{id}/page         adds a page (a new board) to a chapter
-//	POST /book/{name}/page/{id}/remove          takes a page out (the board stays)
 
 func (h *Handler) bookRoutes(r chi.Router) {
 	r.Post("/books/new/{visibility}", h.newBook)
@@ -37,8 +35,6 @@ func (h *Handler) bookRoutes(r chi.Router) {
 	r.Post("/book/{name}/title", h.bookEdit)
 	r.Post("/book/{name}/chapter", h.bookEdit)
 	r.Post("/book/{name}/chapter/{id}/title", h.bookEdit)
-	r.Post("/book/{name}/chapter/{id}/page", h.bookEdit)
-	r.Post("/book/{name}/page/{id}/remove", h.bookEdit)
 }
 
 func (h *Handler) newBook(w http.ResponseWriter, r *http.Request) {
@@ -170,7 +166,6 @@ func (h *Handler) bookEdit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	path := r.URL.Path
 	var err error
-	goTo := "" // a new page: the page goes to it
 	switch {
 	case hasSuffix(path, "/title") && id == 0:
 		if t := cleanText(p.Text, 80); t != "" {
@@ -180,15 +175,8 @@ func (h *Handler) bookEdit(w http.ResponseWriter, r *http.Request) {
 		if t := cleanText(p.Text, 80); t != "" {
 			err = h.DB.RenameChapter(ctx, b.ID, id, t)
 		}
-	case hasSuffix(path, "/chapter") && b.Board != "":
-		err = h.DB.AddChapterOnly(ctx, b) // the next pages sent go in it
 	case hasSuffix(path, "/chapter"):
-		goTo, err = h.DB.AddChapter(ctx, b)
-	case hasSuffix(path, "/page"):
-		goTo, err = h.DB.AddPage(ctx, b, id)
-	case hasSuffix(path, "/remove"):
-		err = h.DB.RemovePage(ctx, b.ID, id)
-		h.Hub.PublishUser(b.OwnerID) // the board is back in its owner's boards
+		err = h.DB.AddChapter(ctx, b) // the next pages sent go in it
 	}
 	if err != nil {
 		slog.Error("book", "book", b.Name, "path", path, "err", err)
@@ -202,47 +190,10 @@ func (h *Handler) bookEdit(w http.ResponseWriter, r *http.Request) {
 		sheetVersion.Add(1)
 		h.Hub.Publish(b.Board)
 	}
-	sse := datastar.NewSSE(w, r)
-	if goTo != "" {
-		_ = sse.Redirect("/b/" + goTo)
-		return
-	}
-	ack.Saved(sse, "book", "Saved")
+	ack.Saved(datastar.NewSSE(w, r), "book", "Saved")
 }
 
 func hasSuffix(s, suf string) bool { return len(s) >= len(suf) && s[len(s)-len(suf):] == suf }
-
-// bookNav is where a board sits in its book, or nil.
-func (h *Handler) bookNav(r *http.Request, boardID int64, board string) *view.BookNav {
-	name := h.DB.BookOf(r.Context(), boardID)
-	if name == "" {
-		return nil
-	}
-	b, err := h.DB.Book(r.Context(), name)
-	if err != nil {
-		return nil
-	}
-	pages := b.Pages()
-	n := &view.BookNav{Book: b.Name, Title: b.Title, Of: len(pages)}
-	for _, c := range b.Chapters {
-		for _, p := range c.Pages {
-			if p.Board == board {
-				n.No, n.Chapter = p.No, "Ch "+strconv.Itoa(c.No)+" · "+c.Title
-			}
-		}
-	}
-	for i, p := range pages {
-		if p.Board == board {
-			if i > 0 {
-				n.Prev = pages[i-1].Board
-			}
-			if i+1 < len(pages) {
-				n.Next = pages[i+1].Board
-			}
-		}
-	}
-	return n
-}
 
 // printPage gathers one board for paper: its drawing, its checklist and the
 // viewer's notes.
@@ -267,35 +218,18 @@ func (h *Handler) bookPrint(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if b.Board != "" { // a whiteboard's book: its pages, each a letter sheet
-		sheets, err := h.DB.Sheets(r.Context(), b.ID)
-		if err != nil {
-			http.Error(w, "book unavailable", http.StatusServiceUnavailable)
-			return
-		}
-		mine := map[int64]string{}
-		for _, s := range sheets {
-			if m, _ := h.DB.Marks(r.Context(), 0, u.ID, s.ID); len(m) > 0 {
-				mine[s.ID] = marksOver(m)
-			}
-		}
-		html(w)
-		_ = view.SheetsPrint(b, sheets, mine).Render(r.Context(), w)
+	// its pages, each a letter sheet
+	sheets, err := h.DB.Sheets(r.Context(), b.ID)
+	if err != nil {
+		http.Error(w, "book unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	d := view.PrintData{Back: "/book/" + b.Name, BackLabel: "Back to the book", Title: b.Title, Book: b, Printed: h.DB.Now(r.Context())}
-	for _, c := range b.Chapters {
-		for _, p := range c.Pages {
-			pg, ok := h.printPage(r, u, p.Board)
-			if !ok {
-				continue
-			}
-			pg.Named = "bp" + strconv.Itoa(p.No)
-			pg.Footer = "Chapter " + strconv.Itoa(c.No) + " · " + c.Title
-			pg.Mark = "p. " + strconv.Itoa(p.No)
-			d.Pages = append(d.Pages, pg)
+	mine := map[int64]string{}
+	for _, s := range sheets {
+		if m, _ := h.DB.Marks(r.Context(), 0, u.ID, s.ID); len(m) > 0 {
+			mine[s.ID] = marksOver(m)
 		}
 	}
 	html(w)
-	_ = view.Print(d).Render(r.Context(), w)
+	_ = view.SheetsPrint(b, sheets, mine).Render(r.Context(), w)
 }

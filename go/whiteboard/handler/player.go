@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"whiteboard/ack"
 	"whiteboard/board"
 	"whiteboard/db"
+	"whiteboard/hub"
 	"whiteboard/view"
 
 	"github.com/go-chi/chi/v5"
@@ -35,7 +37,19 @@ type lessonRun struct {
 	resume   chan struct{} // closed on resume
 	step, of int
 	finished bool
-	marks    []int // where "back" goes: the steps that begin a thought
+	marks    []int   // where "back" goes: the steps that begin a thought
+	speed    float64 // 0.5 to 2: pauses are their length over this
+	sheet    int64   // the page it presents (its drawing kept when done), or 0
+}
+
+// over is a pause at the run's speed.
+func (r *lessonRun) over(d time.Duration) time.Duration {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.speed > 0 {
+		return time.Duration(float64(d) / r.speed)
+	}
+	return d
 }
 
 // runVersion counts every run's changes: a stream re-sends the bar when it moves.
@@ -101,10 +115,17 @@ func marks(steps []Step) []int {
 // startRun stops the board's run, if any, wipes the board (and its
 // checklist, and the viewer's notes when the lesson has some), and plays the
 // lesson from step from: the steps before it at once, the rest as written.
-func (h *Handler) startRun(l *Lesson, name string, boardID int64, user db.User, from int) {
+func (h *Handler) startRun(l *Lesson, name string, boardID int64, user db.User, from int, sheet int64) {
+	speed := 1.0
+	if v, ok := h.runs.Load(name); ok { // a seek keeps the speed
+		old := v.(*lessonRun)
+		old.mu.Lock()
+		speed = old.speed
+		old.mu.Unlock()
+	}
 	h.stopRun(name)
 	ctx, cancel := context.WithCancel(context.Background())
-	r := &lessonRun{cancel: cancel, done: make(chan struct{}), of: len(l.Steps), marks: marks(l.Steps)}
+	r := &lessonRun{cancel: cancel, done: make(chan struct{}), of: len(l.Steps), marks: marks(l.Steps), speed: speed, sheet: sheet}
 	h.runs.Store(name, r)
 	runVersion.Add(1)
 	if err := h.Hub.Apply(ctx, name, board.Cmd{Op: "clear", UID: demoUID}); err != nil {
@@ -116,12 +137,19 @@ func (h *Handler) startRun(l *Lesson, name string, boardID int64, user db.User, 
 	if l.Notes != nil && h.DB.SaveNote(ctx, user.ID, boardID, "", l.Notes.Lang) == nil {
 		h.Hub.PublishUser(user.ID)
 	}
-	end := h.pageEnd(ctx, boardID, name)
+	var end *hub.Ask
 	go func() {
 		defer close(r.done)
 		defer cancel()
 		h.play(ctx, l, name, user, end, r, from)
 		r.set(func() { r.finished, r.step = ctx.Err() == nil, r.of })
+		if sheet != 0 && ctx.Err() == nil { // a page presented: what it drew is the page
+			if b, _, err := h.Hub.Board(context.Background(), name); err == nil {
+				if err := h.DB.SaveDrawing(context.Background(), sheet, b.Snapshot()); err == nil {
+					sheetVersion.Add(1)
+				}
+			}
+		}
 		h.Hub.Publish(name)
 	}()
 }
@@ -147,6 +175,21 @@ func (h *Handler) running(name string) bool {
 	return !r.finished
 }
 
+// lessonScript is the lesson the board presents: the page on it, when it is
+// a book's whiteboard and that page carries one (its id too); else its own.
+func (h *Handler) lessonScript(ctx context.Context, boardID int64) (string, int64) {
+	if name := h.DB.WhiteboardBook(ctx, boardID); name != "" {
+		if b, err := h.DB.Book(ctx, name); err == nil {
+			if id, no := h.DB.Editing(ctx, b.ID); id != 0 {
+				if sheets, err := h.DB.Sheets(ctx, b.ID); err == nil && no <= len(sheets) && sheets[no-1].Lesson != "" {
+					return sheets[no-1].Lesson, id
+				}
+			}
+		}
+	}
+	return h.DB.LessonScript(ctx, boardID), 0
+}
+
 // lessonState is what the board's bar shows this viewer.
 func (h *Handler) lessonState(name string, u *db.User, ownerID int64, has bool) view.LessonState {
 	st := view.LessonState{Has: has, Owner: u != nil && u.ID == ownerID, Version: runVersion.Load()}
@@ -154,6 +197,7 @@ func (h *Handler) lessonState(name string, u *db.User, ownerID int64, has bool) 
 		r := v.(*lessonRun)
 		r.mu.Lock()
 		st.Running, st.Paused, st.Done, st.Step, st.Of = !r.finished, r.paused, r.finished, r.step, r.of
+		st.Speed = int(r.speed*100 + 0.5)
 		r.mu.Unlock()
 	}
 	return st
@@ -174,8 +218,9 @@ func (h *Handler) lessonControl(w http.ResponseWriter, r *http.Request) {
 		ack.Bad(datastar.NewSSE(w, r), "lesson", "Only the page's owner plays it")
 		return
 	}
+	script, sheet := h.lessonScript(r.Context(), meta.ID)
 	var l Lesson
-	if err := json.Unmarshal([]byte(h.DB.LessonScript(r.Context(), meta.ID)), &l); err != nil || l.Validate() != nil {
+	if err := json.Unmarshal([]byte(script), &l); err != nil || l.Validate() != nil {
 		ack.Bad(datastar.NewSSE(w, r), "lesson", "No lesson on this board")
 		return
 	}
@@ -194,14 +239,18 @@ func (h *Handler) lessonControl(w http.ResponseWriter, r *http.Request) {
 		if run != nil && !finished {
 			run.play()
 		} else {
-			h.startRun(&l, n, meta.ID, *u, 0)
+			h.startRun(&l, n, meta.ID, *u, 0, sheet)
+		}
+	case "speed":
+		if run != nil {
+			run.set(func() { run.speed = min(max(float64(p.N)/100, 0.25), 3) })
 		}
 	case "pause":
 		if run != nil {
 			run.pause()
 		}
 	case "restart":
-		h.startRun(&l, n, meta.ID, *u, 0)
+		h.startRun(&l, n, meta.ID, *u, 0, sheet)
 	case "back":
 		to := 0
 		for _, m := range marks(l.Steps) {
@@ -209,13 +258,19 @@ func (h *Handler) lessonControl(w http.ResponseWriter, r *http.Request) {
 				to = m
 			}
 		}
-		h.startRun(&l, n, meta.ID, *u, to)
+		h.startRun(&l, n, meta.ID, *u, to, sheet)
 	case "seek":
-		h.startRun(&l, n, meta.ID, *u, min(max(p.N, 0), len(l.Steps)))
+		h.startRun(&l, n, meta.ID, *u, min(max(p.N, 0), len(l.Steps)), sheet)
 	default:
 		http.NotFound(w, r)
 		return
 	}
 	h.Hub.Publish(n)
 	datastar.NewSSE(w, r)
+}
+
+// hasLesson: does the board present a lesson now?
+func (h *Handler) hasLesson(ctx context.Context, boardID int64) bool {
+	s, _ := h.lessonScript(ctx, boardID)
+	return s != ""
 }

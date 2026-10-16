@@ -7,7 +7,6 @@ import (
 )
 
 type BoardData struct {
-	Nav  *BookNav // the board's place in a book, or nil
 	Inst string   // the server process this page landed on
 	Name string
 	Link string // the board's full URL, for sharing
@@ -38,9 +37,6 @@ templ Board(d BoardData) {
 				</button>
 				<div class="title-stack">
 					@boardTitle(d.Name, d.User, d.Meta)
-					if d.Nav != nil {
-						@bookBar(d.Nav)
-					}
 				</div>
 				<div class="row end">
 					<span class="presence tablet desktop" title="People on this board"><span data-text="$users"></span> here</span>
@@ -332,12 +328,6 @@ templ navDrawer(d BoardData) {
 			</section>
 			<section class="nav-sec" aria-label="Books">
 				<h3>Books</h3>
-				if d.Nav != nil {
-					<a href={ templ.SafeURL("/book/" + d.Nav.Book) }>
-						@Icon("book")
-						{ d.Nav.Title }
-					</a>
-				}
 				<a href="/#books">
 					@Icon("home")
 					Your books

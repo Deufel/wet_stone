@@ -11,7 +11,15 @@ type LessonState struct {
 	Done    bool
 	Step    int
 	Of      int
+	Speed   int // percent: 100 as written
 	Version int64
+}
+
+// speeds are the player's: slower to read along, quicker to review.
+var speeds = []int{50, 75, 100, 125, 150, 200}
+
+func speedWord(p int) string {
+	return strconv.FormatFloat(float64(p)/100, 'f', -1, 64) + "×"
 }
 
 func lessonPost(name, op string) string {
@@ -42,6 +50,13 @@ templ LessonBar(name string, st LessonState) {
 							@Icon("play")
 						</button>
 					}
+				}
+				if st.Owner {
+					<select class="speed" aria-label="Speed" title="Speed" data-on:change={ "@post('/b/" + name + "/lesson/speed', {payload: {n: +el.value, inst: $inst}, requestCancellation: 'disabled'})" }>
+						for _, sp := range speeds {
+							<option value={ strconv.Itoa(sp) } selected?={ sp == st.Speed || (st.Speed == 0 && sp == 100) }>{ speedWord(sp) }</option>
+						}
+					</select>
 				}
 				<button class="icon" data-on:click="$_voice = !$_voice; $_voice || speechSynthesis.cancel()" data-attr:aria-pressed="$_voice" aria-label="Narration" title="Narration: read the captions aloud">
 					<span data-show="$_voice">

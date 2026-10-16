@@ -4,12 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"whiteboard/board"
 )
 
 // ─── Lesson books ───────────────────────────────────────────────────────────
 
-// CourseChapter and CoursePage are a lesson book to be made: each page a
-// board with the script its presenter plays.
+// CourseChapter and CoursePage are a lesson book to be made: each page
+// carries the script presented on the book's whiteboard.
 type CourseChapter struct {
 	Title string
 	Pages []CoursePage
@@ -20,9 +21,18 @@ type CoursePage struct {
 	Script string // the page's lesson, JSON
 }
 
-// CreateCourse makes a book of lesson pages; it returns the book's name and
-// its first page's board.
+// CreateCourse makes a lesson book: a whiteboard, chapters, and pages that
+// each carry a lesson (their drawing empty until it is first presented); it
+// returns the book's name and its whiteboard's.
 func (d *DB) CreateCourse(ctx context.Context, owner *User, title, visibility string, chapters []CourseChapter) (string, string, error) {
+	board, err := d.CreateBoard(ctx, owner, title, visibility)
+	if err != nil {
+		return "", "", err
+	}
+	m, err := d.Meta(ctx, board)
+	if err != nil {
+		return "", "", err
+	}
 	tx, err := d.sql.BeginTx(ctx, nil)
 	if err != nil {
 		return "", "", err
@@ -33,11 +43,11 @@ func (d *DB) CreateCourse(ctx context.Context, owner *User, title, visibility st
 		return "", "", err
 	}
 	var bookID int64
-	if err := tx.QueryRowContext(ctx, `INSERT INTO books (name, title, owner_id, visibility) VALUES (?, ?, ?, ?) RETURNING id`,
-		name, title, owner.ID, visibility).Scan(&bookID); err != nil {
+	if err := tx.QueryRowContext(ctx, `INSERT INTO books (name, title, owner_id, visibility, board_id) VALUES (?, ?, ?, ?, ?) RETURNING id`,
+		name, title, owner.ID, visibility, m.ID).Scan(&bookID); err != nil {
 		return "", "", err
 	}
-	first := ""
+	pos := 0
 	for i, c := range chapters {
 		var chID int64
 		if err := tx.QueryRowContext(ctx, `INSERT INTO book_chapters (book_id, position, title) VALUES (?, ?, ?) RETURNING id`,
@@ -45,22 +55,18 @@ func (d *DB) CreateCourse(ctx context.Context, owner *User, title, visibility st
 			return "", "", err
 		}
 		for _, p := range c.Pages {
-			board, err := addPage(ctx, tx, chID, owner.ID, visibility, p.Title)
-			if err != nil {
+			pos++
+			if _, err := tx.ExecContext(ctx, `INSERT INTO book_sheets (book_id, chapter_id, position, snapshot, x1, y1, x2, y2, lesson)
+				VALUES (?, ?, ?, '{}', 0, 0, 1000, ?, ?)`, bookID, chID, pos, boardLetter, p.Script); err != nil {
 				return "", "", err
-			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO board_lessons (board_id, script) SELECT id, ? FROM boards WHERE name = ?`, p.Script, board); err != nil {
-				return "", "", err
-			}
-			if first == "" {
-				first = board
 			}
 		}
 	}
-	return name, first, tx.Commit()
+	return name, board, tx.Commit()
 }
 
-// AttachLesson gives a board a lesson, to play when its owner opens it.
+// AttachLesson gives a board a lesson, to play when its owner opens it (a
+// demo: a board of its own, not a book's page).
 func (d *DB) AttachLesson(ctx context.Context, board, script string) error {
 	_, err := d.sql.ExecContext(ctx, `INSERT INTO board_lessons (board_id, script) SELECT id, ? FROM boards WHERE name = ?
 		ON CONFLICT (board_id) DO UPDATE SET script = excluded.script, played_at = NULL`, script, board)
@@ -130,3 +136,5 @@ func (d *DB) SetAnthropicWorkspace(ctx context.Context, userID int64, workspace 
 	_, err := d.sql.ExecContext(ctx, `UPDATE user_keys SET workspace = ? WHERE user_id = ?`, workspace, userID)
 	return err
 }
+
+const boardLetter = board.Letter

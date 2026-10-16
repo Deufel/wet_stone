@@ -86,6 +86,11 @@ templ PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing 
 templ stripPage(s db.Sheet) {
 	<span class="mini">
 		@templ.Raw(sheetDrawing(s))
+		if s.Lesson != "" {
+			<span class="has-lesson" title="A lesson: presented on the whiteboard">
+				@Icon("play")
+			</span>
+		}
 		<span class="no">{ strconv.Itoa(s.No) }</span>
 	</span>
 }

@@ -5,9 +5,9 @@ import (
 	"whiteboard/db"
 )
 
-// BookPage is a book's front: its title and its contents, live (a morph
-// target on the book's stream). Its owner renames in place, adds chapters
-// and pages, and takes pages out.
+// BookPage is a book's front: its title, the way to its whiteboard, and its
+// pages by chapter, live (a morph target on the book's stream). Its owner
+// renames the book and its chapters in place, and adds chapters.
 templ BookPage(u *db.User, b *db.Book, sheets []db.Sheet) {
 	@Doc(b.Title+" · draw", nil) {
 		<div class="page home" data-signals={ "{" + savedSignal + ", _beat: 0}" } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ streamGet("/book/" + b.Name + "/stream") }>
@@ -28,7 +28,7 @@ templ BookContents(u *db.User, b *db.Book, sheets []db.Sheet) {
 			@Icon("book")
 			<div>
 				<h2 { bookEdit(u, b, "/book/"+b.Name+"/title")... }>{ b.Title }</h2>
-				<p class="meta">{ visWord(b.Visibility) + " · " + coverLine(b) }</p>
+				<p class="meta">{ visWord(b.Visibility) + " · " + plural(len(b.Chapters), "chapter") + " · " + plural(len(sheets), "page") }</p>
 			</div>
 			<a class="button-like" href={ templ.SafeURL("/book/" + b.Name + "/print") }>
 				@Icon("printer")
@@ -36,16 +36,14 @@ templ BookContents(u *db.User, b *db.Book, sheets []db.Sheet) {
 			</a>
 		</header>
 		@Saved("book")
-		if b.Board != "" {
-			<a class="button-like whiteboard-link" href={ templ.SafeURL("/b/" + b.Board) }>
-				@Icon("pen")
-				if u != nil && u.ID == b.OwnerID {
-					The whiteboard: draw the next page
-				} else {
-					The whiteboard
-				}
-			</a>
-		}
+		<a class="button-like whiteboard-link" href={ templ.SafeURL("/b/" + b.Board) }>
+			@Icon("pen")
+			if u != nil && u.ID == b.OwnerID {
+				The whiteboard: draw the next page
+			} else {
+				The whiteboard
+			}
+		</a>
 		<ol class="chapters">
 			for _, c := range b.Chapters {
 				<li id={ "ch-" + strconv.FormatInt(c.ID, 10) }>
@@ -53,42 +51,20 @@ templ BookContents(u *db.User, b *db.Book, sheets []db.Sheet) {
 						<span class="num">{ "Chapter " + strconv.Itoa(c.No) }</span>
 						<span { bookEdit(u, b, "/book/"+b.Name+"/chapter/"+strconv.FormatInt(c.ID, 10)+"/title")... }>{ c.Title }</span>
 					</h3>
-					if b.Board != "" {
-						<ol class="book-sheets">
-							for _, sh := range sheets {
-								if sh.ChapterNo == c.No {
-									<li>
-										<a href={ templ.SafeURL("/book/" + b.Name + "/page/" + strconv.Itoa(sh.No)) } title={ "Page " + strconv.Itoa(sh.No) }>
-											<span class="mini">
-												@templ.Raw(sheetDrawing(sh))
-											</span>
-											<span class="no">{ "p. " + strconv.Itoa(sh.No) }</span>
-										</a>
-									</li>
-								}
+					<ol class="book-sheets">
+						for _, sh := range sheets {
+							if sh.ChapterNo == c.No {
+								<li>
+									<a href={ templ.SafeURL("/book/" + b.Name + "/page/" + strconv.Itoa(sh.No)) } title={ "Page " + strconv.Itoa(sh.No) }>
+										<span class="mini">
+											@templ.Raw(sheetDrawing(sh))
+										</span>
+										<span class="no">{ "p. " + strconv.Itoa(sh.No) }</span>
+									</a>
+								</li>
 							}
-						</ol>
-					} else {
-					<ol class="book-pages">
-						for _, p := range c.Pages {
-							<li id={ "pg-" + strconv.FormatInt(p.ID, 10) }>
-								<span class="num">{ strconv.Itoa(p.No) }</span>
-								<a href={ templ.SafeURL("/b/" + p.Board) }>{ p.Title }</a>
-								if b.OwnerID == u.ID {
-									<button class="icon dgr sec" data-on:click={ "@post('/book/" + b.Name + "/page/" + strconv.FormatInt(p.ID, 10) + "/remove')" } aria-label={ "Take " + p.Title + " out of the book" } title="Take out of the book (the board stays)">
-										@Icon("x")
-									</button>
-								}
-							</li>
 						}
 					</ol>
-					if b.OwnerID == u.ID {
-						<button class="add" data-on:click={ "@post('/book/" + b.Name + "/chapter/" + strconv.FormatInt(c.ID, 10) + "/page')" }>
-							@Icon("plus")
-							Add a page
-						</button>
-					}
-					}
 				</li>
 			}
 		</ol>
@@ -119,31 +95,6 @@ func bookEdit(u *db.User, b *db.Book, url string) templ.Attributes {
 		"data-on:blur": "if (el.isContentEditable) { el.removeAttribute('contenteditable'); const t = el.textContent.trim(); " +
 			"if (t && t !== el.dataset.orig) { @post('" + url + "', {payload: {text: t}}) } else { el.textContent = el.dataset.orig } }",
 	}
-}
-
-// BookNav is where a board sits in its book, for the bar under its title.
-type BookNav struct {
-	Book, Title      string // the book's name and title
-	Chapter          string // "Ch 2 · Interfaces"
-	No, Of           int
-	Prev, Next       string // boards, "" at the ends
-}
-
-// bookBar: the board's place in its book, and the way to the pages beside it.
-templ bookBar(n *BookNav) {
-	<nav class="book-bar" aria-label="Book">
-		<a href={ templ.SafeURL("/book/" + n.Book) } title="The book's contents">
-			@Icon("book")
-			{ n.Title }
-		</a>
-		<span class="meta">{ n.Chapter + " · p " + strconv.Itoa(n.No) + " of " + strconv.Itoa(n.Of) }</span>
-		if n.Prev != "" {
-			<a class="icon-link" href={ templ.SafeURL("/b/" + n.Prev) } aria-label="Previous page" title="Previous page">←</a>
-		}
-		if n.Next != "" {
-			<a class="icon-link" href={ templ.SafeURL("/b/" + n.Next) } aria-label="Next page" title="Next page">→</a>
-		}
-	</nav>
 }
 
 // newBookRow: a new book, public or private, in one row (the drawer).

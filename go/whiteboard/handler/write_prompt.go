@@ -57,7 +57,7 @@ func writePrompt(topic string, pages int) string {
 
 // stepsSpec is the step vocabulary and the board's geometry, shared by the
 // book writer and the explainer.
-const stepsSpec = `STEPS (coordinates are board units: the board is 1000 × 1000, x right, y down):
+const stepsSpec = `STEPS (coordinates are board units: the board is a letter page, 1000 wide × 1294 tall, x right, y down):
  {"do": "box", "at": [x1, y1, x2, y2], "label": "text"}   draws a box and labels it (it is then selected)
  {"do": "arrow", "from": [x, y], "to": [x, y]}            an arrow; start and end on box edges
  {"do": "line", "from": [x, y], "to": [x, y]}
@@ -95,8 +95,8 @@ LAYOUT. Labels are 26 units high and about 14 units wide per character; a box
 needs width ≥ 14 × characters + 40 and height 70–90. Keep labels under 28
 characters. Points snap to a 20-unit grid, and a corner that lands near
 another shape's corner snaps onto it: use multiples of 20, leave 40+ units
-between shapes, and keep everything inside 40–960 (60–940 is safest).
-Plan the board in rows (y 100–240, 280–420, 480–640, 700–860) and remember
+between shapes, and keep x inside 40–960 (60–940 is safest) and y inside 40–1250.
+Plan the page in rows (y 100–240, 280–420, 480–640, 700–860, 920–1080, 1120–1240) and remember
 what you placed where: clicks, erases and drags must land on real shapes.
 `
 

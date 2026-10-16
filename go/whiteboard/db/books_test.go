@@ -4,8 +4,12 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+
+	"whiteboard/board"
 )
 
+// A book is its whiteboard and its pages: pages go into the last chapter,
+// number through the book, come back to be changed, and go.
 func TestBooks(t *testing.T) {
 	ctx := context.Background()
 	d, err := Open(filepath.Join(t.TempDir(), "t.db"))
@@ -17,53 +21,73 @@ func TestBooks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	name, first, err := d.CreateBook(ctx, &u, "Learning Go", Public)
-	if err != nil || first == "" {
-		t.Fatal(err)
-	}
-	b, _ := d.Book(ctx, name)
-	if _, err := d.AddPage(ctx, b, b.Chapters[0].ID); err != nil {
-		t.Fatal(err)
-	}
-	b, _ = d.Book(ctx, name)
-	if _, err := d.AddChapter(ctx, b); err != nil {
-		t.Fatal(err)
-	}
-	b, _ = d.Book(ctx, name)
-	if len(b.Chapters) != 2 || len(b.Chapters[0].Pages) != 2 || len(b.Chapters[1].Pages) != 1 {
-		t.Fatalf("contents: %+v", b.Chapters)
-	}
-	if b.Chapters[1].Pages[0].No != 3 || b.Chapters[1].No != 2 {
-		t.Fatalf("numbering: chapter %d page %d", b.Chapters[1].No, b.Chapters[1].Pages[0].No)
-	}
-	if got := d.BookOf(ctx, mustMeta(t, d, first)); got != name {
-		t.Fatalf("BookOf = %q", got)
-	}
-	// a page out of the book: the board stays, back in its owner's boards
-	if err := d.RemovePage(ctx, b.ID, b.Chapters[0].Pages[0].ID); err != nil {
-		t.Fatal(err)
-	}
-	b, _ = d.Book(ctx, name)
-	if len(b.Pages()) != 2 || b.Pages()[0].No != 1 {
-		t.Fatalf("after remove: %+v", b.Pages())
-	}
-	if d.BookOf(ctx, mustMeta(t, d, first)) != "" {
-		t.Fatal("removed page still in the book")
-	}
-	tabs, _ := d.Tabs(ctx, u.ID)
-	found := false
-	for _, tb := range tabs {
-		found = found || tb.Name == first
-	}
-	if !found {
-		t.Fatal("removed page's board not back in the owner's boards")
-	}
-}
-
-func mustMeta(t *testing.T, d *DB, board string) int64 {
-	m, err := d.Meta(context.Background(), board)
+	name, wb, err := d.CreateWhiteboardBook(ctx, &u, "Learning Go", Public)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return m.ID
+	m, _ := d.Meta(ctx, wb)
+	if m.Height != board.Letter || d.WhiteboardBook(ctx, m.ID) != name {
+		t.Fatalf("whiteboard: height %d, book %q", m.Height, d.WhiteboardBook(ctx, m.ID))
+	}
+	b, _ := d.Book(ctx, name)
+	snap := board.Snapshot{Shapes: []board.SavedShape{{Kind: board.Box, X2: 100, Y2: 100, Label: "x"}}}
+	box := [4]int32{0, 0, 1000, board.Letter}
+	if _, _, err := d.AddSheet(ctx, b.ID, snap, box); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.AddChapter(ctx, b); err != nil {
+		t.Fatal(err)
+	}
+	no, id, err := d.AddSheet(ctx, b.ID, snap, box)
+	if err != nil || no != 2 {
+		t.Fatalf("page %d, %v", no, err)
+	}
+	sheets, _ := d.Sheets(ctx, b.ID)
+	if len(sheets) != 2 || sheets[1].ChapterNo != 2 || sheets[1].Drawing.Shapes[0].Label != "x" {
+		t.Fatalf("pages: %+v", sheets)
+	}
+	// back on the whiteboard, saved again
+	if err := d.SetEditing(ctx, b.ID, id); err != nil {
+		t.Fatal(err)
+	}
+	if got, n := d.Editing(ctx, b.ID); got != id || n != 2 {
+		t.Fatalf("editing %d (page %d)", got, n)
+	}
+	snap.Shapes[0].Label = "y"
+	if err := d.UpdateSheet(ctx, b.ID, id, snap, box); err != nil {
+		t.Fatal(err)
+	}
+	sheets, _ = d.Sheets(ctx, b.ID)
+	if got, _ := d.Editing(ctx, b.ID); got != 0 || sheets[1].Drawing.Shapes[0].Label != "y" {
+		t.Fatalf("after save: editing %d, label %q", got, sheets[1].Drawing.Shapes[0].Label)
+	}
+	if err := d.RemoveSheet(ctx, b.ID, sheets[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if sheets, _ = d.Sheets(ctx, b.ID); len(sheets) != 1 || sheets[0].No != 1 {
+		t.Fatalf("after remove: %+v", sheets)
+	}
+}
+
+// A lesson book: a whiteboard, and pages that carry their lessons.
+func TestCourse(t *testing.T) {
+	ctx := context.Background()
+	d, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	u, _ := d.UpsertUser(ctx, "dev:a", "a@x.dev", "A", "")
+	name, wb, err := d.CreateCourse(ctx, &u, "Go", Private, []CourseChapter{
+		{Title: "Slices", Pages: []CoursePage{{Title: "a", Script: `{"title":"a"}`}, {Title: "b", Script: `{"title":"b"}`}}},
+		{Title: "Maps", Pages: []CoursePage{{Title: "c", Script: `{"title":"c"}`}}},
+	})
+	if err != nil || wb == "" {
+		t.Fatal(err)
+	}
+	b, _ := d.Book(ctx, name)
+	sheets, _ := d.Sheets(ctx, b.ID)
+	if len(b.Chapters) != 2 || len(sheets) != 3 || sheets[2].ChapterNo != 2 || sheets[1].Lesson != `{"title":"b"}` {
+		t.Fatalf("chapters %d, pages %+v", len(b.Chapters), sheets)
+	}
 }

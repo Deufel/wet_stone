@@ -395,7 +395,7 @@ func (h *Handler) page(w http.ResponseWriter, r *http.Request) {
 		slog.Error("tabs", "err", err)
 	}
 	html(w)
-	if err := view.Board(view.BoardData{Student: h.student(meta, u), Lesson: h.DB.HasLesson(r.Context(), meta.ID), Nav: h.bookNav(r, meta.ID, n), Inst: h.Instance, Name: n, Link: h.Auth.BaseURL + "/b/" + n, User: u, Meta: meta, Hist: hist, Tabs: tabs}).Render(r.Context(), w); err != nil {
+	if err := view.Board(view.BoardData{Student: h.student(meta, u), Lesson: h.DB.HasLesson(r.Context(), meta.ID), Inst: h.Instance, Name: n, Link: h.Auth.BaseURL + "/b/" + n, User: u, Meta: meta, Hist: hist, Tabs: tabs}).Render(r.Context(), w); err != nil {
 		slog.Error("page", "err", err)
 	}
 }
@@ -522,7 +522,7 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 	}
 	var sentTodo int64
 	sentAsk, sentRun, sentSketch, sentSheets := int64(-1), int64(-1), int64(-1), int64(-1)
-	hasLesson := h.DB.HasLesson(r.Context(), meta0.ID)
+	hasLesson := h.hasLesson(r.Context(), meta0.ID)
 	push := func() bool {
 		ctx := r.Context()
 		// a lesson's question, when it comes, is answered, or goes
@@ -543,6 +543,10 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 				return false
 			}
 			sentSheets = v
+			// a page with a lesson may have come onto the whiteboard
+			if has := h.hasLesson(ctx, meta0.ID); has != hasLesson {
+				hasLesson, sentRun = has, -1
+			}
 		}
 		// Claude drawing here: its Stop button, while it does
 		if v := sketchVersion.Load(); v != sentSketch {
@@ -744,8 +748,8 @@ func (h *Handler) share(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not save", http.StatusInternalServerError)
 		return
 	}
-	if op == "title" { // a page's new name shows in its book's contents too
-		if name := h.DB.BookOf(r.Context(), meta.ID); name != "" {
+	if op == "title" { // a whiteboard's new name shows in its book's contents too
+		if name := h.DB.WhiteboardBook(r.Context(), meta.ID); name != "" {
 			if bk, err := h.DB.Book(r.Context(), name); err == nil {
 				_ = h.Bus.Publish(bus.BookSubject(bk.ID), nil)
 			}

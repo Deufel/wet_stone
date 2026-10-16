@@ -111,12 +111,14 @@ func (l *Lesson) Validate() error {
 
 // check validates steps, and the steps of every branch (named by its path).
 func (l *Lesson) check(steps []Step, at string) error {
+	// on the page: x across 0..W, y down 0..Letter (a letter page; a square
+	// board clamps what falls below it)
 	in := func(v []int32, n int) bool {
 		if len(v) != n {
 			return false
 		}
-		for _, c := range v {
-			if c < 0 || c > board.W {
+		for i, c := range v {
+			if c < 0 || (i%2 == 0 && c > board.W) || (i%2 == 1 && c > board.Letter) {
 				return false
 			}
 		}
@@ -588,7 +590,7 @@ func (p *presenter) erase(at []int32) {
 }
 
 func onBoard(x, y int32) [2]int32 {
-	return [2]int32{min(max(x, 0), board.W), min(max(y, 0), board.W)}
+	return [2]int32{min(max(x, 0), board.W), min(max(y, 0), board.Letter)}
 }
 
 // ─── Lesson books ───────────────────────────────────────────────────────────

@@ -765,3 +765,9 @@
 @layer print {
   .print-board .marks path { fill: none; stroke: #c2410c; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 }
+
+@layer block {
+  :where(.strip-pages) :where(.has-lesson) { position: absolute; inset-block-start: 2px; inset-inline-start: 2px; display: grid; place-items: center; inline-size: 1.1em; block-size: 1.1em; border-radius: 50%; background: oklch(0.55 0.15 250); color: white; }
+  :where(.strip-pages) :where(.has-lesson) > :where(svg) { inline-size: 0.65em; block-size: 0.65em; }
+  :where(.lesson-bar) > :where(.button-group) > :where(.speed) { inline-size: auto; padding: 0.15lh 0.4em; min-block-size: 0; }
+}

@@ -163,6 +163,17 @@ var migrations = []string{
 	-- the page back on the whiteboard to be changed: its save replaces it
 	ALTER TABLE books ADD COLUMN editing_sheet INTEGER REFERENCES book_sheets(id) ON DELETE SET NULL;
 	`,
+
+	// 10: the books of boards are retired: a book is its whiteboard and its
+	// pages. The old books go, and the boards that were their pages; a page
+	// may carry a lesson, presented on the whiteboard
+	`
+	DELETE FROM boards WHERE id IN (SELECT p.board_id FROM book_pages p
+		JOIN book_chapters c ON c.id = p.chapter_id JOIN books b ON b.id = c.book_id WHERE b.board_id IS NULL);
+	DELETE FROM books WHERE board_id IS NULL;
+	DROP TABLE IF EXISTS book_pages;
+	ALTER TABLE book_sheets ADD COLUMN lesson TEXT NOT NULL DEFAULT '';
+	`,
 }
 
 func migrate(db *sql.DB) error {

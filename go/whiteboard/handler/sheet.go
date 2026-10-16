@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -128,7 +129,7 @@ func (h *Handler) teacher(w http.ResponseWriter, r *http.Request) (string, *db.U
 // editPage puts a page back on the whiteboard to be changed: the next save
 // replaces it.
 func (h *Handler) editPage(w http.ResponseWriter, r *http.Request) {
-	n, _, meta, _, ok := h.teacher(w, r)
+	n, u, meta, _, ok := h.teacher(w, r)
 	if !ok {
 		return
 	}
@@ -154,6 +155,16 @@ func (h *Handler) editPage(w http.ResponseWriter, r *http.Request) {
 	}
 	sheetVersion.Add(1)
 	h.Hub.Publish(n)
+	// a lesson page never presented: its lesson begins
+	if s.Lesson != "" && len(s.Drawing.Shapes) == 0 {
+		var l Lesson
+		if json.Unmarshal([]byte(s.Lesson), &l) == nil && l.Validate() == nil {
+			h.startRun(&l, n, meta.ID, *u, 0, s.ID)
+			ack.Saved(datastar.NewSSE(w, r), "sheet", "Page "+strconv.Itoa(no)+": its lesson")
+			return
+		}
+	}
+	h.stopRun(n) // another page: the lesson on the last one ends
 	ack.Saved(datastar.NewSSE(w, r), "sheet", "Page "+strconv.Itoa(no)+" is back on the whiteboard")
 }
 
