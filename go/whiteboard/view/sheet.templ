@@ -16,18 +16,10 @@ import (
 templ sheetPaper(b *db.Book, s db.Sheet, marks string) {
 	<article class="leaf" aria-label={ "Page " + strconv.Itoa(s.No) }>
 		<div class="leaf-in">
-		<header class="leaf-head">
-			<strong>{ b.Title }</strong>
-			<span>{ chapterLine(s) }</span>
-		</header>
+		<!-- the page carries its own head and foot: it is the whiteboard as sent -->
 		<div class="leaf-body">
-			@templ.Raw(board.Drawing(s.Drawing, s.Box, "print-board leaf-drawing", marks))
+			@templ.Raw(board.Drawing(s.Drawing, s.Box, "print-board leaf-drawing", sheetHead(b, s), marks))
 		</div>
-		<footer class="leaf-foot">
-			<span>{ b.Author }</span>
-			<span>{ s.Made }</span>
-			<span>{ "p. " + strconv.Itoa(s.No) }</span>
-		</footer>
 		</div>
 	</article>
 }
@@ -58,7 +50,7 @@ templ PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing 
 							data-class:dragging={ "$_pdrag == " + id64(s.ID) }
 						>
 							<button class="strip-page" draggable="false" data-on:click={ "@post('/b/" + name + "/editpage/" + strconv.Itoa(s.No) + "', {payload: {inst: $inst}})" } title={ "Page " + strconv.Itoa(s.No) + ": put it back on the whiteboard to change it (drag to move it)" }>
-								@stripPage(s)
+								@stripPage(b, s)
 							</button>
 							<span class="strip-acts">
 								<button class="icon" data-on:click={ "@post('/b/" + name + "/sheet/" + id64(s.ID) + "/copy', {requestCancellation: 'disabled'})" } aria-label={ "Copy page " + strconv.Itoa(s.No) } title="A copy, after it">
@@ -72,7 +64,7 @@ templ PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing 
 					} else {
 						<li>
 							<a class="strip-page" href={ templ.SafeURL("/book/" + b.Name + "/page/" + strconv.Itoa(s.No)) } title={ "Page " + strconv.Itoa(s.No) }>
-								@stripPage(s)
+								@stripPage(b, s)
 							</a>
 						</li>
 					}
@@ -108,9 +100,9 @@ templ PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing 
 	</div>
 }
 
-templ stripPage(s db.Sheet) {
+templ stripPage(b *db.Book, s db.Sheet) {
 	<span class="mini">
-		@templ.Raw(sheetDrawing(s))
+		@templ.Raw(sheetDrawing(b, s))
 		if s.Lesson != "" {
 			<span class="has-lesson" title="A lesson: presented on the whiteboard">
 				@Icon("play")
@@ -194,8 +186,21 @@ func sheetBackLabel(b *db.Book) string {
 }
 
 // sheetDrawing is a page's drawing, for a small copy of it.
-func sheetDrawing(s db.Sheet) string {
-	return board.Drawing(s.Drawing, s.Box, "print-board leaf-drawing")
+func sheetDrawing(b *db.Book, s db.Sheet) string {
+	return board.Drawing(s.Drawing, s.Box, "print-board leaf-drawing", sheetHead(b, s))
+}
+
+// sheetHead is a page's head and foot, drawn on it: the book's title, the
+// chapter, and the author, the date and the page number.
+func sheetHead(b *db.Book, s db.Sheet) string {
+	foot := "p. " + strconv.Itoa(s.No)
+	if s.Made != "" {
+		foot = s.Made + " · " + foot
+	}
+	if b.Author != "" {
+		foot = b.Author + " · " + foot
+	}
+	return board.HeadSVG(board.Head{Title: b.Title, Sub: chapterLine(s), Foot: foot}, s.Box[0], s.Box[1], s.Box[3]-s.Box[1])
 }
 
 // SheetsPrint is a whiteboard's book for paper: every page, a letter sheet

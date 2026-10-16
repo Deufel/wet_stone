@@ -30,12 +30,12 @@ templ Board(d BoardData) {
 		<!-- the board's wiring sits on .page, in a fixed order: the signals are
 		     declared before data-init reads them (a map of body attributes has no
 		     order, and $uid once lost that race) -->
-		<div class="page board-page" data-class:full="$_full" data-signals={ pageSignals(d.Inst, boardHeight(d.Meta)) } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
+		<div class="page board-page" data-class:full="$_full" data-class:locked="$_locked || $_lessonOn" data-effect="($_locked || $_lessonOn) && $tool !== 4 && ($tool = 4)" data-signals={ pageSignals(d.Inst, boardHeight(d.Meta)) } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
 			<!-- the teaching controls: the lesson, the page, Claude; then the
 			     history and full screen (a phone: its tool menus first) -->
 			@teachBar(d.Name, d.User != nil && d.Meta.OwnerID == d.User.ID, d.User)
 			<!-- the tools, the selection's actions, undo: a rail at the left -->
-			@toolRail(d.Name, d.Student, d.User)
+			@toolRail(d.Name, d.Student, d.User, d.User != nil && d.Meta.OwnerID == d.User.ID)
 			<!-- the workspace: the board, its checklist and your notes, laid out
 			     by container queries on the space they get -->
 			<main class="pg-main workspace-wrap">
@@ -97,6 +97,9 @@ templ Board(d BoardData) {
 templ teachBar(name string, owner bool, u *db.User) {
 	<nav class="pg-subheader teach-bar" aria-label="Teaching" data-class:acking="['sheet', 'sketch', 'label'].includes($_saved.k)">
 		<div class="row oneline panel-menus mobile">
+			<button class="icon" popovertarget="nav-drawer" aria-label="Menu" title="Menu">
+				@Icon("menu")
+			</button>
 			<button class="icon tool-now" popovertarget="tools-menu" aria-label="Tools" title="Tools">
 				for _, t := range tools {
 					<span data-show={ "$tool === " + strconv.Itoa(t.n) }>
@@ -124,6 +127,9 @@ templ teachBar(name string, owner bool, u *db.User) {
 				<button class="icon" popovertarget="history-drawer" aria-label="History" title="History">
 					@Icon("history")
 				</button>
+				<button class="icon" data-on:click="document.getElementById('share').showModal()" aria-label="Share" title="Share">
+					@Icon("share")
+				</button>
 				<button class="icon" data-on:click={ fullToggle } aria-label="Full screen" title="Full screen">
 					@Icon("maximize")
 				</button>
@@ -135,10 +141,11 @@ templ teachBar(name string, owner bool, u *db.User) {
 
 // toolRail is the toolbar: the drawing tools, then what to do with the
 // selection, then undo and redo; square buttons, each key on hover.
-templ toolRail(name string, student bool, u *db.User) {
+templ toolRail(name string, student bool, u *db.User, owner bool) {
 	if student {
 		<!-- a student: a pencil of their own, and a way to clear it -->
 		<nav class="pg-toolbar tool-rail tablet desktop" aria-label="Your pencil" data-init="$tool = 5">
+			@railMenu()
 			<div class="button-group tools" role="toolbar" aria-label="Your pencil">
 				<button class="tool stack" aria-pressed="true" aria-label="Your pencil: only you see it" title="Your pencil: notes and questions only you see">
 					@Icon("pen")
@@ -151,6 +158,7 @@ templ toolRail(name string, student bool, u *db.User) {
 		</nav>
 	} else {
 	<nav class="pg-toolbar tool-rail tablet desktop" aria-label="Tools">
+		@railMenu()
 		<!-- Claude first: the board's strongest verb (.pri) -->
 		<div class="button-group tools rail-ai" role="toolbar" aria-label="Claude">
 			<button class="tool stack pri" popovertarget="sketch-menu" aria-label="Ask Claude to draw" title="Ask Claude to draw (beta)">
@@ -211,6 +219,29 @@ templ toolRail(name string, student bool, u *db.User) {
 		     whiteboard; the board's stream fills it), and full screen -->
 		<div class="rail-foot">
 			<div id="page-save" class="button-group tools page-save"></div>
+			<div class="button-group tools rail-sec" role="toolbar" aria-label="Share">
+				<button class="tool stack sec" data-on:click="document.getElementById('share').showModal()" aria-label="Share" title="Share">
+					@Icon("share")
+				</button>
+				if owner {
+					<!-- locked, only the laser marks the board; a lesson page keeps it locked -->
+					<button
+						class="tool stack sec keep lock-tool"
+						data-attr:aria-pressed="($_locked || $_lessonOn) ? 'true' : 'false'"
+						data-attr:disabled="$_lessonOn"
+						data-attr:title="$_lessonOn ? 'A lesson page stays locked: only the laser' : $_locked ? 'Locked: only the laser marks it. Click to unlock' : 'Lock it: only the laser marks it'"
+						aria-label="Lock the board"
+						data-on:click={ "@post('/b/" + name + "/share/' + ($_locked ? 'unlock' : 'lock'))" }
+					>
+						<span data-show="$_locked || $_lessonOn">
+							@Icon("lock")
+						</span>
+						<span data-show="!($_locked || $_lessonOn)">
+							@Icon("unlock")
+						</span>
+					</button>
+				}
+			</div>
 			<div class="button-group tools rail-sec" role="toolbar" aria-label="View">
 				<button class="tool stack sec" data-on:click={ fullToggle } aria-label="Full screen" title="Full screen (F)">
 					<span data-show="!$_full">
@@ -226,6 +257,15 @@ templ toolRail(name string, student bool, u *db.User) {
 		</div>
 	</nav>
 	}
+}
+
+// railMenu is the rail's head: the menu (your boards, lessons, this board).
+templ railMenu() {
+	<div class="button-group tools rail-menu">
+		<button class="tool stack sec" popovertarget="nav-drawer" aria-label="Menu" title="Menu: your boards and lessons">
+			@Icon("menu")
+		</button>
+	</div>
 }
 
 // railMe is the rail's foot: you, as a stack of your own (your avatar opens
@@ -259,19 +299,6 @@ templ turnTool(name string, deg int) {
 templ boardCard(d BoardData, h int32) {
 	{{ name := d.Name }}
 	<section class="card board-card" data-init={ fullSync } aria-label="Whiteboard">
-		<!-- the notebook itself says what it is: its menu, its title (click to
-		     rename), who may open it, who is here, and sharing; over the
-		     paper's top-left corner (the page has no header) -->
-		<div class="board-head glass">
-			<button class="brand" popovertarget="nav-drawer" aria-label="Menu" title="Your boards">
-				@Mark()
-			</button>
-			@boardTitle(d.Name, d.User, d.Meta)
-			<span class="presence" title="People on this board"><span data-text="$users"></span> here</span>
-			<button class="icon share" data-on:click="document.getElementById('share').showModal()" aria-label="Share" title="Share">
-				@Icon("share")
-			</button>
-		</div>
 		<!-- the lesson's player, over the paper's top-right corner -->
 		<div id="lesson-bar" class="lesson-fabs"></div>
 		<div class="stage-box">
@@ -288,6 +315,7 @@ templ boardCard(d BoardData, h int32) {
 				>
 					@grid(h)
 					<svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox={ "0 0 1000 " + strconv.Itoa(int(h)) }></svg>
+					@boardTitle(d.Name, d.User, d.Meta)
 					<!-- a student's own marks, over the board (their stream fills it) -->
 					<svg id="marks" class="marks" xmlns="http://www.w3.org/2000/svg" viewBox={ "0 0 1000 " + strconv.Itoa(int(h)) }></svg>
 				<!-- the label editor: opened over a shape's label box (a double-click,
@@ -418,7 +446,7 @@ templ navDrawer(d BoardData) {
 
 templ railTool(n int, icon, label, key string) {
 	<!-- a .stack: the icon, and its key over it, shown on hover -->
-	<button class="tool stack" data-on:click={ pick(n) } data-attr:aria-pressed={ pressed(n) } aria-label={ label } title={ label }>
+	<button class={ "tool stack", templ.KV("keep", n == 4) } data-on:click={ pick(n) } data-attr:aria-pressed={ pressed(n) } aria-label={ label } title={ label }>
 		@Icon(icon)
 		if key != "" {
 			<kbd>{ key }</kbd>
@@ -432,41 +460,52 @@ templ railTool(n int, icon, label, key string) {
 // The owner renames it in place: a click makes the name editable, Enter or
 // leaving saves, Esc puts it back.
 templ boardTitle(name string, u *db.User, m *hub.Meta) {
-	<div id="board-title" class="board-title" data-signals={ "{_doctitle: " + jsString(m.Title+" · draw") + "}" } data-effect="document.title = $_doctitle">
-		<div class="row oneline title-row">
-			<h1 { titleEdit(name, u, m)... }>{ m.Title }</h1>
-			@Saved("title")
-		</div>
-		if u != nil && u.ID == m.OwnerID && m.Visibility != db.Global {
-			<!-- its owner changes who may open it, after the fact -->
-			<button class="vis vis-btn" popovertarget="vis-menu" title="Who can open this board">
-				@visIcon(m.Visibility)
-				{ visWord(m.Visibility) }
-				@Icon("chevron")
-			</button>
-			<div id="vis-menu" class="menu vis-menu" popover>
-				<button data-on:click={ "@post('/b/" + name + "/share/public'); document.getElementById('vis-menu').hidePopover()" } aria-pressed={ strconv.FormatBool(m.Visibility == db.Public) }>
-					@Icon("link")
-					<span>
-						<strong>Anyone with the link</strong>
-						<small>can open it and draw</small>
-					</span>
-				</button>
-				<button data-on:click={ "@post('/b/" + name + "/share/private'); document.getElementById('vis-menu').hidePopover()" } aria-pressed={ strconv.FormatBool(m.Visibility == db.Private) }>
-					@Icon("lock")
-					<span>
-						<strong>Private</strong>
-						<small>you and the people you invite</small>
-					</span>
-				</button>
+	<!-- the board's title is on the paper, in its units, where it prints: an
+	     input its owner types into; under it who may open it and who is here
+	     (those two are the screen's, not the paper's) -->
+	<svg id="board-title" class="paper-head" xmlns="http://www.w3.org/2000/svg" viewBox={ "0 0 1000 " + strconv.Itoa(int(boardHeight(m))) } data-signals={ "{_doctitle: " + jsString(m.Title+" · draw") + ", _locked: " + boolJS(m.Locked) + "}" } data-effect="document.title = $_doctitle">
+		<foreignObject x="28" y="18" width="944" height="84">
+			<div xmlns="http://www.w3.org/1999/xhtml" class="paper-head-in">
+				if u != nil && u.ID == m.OwnerID {
+					<input class="paper-title" type="text" maxlength="60" value={ m.Title } aria-label="Board title" title="Click to rename" spellcheck="false" { paperTitleEdit(name)... }/>
+				} else {
+					<span class="paper-title">{ m.Title }</span>
+				}
+				<div class="paper-meta">
+					if u != nil && u.ID == m.OwnerID && m.Visibility != db.Global {
+						<button class="vis vis-btn" popovertarget="vis-menu" title="Who can open this board" data-on:pointerdown="evt.stopPropagation()">
+							@visIcon(m.Visibility)
+							{ visWord(m.Visibility) }
+							@Icon("chevron")
+						</button>
+						<div id="vis-menu" class="menu vis-menu" popover>
+							<button data-on:click={ "@post('/b/" + name + "/share/public'); document.getElementById('vis-menu').hidePopover()" } aria-pressed={ strconv.FormatBool(m.Visibility == db.Public) }>
+								@Icon("link")
+								<span>
+									<strong>Anyone with the link</strong>
+									<small>can open it and draw</small>
+								</span>
+							</button>
+							<button data-on:click={ "@post('/b/" + name + "/share/private'); document.getElementById('vis-menu').hidePopover()" } aria-pressed={ strconv.FormatBool(m.Visibility == db.Private) }>
+								@Icon("lock")
+								<span>
+									<strong>Private</strong>
+									<small>you and the people you invite</small>
+								</span>
+							</button>
+						</div>
+					} else {
+						<span class="vis">
+							@visIcon(m.Visibility)
+							{ visWord(m.Visibility) }
+						</span>
+					}
+					<span class="presence" title="People on this board"><span data-text="$users"></span> here</span>
+					@Saved("title")
+				</div>
 			</div>
-		} else {
-			<span class="vis">
-				@visIcon(m.Visibility)
-				{ visWord(m.Visibility) }
-			</span>
-		}
-	</div>
+		</foreignObject>
+	</svg>
 }
 
 // DrawerBoards is the drawer's list of your boards: a morph target on the

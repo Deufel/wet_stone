@@ -511,7 +511,7 @@ func (b *Board) drawShapes(w *writer, v *User) {
 
 // Print is the drawing alone for the print page: the shapes and their labels,
 // no cursors, handles, guides or lasers.
-func (b *Board) Print() string {
+func (b *Board) Print(hd Head) string {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	w := &writer{buf: make([]byte, 0, 16<<10)}
@@ -522,6 +522,7 @@ func (b *Board) Print() string {
 	w.i(b.Height)
 	w.s(`">`)
 	b.drawShapes(w, nil)
+	w.s(HeadSVG(hd, 0, 0, b.Height))
 	w.s(`</svg>`)
 	return string(w.buf)
 }

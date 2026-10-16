@@ -999,19 +999,6 @@
    title, who may open it, who is here, sharing, over the paper's top-left
    corner), and you are at the foot of the rail */
 @layer block {
-  :where(.board-card) > :where(.board-head) {
-    position: absolute; inset-block-start: 0.4lh; inset-inline-start: 0.4lh; z-index: 5; max-inline-size: calc(100% - 6lh);
-    display: flex; align-items: center; gap: 0.15em 0.5em; padding: 0.15lh 0.6em 0.15lh 0.25em; border-radius: var(--cfg-radius);
-    border: 1px solid var(--border); min-inline-size: 0;
-  }
-  :where(.board-head) > :where(.brand) { appearance: none; border: 0; background: none; box-shadow: none; padding: 0.1lh; min-block-size: 0; cursor: pointer; display: grid; place-items: center; flex: none; }
-  :where(.board-head) > :where(.brand) :where(svg) { inline-size: 1.3em; block-size: 1.3em; }
-  :where(.board-head) > :where(.board-title) { min-inline-size: 0; }
-  :where(.board-head) :where(.board-title h1) { --type: 0; }
-  :where(.board-head) > :where(.presence) { --type: -2; }
-  :where(.board-head) > :where(.share) { flex: none; padding: 0.15lh; min-block-size: 0; inline-size: auto; }
-  :where(.board-head) > :where(.share) > :where(svg) { inline-size: 1em; block-size: 1em; }
-  :where(.board-page.full) :where(.board-head) { display: none; }
 
   /* you: the rail's last stack, on a surface of its own */
   :where(.tool-rail) :where(.rail-me) { display: grid; place-items: center; margin: 0; padding: 0; overflow: hidden; border-radius: var(--cfg-radius); --bg: -0.25; background-color: var(--_bg); border: 1px solid var(--border); }
@@ -1063,4 +1050,70 @@
   :where(.need-key) { margin: 0; }
   :where(.need-key) > :where(.link) { padding: 0; min-block-size: 0; border: 0; background: none; box-shadow: none; font: inherit; }
   :where(.writer-key) :where(button.link) { padding: 0; min-block-size: 0; border: 0; background: none; box-shadow: none; font: inherit; }
+}
+
+/* dense side cards: the checklist and the notes are working lists, not
+   panels; small heads, tight rows, the row's tools only on hover */
+@layer block {
+  :where(.workspace) > :where(.todo-card, .notes-card) { padding: 0.25lh 0.5em 0.3lh; gap: 0.15lh; }
+  :where(.todo-card, .notes-card) > :where(.card-head) { gap: 0.35em; min-block-size: 1.6em; }
+  :where(.todo-card, .notes-card) > :where(.card-head) > :where(h2) { --type: -0.5; font-weight: 650; }
+  :where(.todo-card, .notes-card) > :where(.card-head) > :where(svg) { inline-size: 0.95em; block-size: 0.95em; }
+  :where(.notes-card) > :where(.card-head) > :where(.lang) { padding-block: 0.05lh; min-block-size: 0; block-size: 1.6em; --type: -2; }
+  :where(.todo) { gap: 0.05lh; }
+  :where(.todo-sum) { --type: -2; }
+  :where(.todo-list) > :where(li) { gap: 0.3em; padding-block: 0.02lh; min-block-size: 1.7em; border-block-end-color: color-mix(in oklch, var(--border) 60%, transparent); }
+  :where(.todo-list) :where(.check) { padding: 0; }
+  :where(.todo-list) :where(.check) > :where(svg) { inline-size: 1em; block-size: 1em; }
+  :where(.todo-list) :where(button.icon) { padding: 0.08lh; min-block-size: 0; inline-size: 1.5em; block-size: 1.5em; }
+  :where(.todo-list) :where(button.icon) > :where(svg) { inline-size: 0.9em; block-size: 0.9em; }
+  /* a row's clock and budget wait for the pointer, unless they say something */
+  :where(.todo-time) :where(.clock, .budget) { opacity: 0; transition: opacity calc(var(--cfg-motion) * 0.15s); }
+  :where(.todo-list) > :where(li):where(:hover, :focus-within) :where(.todo-time) :where(.clock, .budget),
+  :where(.todo-time[data-ui-running]) :where(.clock) { opacity: 1; }
+  @media (hover: none) { :where(.todo-time) :where(.clock, .budget) { opacity: 0.6; } }
+  :where(.todo) > :where(.hint) { --type: -2; }
+  :where(.todo-card) > :where(.todo-add) > :where(input) { --type: -2; padding-block: 0.1lh; min-block-size: 0; block-size: 1.9em; }
+  :where(.todo-card) > :where(.todo-add) > :where(button) { inline-size: 1.9em; block-size: 1.9em; min-block-size: 0; padding: 0; display: grid; place-items: center; }
+  :where(.todo-card) > :where(.todo-add) > :where(button) > :where(svg) { inline-size: 0.9em; block-size: 0.9em; }
+  :where(#notes) { padding: 0.3lh 0.55em; line-height: 1.45; }
+}
+
+/* the paper's head: its title, on the paper in board units (the SVG scales
+   it with the page); type is set in board px on every element in it, or the
+   engine's fluid type would size the screen's way, not the paper's */
+@layer block {
+  :where(#stage) > :where(svg.paper-head) { pointer-events: none; overflow: visible; }
+  :where(.paper-head-in) { display: grid; gap: 2px; justify-items: start; line-height: 1.2; }
+  :where(.paper-head-in) > :where(.paper-title) {
+    font-family: var(--font-ui); font-size: 32px; font-weight: 650; line-height: 1.2; letter-spacing: -0.01em;
+    margin: 0; padding: 0 10px; block-size: auto; min-block-size: 0; inline-size: auto; min-inline-size: 4ch; max-inline-size: 100%;
+    field-sizing: content; border: 1px solid transparent; border-radius: 6px; background: none; box-shadow: none; color: currentColor; --fg: -0.95;
+    pointer-events: auto;
+  }
+  :where(input.paper-title):where(:hover) { border-color: var(--border); }
+  :where(input.paper-title):where(:focus) { border-color: var(--focus); outline: none; background: color-mix(in oklch, Canvas 85%, transparent); }
+  :where(.paper-meta) { display: flex; align-items: center; gap: 12px; padding-inline: 11px; --fg: -0.5; }
+  :where(.paper-meta) > :where(:not(.menu)), :where(.paper-meta) > :where(:not(.menu)) :where(*) { font-size: 15px; line-height: 1.2; }
+  :where(.paper-meta) > :where(.vis-btn) { pointer-events: auto; display: inline-flex; align-items: center; gap: 4px; padding: 0 4px; margin: 0; min-block-size: 0; block-size: auto; border: 0; background: none; box-shadow: none; color: inherit; cursor: pointer; }
+  :where(.paper-meta) :where(svg) { inline-size: 1em; block-size: 1em; }
+  :where(.paper-meta) > :where(.vis) { display: inline-flex; align-items: center; gap: 4px; }
+  :where(.board-page.full) :where(.paper-meta) { display: none; }
+  /* the head on a printed page or a thumbnail: the same place, as SVG text */
+  :where(.paper-head-print) :where(text) { fill: currentColor; stroke: none; font-family: var(--font-ui, system-ui, sans-serif); }
+  :where(.paper-head-print) :where(.paper-sub, .paper-foot) { fill-opacity: 0.6; }
+  /* the rail's menu, first */
+  :where(.tool-rail) > :where(.rail-menu) { margin-block-end: 0.25lh; }
+}
+
+/* a locked board (or a lesson page on it): only the laser; the rest of the
+   tools rest, dimmed, and take no clicks */
+@layer block {
+  :where(.board-page.locked) :where(.tool-rail) :where(.tool):where(:not(.keep, .pri, .rail-menu .tool, .rail-foot .tool)) { opacity: 0.3; pointer-events: none; }
+  :where(.board-page.locked) :where(.tool-rail) :where(.rail-foot) :where(#page-save .tool) { opacity: 1; pointer-events: auto; }
+  :where(.lock-tool[aria-pressed="true"]) { --hue-lock: var(--hue-wrn); --fg: 0.8; }
+}
+@layer block {
+  /* a short screen: the rail scrolls rather than lose its foot */
+  :where(.tool-rail) { overflow-y: auto; overflow-x: hidden; scrollbar-width: none; overscroll-behavior: contain; }
 }

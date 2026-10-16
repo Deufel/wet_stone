@@ -4,7 +4,8 @@ import "strconv"
 
 // LessonState is the lesson player on a board, as the bar shows it.
 type LessonState struct {
-	Has     bool // the board carries a lesson
+	Has     bool // the board carries a lesson (or a replay plays)
+	Lesson  bool // a lesson page is on the board: it stays locked
 	Owner   bool // this viewer drives it
 	Running bool // playing or paused
 	Paused  bool
@@ -31,7 +32,7 @@ func lessonPost(name, op string) string {
 // controls (from the start, back, speed, narration, the scrubber) in a
 // popover. A morph target on the board's stream; empty with no lesson.
 templ LessonBar(name string, st LessonState) {
-	<div id="lesson-bar" class="lesson-fabs">
+	<div id="lesson-bar" class="lesson-fabs" data-signals={ "{_lessonOn: " + boolJS(st.Lesson) + "}" }>
 		if st.Has {
 			if st.Owner {
 				if st.Running && !st.Paused {

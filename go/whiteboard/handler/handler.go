@@ -66,11 +66,12 @@ type Handler struct {
 	// and reloads when it reaches another.
 	Instance string
 
-	runs        sync.Map // board name → *lessonRun, its lesson playing (or paused, or done)
-	writing     sync.Map // user id → *writeJob, their lesson being written
-	sketching   sync.Map // board name → Claude drawing there
-	marking     sync.Map // markKey → *stroke, a student's mark being drawn
-	whiteboards sync.Map // board id → true: a book's whiteboard
+	runs          sync.Map // board name → *lessonRun, its lesson playing (or paused, or done)
+	writing       sync.Map // user id → *writeJob, their lesson being written
+	lessonOnCache sync.Map // board id → lessonOnAt: a lesson page on it (it stays locked)
+	sketching     sync.Map // board name → Claude drawing there
+	marking       sync.Map // markKey → *stroke, a student's mark being drawn
+	whiteboards   sync.Map // board id → true: a book's whiteboard
 }
 
 // reloadJS reloads the page, at most once in 10 s (two processes answering
@@ -669,6 +670,12 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request) {
 		h.markCommand(w, r, n, u, meta, op, s)
 		return
 	}
+	// a locked board (or one a lesson page is on) takes only the laser: a
+	// laser stroke's down, and the moves and ups any stroke sends
+	if (op == "down" && s.Tool != 4 || op != "down" && op != "move" && op != "up") && h.locked(r.Context(), meta) {
+		datastar.NewSSE(w, r)
+		return
+	}
 	if histOps[op] {
 		id := s.Hbr
 		if op == "checkout" {
@@ -748,6 +755,8 @@ func (h *Handler) share(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		op, arg = "visibility", op
+	case "lock", "unlock": // only the laser marks a locked board
+		op, arg = "lock", map[bool]string{true: "on", false: "off"}[op == "lock"]
 	default:
 		http.NotFound(w, r)
 		return

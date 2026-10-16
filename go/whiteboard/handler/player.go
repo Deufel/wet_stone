@@ -188,7 +188,7 @@ func (h *Handler) lessonScript(ctx context.Context, boardID int64) (string, int6
 
 // lessonState is what the board's bar shows this viewer.
 func (h *Handler) lessonState(name string, u *db.User, ownerID int64, has bool) view.LessonState {
-	st := view.LessonState{Has: has, Owner: u != nil && u.ID == ownerID, Version: runVersion.Load()}
+	st := view.LessonState{Has: has, Lesson: has, Owner: u != nil && u.ID == ownerID, Version: runVersion.Load()}
 	if _, ok := h.runs.Load(name); ok {
 		st.Has = true // a replay plays on a board with no lesson too
 	}
@@ -382,4 +382,29 @@ func (h *Handler) startReplay(name string, revs []int64, from int, back int64) {
 		r.set(func() { r.finished, r.step = true, r.of })
 		h.Hub.Publish(name)
 	}()
+}
+
+// locked: only the laser marks the board: its owner locked it, or a lesson
+// page is on it (a lesson's board stays locked). The lesson half is cached
+// until a page turns.
+func (h *Handler) locked(ctx context.Context, meta *hub.Meta) bool {
+	if meta.Locked {
+		return true
+	}
+	return h.lessonOn(ctx, meta.ID)
+}
+
+type lessonOnAt struct {
+	ver int64
+	on  bool
+}
+
+func (h *Handler) lessonOn(ctx context.Context, boardID int64) bool {
+	ver := sheetVersion.Load()
+	if v, ok := h.lessonOnCache.Load(boardID); ok && v.(lessonOnAt).ver == ver {
+		return v.(lessonOnAt).on
+	}
+	on := h.hasLesson(ctx, boardID)
+	h.lessonOnCache.Store(boardID, lessonOnAt{ver, on})
+	return on
 }

@@ -105,6 +105,8 @@ func (h *Hub) Share(ctx context.Context, name, op, arg string) error {
 		err = h.db.Uninvite(ctx, m.ID, arg)
 	case "visibility":
 		err = h.db.SetVisibility(ctx, m.ID, arg)
+	case "lock":
+		err = h.db.SetLocked(ctx, m.ID, arg == "on")
 	}
 	if err != nil {
 		return err

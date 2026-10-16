@@ -223,7 +223,7 @@ func pageSignals(inst string, height int32) string {
 	return "{inst: " + jsString(inst) + ", _bh: " + strconv.Itoa(int(height)) + ", " + signals[1:]
 }
 
-const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, dseq: 0, lbox: [0, 0, 0, 0], _ledit: false, _drag: false, _ans: '', _beat: 0, _full: false, _todo: '', _notes: {text: '', lang: '', v: 0}, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _voice: true, _lwait: 0, _lbuf: '', _drew: 0, _upBusy: false, _editAfterUp: false}"
+const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, dseq: 0, lbox: [0, 0, 0, 0], _ledit: false, _drag: false, _ans: '', _beat: 0, _full: false, _todo: '', _notes: {text: '', lang: '', v: 0}, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _voice: true, _lwait: 0, _lbuf: '', _drew: 0, _upBusy: false, _editAfterUp: false, _locked: false, _lessonOn: false}"
 
 // fullToggle: the whiteboard alone on the screen. The card fills the window
 // ($_full, CSS); where the browser can, the window goes full screen too (an
@@ -269,3 +269,14 @@ func editingID(sheets []db.Sheet, no int) int64 {
 }
 
 func boolJS(b bool) string { return strconv.FormatBool(b) }
+
+// paperTitleEdit: the owner renames the board by typing on the paper; Enter
+// keeps it, Escape takes it back, and the board's keys stay out of it.
+func paperTitleEdit(name string) templ.Attributes {
+	return templ.Attributes{
+		"data-on:pointerdown": "evt.stopPropagation()",
+		"data-on:keydown": "evt.stopPropagation(); if (evt.key === 'Enter') { evt.preventDefault(); el.blur() } " +
+			"else if (evt.key === 'Escape') { evt.preventDefault(); el.value = el.defaultValue; el.blur() }",
+		"data-on:change": "const t = el.value.trim(); if (t && t !== el.defaultValue) { $title = t; " + post(name, "share/title") + " } else { el.value = el.defaultValue }",
+	}
+}

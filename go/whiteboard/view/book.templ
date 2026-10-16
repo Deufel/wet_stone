@@ -57,7 +57,7 @@ templ BookContents(u *db.User, b *db.Book, sheets []db.Sheet) {
 								<li>
 									<a href={ templ.SafeURL("/book/" + b.Name + "/page/" + strconv.Itoa(sh.No)) } title={ "Page " + strconv.Itoa(sh.No) }>
 										<span class="mini">
-											@templ.Raw(sheetDrawing(sh))
+											@templ.Raw(sheetDrawing(b, sh))
 										</span>
 										<span class="no">{ "p. " + strconv.Itoa(sh.No) }</span>
 									</a>

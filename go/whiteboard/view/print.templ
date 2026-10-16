@@ -49,10 +49,7 @@ templ Print(d PrintData) {
 
 templ printSheets(d PrintData, p PrintPage) {
 	<article class="sheet sheet-board" style={ "page: " + p.Named }>
-		<header class="sheet-head">
-			<h1>{ p.Title }</h1>
-			<p>{ "printed " + d.Printed }</p>
-		</header>
+		<!-- the drawing carries its own head: the whiteboard, as it is -->
 		<figure>
 			@Raw(p.Drawing)
 		</figure>

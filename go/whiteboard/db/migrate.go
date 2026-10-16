@@ -201,6 +201,12 @@ var migrations = []string{
 		SELECT user_id, 'anthropic', '', anthropic, workspace, 1 FROM user_keys;
 	DROP TABLE user_keys;
 	`,
+
+	// 13: a board can be locked: only the laser marks it (a lesson's board
+	// is locked while a lesson page is on it, whatever this says)
+	`
+	ALTER TABLE boards ADD COLUMN locked INTEGER NOT NULL DEFAULT 0;
+	`,
 }
 
 func migrate(db *sql.DB) error {

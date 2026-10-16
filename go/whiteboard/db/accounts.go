@@ -48,6 +48,7 @@ type Meta struct {
 	Visibility string
 	OwnerID    int64 // 0 = nobody (the global board, or one from before accounts)
 	Height     int32 // in board units: 1000 square, 1294 letter
+	Locked     bool  // only the laser marks it
 	Access     []string
 }
 
@@ -141,8 +142,8 @@ func (d *DB) Meta(ctx context.Context, name string) (Meta, error) {
 	defer cancel()
 	m := Meta{Name: name}
 	var owner sql.NullInt64
-	err := d.rd.QueryRowContext(ctx, `SELECT id, title, visibility, owner_id, height FROM boards WHERE name = ?`, name).
-		Scan(&m.ID, &m.Title, &m.Visibility, &owner, &m.Height)
+	err := d.rd.QueryRowContext(ctx, `SELECT id, title, visibility, owner_id, height, locked FROM boards WHERE name = ?`, name).
+		Scan(&m.ID, &m.Title, &m.Visibility, &owner, &m.Height, &m.Locked)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrNoBoard
 	}
@@ -215,6 +216,12 @@ func newBoard(ctx context.Context, tx *sql.Tx, ownerID int64, title, visibility 
 // (its owner and the people invited); the global board stays as it is.
 func (d *DB) SetVisibility(ctx context.Context, boardID int64, v string) error {
 	_, err := d.sql.ExecContext(ctx, `UPDATE boards SET visibility = ? WHERE id = ? AND visibility != 'global'`, v, boardID)
+	return err
+}
+
+// SetLocked locks a board (only the laser marks it) or unlocks it.
+func (d *DB) SetLocked(ctx context.Context, boardID int64, locked bool) error {
+	_, err := d.sql.ExecContext(ctx, `UPDATE boards SET locked = ? WHERE id = ?`, locked, boardID)
 	return err
 }
 

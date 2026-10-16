@@ -10,6 +10,7 @@ import (
 	"whiteboard/ack"
 	"whiteboard/auth"
 	"whiteboard/bus"
+	"whiteboard/board"
 	"whiteboard/db"
 	"whiteboard/view"
 
@@ -197,18 +198,18 @@ func hasSuffix(s, suf string) bool { return len(s) >= len(suf) && s[len(s)-len(s
 
 // printPage gathers one board for paper: its drawing, its checklist and the
 // viewer's notes.
-func (h *Handler) printPage(r *http.Request, u *db.User, board string) (view.PrintPage, bool) {
-	b, _, err := h.Hub.Board(r.Context(), board)
+func (h *Handler) printPage(r *http.Request, u *db.User, name string) (view.PrintPage, bool) {
+	b, _, err := h.Hub.Board(r.Context(), name)
 	if err != nil {
 		return view.PrintPage{}, false
 	}
-	meta, err := h.Hub.Meta(r.Context(), board)
+	meta, err := h.Hub.Meta(r.Context(), name)
 	if err != nil {
 		return view.PrintPage{}, false
 	}
 	todos, _ := h.DB.Todos(r.Context(), meta.ID)
 	note, _ := h.DB.Note(r.Context(), u.ID, meta.ID)
-	return view.PrintPage{Board: board, Title: meta.Title, Drawing: b.Print(), Todos: todos, Note: note}, true
+	return view.PrintPage{Board: name, Title: meta.Title, Drawing: b.Print(board.Head{Title: meta.Title}), Todos: todos, Note: note}, true
 }
 
 // bookPrint: the cover and contents, then every page, each with its chapter
