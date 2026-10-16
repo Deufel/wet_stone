@@ -8,6 +8,7 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -317,4 +318,43 @@ func (d *DB) Tabs(ctx context.Context, userID int64) ([]Tab, error) {
 		tabs = append(tabs, t)
 	}
 	return tabs, rows.Err()
+}
+
+// BoardDrawing is a board's drawing as it stands, and its height: what a
+// thumbnail of it draws.
+type BoardDrawing struct {
+	Height int32
+	Snap   board.Snapshot
+}
+
+// Drawings is the named boards' current drawings (boards with none drawn are
+// left out).
+func (d *DB) Drawings(ctx context.Context, names []string) (map[string]BoardDrawing, error) {
+	out := map[string]BoardDrawing{}
+	if len(names) == 0 {
+		return out, nil
+	}
+	ctx, cancel := reading(ctx)
+	defer cancel()
+	args := make([]any, len(names))
+	for i, n := range names {
+		args[i] = n
+	}
+	rows, err := d.rd.QueryContext(ctx, `SELECT b.name, b.height, r.snapshot FROM boards b JOIN revisions r ON r.id = b.rev_id
+		WHERE b.name IN (?`+strings.Repeat(", ?", len(names)-1)+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name, snap string
+		var bd BoardDrawing
+		if err := rows.Scan(&name, &bd.Height, &snap); err != nil {
+			return nil, err
+		}
+		if json.Unmarshal([]byte(snap), &bd.Snap) == nil {
+			out[name] = bd
+		}
+	}
+	return out, rows.Err()
 }

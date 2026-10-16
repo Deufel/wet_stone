@@ -61,31 +61,40 @@ templ Landing(d LandingData) {
 
 // Home is a signed-in user's front page: start or join a board, or go back
 // to one of theirs.
-templ Home(u *db.User, tabs []db.Tab, books []db.Book) {
-	@Doc("draw · your boards", nil) {
+templ Home(u *db.User, tabs []db.Tab, books []db.Book, thumbs map[string]string) {
+	@Doc("draw · your library", nil) {
 		<div class="page home" data-signals={ "{" + savedSignal + ", _beat: 0, _rm: {name: '', title: ''}}" } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ streamGet("/stream") }>
 			@appHeader(u)
 			<main class="pg-main scroll-y">
-				<div class="home-body">
-					<h2>{ "Hello, " + u.First() + "." }</h2>
-					<div class="starts">
-						<a class="card start-card" href="/b/main">
-							@Icon("globe")
-							<strong>Join the global board</strong>
-							<span>Everyone signed in draws here.</span>
-						</a>
-						<button class="card start-card" data-on:click={ newBoard(db.Public) }>
-							@Icon("link")
-							<strong>New public board</strong>
-							<span>Anyone you send the link to can draw.</span>
-						</button>
-						<button class="card start-card" data-on:click={ newBoard(db.Private) }>
-							@Icon("lock")
-							<strong>New private board</strong>
-							<span>Only you and the people you invite.</span>
-						</button>
-					</div>
-					@HomeBoards(tabs, books)
+				<!-- the library: everything of yours, as it looks; the drawer is
+				     the quick way between them, this is the whole shelf -->
+				<div class="home-body library">
+					<header class="lib-head">
+						<h2>{ "Hello, " + u.First() + "." }</h2>
+						<div class="lib-actions">
+							<button class="pri" data-on:click={ newBoard(db.Public) } title="A new board anyone with the link can draw on">
+								@Icon("plus")
+								New board
+							</button>
+							<button class="sec" data-on:click={ newBoard(db.Private) } title="A new board only you and the people you invite open">
+								@Icon("lock")
+								Private board
+							</button>
+							<button class="sec" data-on:click="@post('/books/new/public')" title="A new book: a whiteboard and its pages">
+								@Icon("book")
+								New book
+							</button>
+							<button class="sec" data-on:click={ openWriter } title="Claude writes a lesson book with your key">
+								@Icon("sparkles")
+								Write a lesson
+							</button>
+							<a class="lib-global" href="/b/main" title="Everyone signed in draws here">
+								@Icon("globe")
+								Global board
+							</a>
+						</div>
+					</header>
+					@HomeBoards(tabs, books, thumbs)
 				</div>
 			</main>
 		</div>
@@ -254,39 +263,71 @@ templ googleG() {
 
 // HomeBoards is the front page's board list: a morph target on the front
 // page's stream, sent again whenever the user's boards change anywhere.
-templ HomeBoards(tabs []db.Tab, books []db.Book) {
+templ HomeBoards(tabs []db.Tab, books []db.Book, thumbs map[string]string) {
 	<section id="home-boards" class="home-boards">
-		<h3 id="books">Your books</h3>
+		<h3 id="books">Books</h3>
 		if len(books) == 0 {
-			<p class="hint">No books yet: start one from the menu (the logo), then add chapters and pages.</p>
+			<p class="hint">No books yet: a book is a whiteboard and the pages you send from it.</p>
+		} else {
+			<ul class="lib-grid">
+				for _, b := range books {
+					<li class="lib-card">
+						<a href={ templ.SafeURL("/book/" + b.Name) }>
+							<span class="lib-thumb">
+								@templ.Raw(thumbs["book:"+b.Name])
+							</span>
+							<span class="lib-name">
+								@Icon("book")
+								<strong>{ b.Title }</strong>
+							</span>
+							<span class="meta">{ visWord(b.Visibility) }</span>
+						</a>
+					</li>
+				}
+			</ul>
 		}
-		<ul class="boards">
-			for _, b := range books {
-				<li>
-					@Icon("book")
-					<a href={ templ.SafeURL("/book/" + b.Name) }>{ b.Title }</a>
-					<span class="meta">{ visWord(b.Visibility) }</span>
-				</li>
-			}
-		</ul>
-		if len(tabs) > 1 {
-			<h3>Your boards</h3>
-			<ul class="boards">
-				for _, t := range tabs {
-					if t.Name != db.GlobalName {
-						<li id={ "tab-" + t.Name }>
-							@visIcon(t.Visibility)
-							<a href={ templ.SafeURL("/b/" + t.Name) }>{ t.Title }</a>
+		{{ boards := libraryBoards(tabs, books) }}
+		<h3>Boards</h3>
+		if len(boards) == 0 {
+			<p class="hint">No boards yet: start one above.</p>
+		} else {
+			<ul class="lib-grid">
+				for _, t := range boards {
+					<li class="lib-card" id={ "tab-" + t.Name }>
+						<a href={ templ.SafeURL("/b/" + t.Name) }>
+							<span class="lib-thumb">
+								@templ.Raw(thumbs[t.Name])
+							</span>
+							<span class="lib-name">
+								@visIcon(t.Visibility)
+								<strong>{ t.Title }</strong>
+							</span>
 							<span class="meta">{ boardRole(t) }</span>
-							<button class="icon dgr sec" data-on:click={ "$_rm = {name: " + jsString(t.Name) + ", title: " + jsString(t.Title) + "}; document.getElementById('remove-confirm').showModal()" } aria-label={ "Remove " + t.Title + " from your boards" } title="Remove from your boards">
-								@Icon("trash")
-							</button>
-						</li>
-					}
+						</a>
+						<button class="icon dgr sec lib-rm" data-on:click={ "$_rm = {name: " + jsString(t.Name) + ", title: " + jsString(t.Title) + "}; document.getElementById('remove-confirm').showModal()" } aria-label={ "Remove " + t.Title + " from your boards" } title="Remove from your boards">
+							@Icon("trash")
+						</button>
+					</li>
 				}
 			</ul>
 		}
 	</section>
+}
+
+// libraryBoards: your boards, the latest opened first; not the global board
+// (it has its own way in) and not a book's whiteboard (its book stands for it).
+func libraryBoards(tabs []db.Tab, books []db.Book) []db.Tab {
+	inBook := map[string]bool{}
+	for _, b := range books {
+		inBook[b.Board] = true
+	}
+	var out []db.Tab
+	for i := len(tabs) - 1; i >= 0; i-- {
+		if t := tabs[i]; t.Name != db.GlobalName && !inBook[t.Name] {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // frontDrawer opens from the logo on the front pages.
@@ -294,36 +335,38 @@ templ frontDrawer() {
 	<aside id="nav-drawer" class="drawer left nav-drawer" popover aria-label="Menu">
 		@drawerHead()
 		<nav class="nav-list" aria-label="Menu">
-			<a href="/">
-				@Icon("home")
-				Home
-			</a>
-			<section class="nav-sec" aria-label="Boards" data-init={ navSecInit("Boards") }>
-				<button class="nav-sec-head" aria-expanded="true" data-on:click={ navSecToggle("Boards") }>
-					<h3>Boards</h3>
-					@Icon("chevron")
-				</button>
-				<a href="/b/main">
-					@Icon("globe")
-					The global board
-				</a>
-				@newBoardRow()
-			</section>
-			<section class="nav-sec" aria-label="Books" data-init={ navSecInit("Books") }>
-				<button class="nav-sec-head" aria-expanded="true" data-on:click={ navSecToggle("Books") }>
-					<h3>Books</h3>
-					@Icon("chevron")
-				</button>
-				<a href="/#books">
-					@Icon("book")
-					Your books
-				</a>
-				@newBookRow()
-			</section>
+			@libraryLink()
+			@newSection()
 			@learnSection()
 		</nav>
 		<p class="fine"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
 	</aside>
+}
+
+// libraryLink: home is the library, everything of yours as it looks.
+templ libraryLink() {
+	<a href="/" class="lib-link">
+		@Icon("home")
+		Library
+	</a>
+}
+
+// newSection: every way to start something, in one place.
+templ newSection() {
+	<section class="nav-sec" aria-label="New" data-init={ navSecInit("New") }>
+		<button class="nav-sec-head" aria-expanded="true" data-on:click={ navSecToggle("New") }>
+			<h3>New</h3>
+			@Icon("chevron")
+		</button>
+		@newBoardRow()
+		@newBookRow()
+		<button class="demo-entry" data-on:click={ openWriter } title="Claude writes a lesson book with your key">
+			@Icon("sparkles")
+			<span>Write a lesson…</span>
+			<span class="meta">a topic in, a lesson book out</span>
+		</button>
+		<div id="writer-status"></div>
+	</section>
 }
 
 // The drawer's pieces, shared by the board page and the front pages.
@@ -372,12 +415,6 @@ templ learnSection() {
 			<span>Learning Go</span>
 			<span class="meta">a lesson book: small pages, played as you open them</span>
 		</button>
-		<button class="demo-entry" data-on:click={ openWriter } title="Write a lesson book with your Anthropic key">
-			@Icon("pen")
-			<span>Write a lesson…</span>
-			<span class="meta">a topic in, a lesson book out</span>
-		</button>
-		<div id="writer-status"></div>
 	</section>
 }
 

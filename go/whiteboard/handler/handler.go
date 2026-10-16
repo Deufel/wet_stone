@@ -203,7 +203,46 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		slog.Error("tabs", "err", err)
 	}
 	books, _ := h.DB.BooksOf(r.Context(), u.ID)
-	_ = view.Home(u, tabs, books).Render(r.Context(), w)
+	_ = view.Home(u, tabs, books, h.thumbs(r.Context(), tabs, books)).Render(r.Context(), w)
+}
+
+// thumbs are the library's pictures: each board as it stands, each book's
+// first page (or its whiteboard, before it has one), drawn small with the
+// paper's head on it. Keyed by board name, and "book:" + a book's name.
+func (h *Handler) thumbs(ctx context.Context, tabs []db.Tab, books []db.Book) map[string]string {
+	names := make([]string, 0, len(tabs)+len(books))
+	for _, t := range tabs {
+		names = append(names, t.Name)
+	}
+	for _, b := range books {
+		if b.Board != "" {
+			names = append(names, b.Board)
+		}
+	}
+	drawings, err := h.DB.Drawings(ctx, names)
+	if err != nil {
+		slog.Error("thumbs", "err", err)
+	}
+	title := map[string]string{}
+	for _, t := range tabs {
+		title[t.Name] = t.Title
+	}
+	out := map[string]string{}
+	for name, d := range drawings {
+		out[name] = board.Drawing(d.Snap, [4]int32{0, 0, board.W, d.Height}, "print-board thumb-drawing",
+			board.HeadSVG(board.Head{Title: title[name]}, 0, 0, d.Height))
+	}
+	for _, b := range books {
+		hd := board.Head{Title: b.Title}
+		if sheets, err := h.DB.Sheets(ctx, b.ID); err == nil && len(sheets) > 0 {
+			s := sheets[0]
+			hd.Sub = "Chapter 1"
+			out["book:"+b.Name] = board.Drawing(s.Drawing, s.Box, "print-board thumb-drawing", board.HeadSVG(hd, s.Box[0], s.Box[1], s.Box[3]-s.Box[1]))
+		} else if d, ok := drawings[b.Board]; ok {
+			out["book:"+b.Name] = board.Drawing(d.Snap, [4]int32{0, 0, board.W, d.Height}, "print-board thumb-drawing", board.HeadSVG(hd, 0, 0, d.Height))
+		}
+	}
+	return out
 }
 
 // tabs is the user's tab strip, the global board always first.
@@ -282,7 +321,7 @@ func (h *Handler) homeStream(w http.ResponseWriter, r *http.Request) {
 		}
 		buf.Reset()
 		books, _ := h.DB.BooksOf(r.Context(), u.ID)
-		if err := view.HomeBoards(tabs, books).Render(r.Context(), &buf); err != nil {
+		if err := view.HomeBoards(tabs, books, h.thumbs(r.Context(), tabs, books)).Render(r.Context(), &buf); err != nil {
 			return true
 		}
 		if sse.PatchElements(buf.String()) != nil {

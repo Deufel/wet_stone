@@ -401,29 +401,15 @@ templ navDrawer(d BoardData) {
 	<aside id="nav-drawer" class="drawer left nav-drawer" popover aria-label="Menu">
 		@drawerHead()
 		<nav class="nav-list" aria-label="Menu">
-			<a href="/">
-				@Icon("home")
-				Home
-			</a>
-			<section class="nav-sec" aria-label="Boards" data-init={ navSecInit("Boards") }>
-				<button class="nav-sec-head" aria-expanded="true" data-on:click={ navSecToggle("Boards") }>
-					<h3>Boards</h3>
+			@libraryLink()
+			<section class="nav-sec" aria-label="Recent" data-init={ navSecInit("Recent") }>
+				<button class="nav-sec-head" aria-expanded="true" data-on:click={ navSecToggle("Recent") }>
+					<h3>Recent</h3>
 					@Icon("chevron")
 				</button>
 				@DrawerBoards(d.Name, d.Meta, d.Tabs)
-				@newBoardRow()
 			</section>
-			<section class="nav-sec" aria-label="Books" data-init={ navSecInit("Books") }>
-				<button class="nav-sec-head" aria-expanded="true" data-on:click={ navSecToggle("Books") }>
-					<h3>Books</h3>
-					@Icon("chevron")
-				</button>
-				<a href="/#books">
-					@Icon("home")
-					Your books
-				</a>
-				@newBookRow()
-			</section>
+			@newSection()
 			@learnSection()
 			<section class="nav-sec" aria-label="This board" data-init={ navSecInit("This board") }>
 				<button class="nav-sec-head" aria-expanded="true" data-on:click={ navSecToggle("This board") }>
@@ -599,13 +585,19 @@ func aspect(h int32) string { return strconv.FormatFloat(float64(h)/1000, 'f', 4
 
 // withCurrent keeps the board on screen in the strip even when it was just
 // closed from another device: you are still looking at it.
+// withCurrent: the drawer's recent boards, the latest opened first (this one
+// among them, marked), at most eight; the library has the rest.
 func withCurrent(name string, m *hub.Meta, tabs []db.Tab) []db.Tab {
-	for _, t := range tabs {
-		if t.Name == name {
-			return tabs
-		}
+	out := []db.Tab{}
+	seen := false
+	for i := len(tabs) - 1; i >= 0 && len(out) < 8; i-- {
+		out = append(out, tabs[i])
+		seen = seen || tabs[i].Name == name
 	}
-	return append(tabs, db.Tab{Name: name, Title: m.Title, Visibility: m.Visibility})
+	if !seen {
+		out = append([]db.Tab{{Name: name, Title: m.Title, Visibility: m.Visibility}}, out...)
+	}
+	return out
 }
 
 func visWord(v string) string {

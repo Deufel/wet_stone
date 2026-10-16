@@ -66,7 +66,8 @@ func (d *DB) Book(ctx context.Context, name string) (*Book, error) {
 func (d *DB) BooksOf(ctx context.Context, userID int64) ([]Book, error) {
 	ctx, cancel := reading(ctx)
 	defer cancel()
-	rows, err := d.rd.QueryContext(ctx, `SELECT id, name, title, owner_id, visibility FROM books WHERE owner_id = ? ORDER BY id DESC`, userID)
+	rows, err := d.rd.QueryContext(ctx, `SELECT b.id, b.name, b.title, b.owner_id, b.visibility, COALESCE(w.name, '') FROM books b
+		LEFT JOIN boards w ON w.id = b.board_id WHERE b.owner_id = ? ORDER BY b.id DESC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func (d *DB) BooksOf(ctx context.Context, userID int64) ([]Book, error) {
 	var out []Book
 	for rows.Next() {
 		var b Book
-		if err := rows.Scan(&b.ID, &b.Name, &b.Title, &b.OwnerID, &b.Visibility); err != nil {
+		if err := rows.Scan(&b.ID, &b.Name, &b.Title, &b.OwnerID, &b.Visibility, &b.Board); err != nil {
 			return nil, err
 		}
 		out = append(out, b)

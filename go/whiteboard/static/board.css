@@ -1129,3 +1129,28 @@
   :where(#board, .print-board) .label.textblock.heading { font-size: 24px; font-weight: 620; line-height: 1.25; }
   :where(#board, .print-board) .label.textblock.text { font-size: 18px; font-weight: 400; line-height: 1.45; }
 }
+
+/* the library (home): everything of yours as it looks, a shelf of paper */
+@layer block {
+  :where(.home-body.library) { max-inline-size: 76rem; }
+  :where(.lib-head) { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 0.25lh 1em; }
+  :where(.lib-head) > :where(h2) { --type: 3; margin: 0; letter-spacing: -0.015em; }
+  :where(.lib-actions) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25em; }
+  :where(.lib-actions) > :where(button, a) { display: inline-flex; align-items: center; gap: 0.35em; --type: -1; padding: 0.25lh 0.7em; min-block-size: 0; }
+  :where(.lib-actions) :where(svg) { inline-size: 1em; block-size: 1em; }
+  :where(.lib-actions) > :where(.lib-global) { color: inherit; text-decoration: none; --fg: -0.55; }
+  :where(.lib-grid) { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 0.6lh 0.8em; }
+  :where(.lib-card) { position: relative; min-inline-size: 0; }
+  :where(.lib-card) > :where(a) { display: grid; gap: 0.1lh; color: inherit; text-decoration: none; min-inline-size: 0; }
+  :where(.lib-thumb) { display: block; aspect-ratio: 1000 / 1294; background: white; color: #222; border-radius: 3px; overflow: hidden; box-shadow: 0 1px 3px color-mix(in oklch, black 30%, transparent); transition: translate calc(var(--cfg-motion) * 0.15s) ease, box-shadow calc(var(--cfg-motion) * 0.15s) ease; }
+  :where(.lib-thumb) > :where(svg) { display: block; inline-size: 100%; block-size: 100%; }
+  :where(.lib-card) > :where(a):where(:hover, :focus-visible) :where(.lib-thumb) { translate: 0 -2px; box-shadow: 0 4px 12px color-mix(in oklch, black 25%, transparent); outline: 2px solid var(--focus); }
+  :where(.lib-name) { display: flex; align-items: center; gap: 0.35em; min-inline-size: 0; margin-block-start: 0.15lh; }
+  :where(.lib-name) > :where(svg) { inline-size: 0.95em; block-size: 0.95em; flex: none; --fg: -0.55; }
+  :where(.lib-name) > :where(strong) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; --type: -1; }
+  :where(.lib-card) :where(.meta) { --type: -2; --fg: -0.5; }
+  :where(.lib-card) > :where(.lib-rm) { position: absolute; inset-block-start: 4px; inset-inline-end: 4px; opacity: 0; padding: 0.15lh; min-block-size: 0; transition: opacity calc(var(--cfg-motion) * 0.15s); }
+  :where(.lib-card):where(:hover, :focus-within) > :where(.lib-rm) { opacity: 1; }
+  @media (hover: none) { :where(.lib-card) > :where(.lib-rm) { opacity: 0.7; } }
+  :where(.nav-list) > :where(.lib-link) { font-weight: 600; }
+}
