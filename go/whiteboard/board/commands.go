@@ -32,6 +32,8 @@ func (b *Board) Apply(c Cmd) (change string) {
 	switch c.Op {
 	case "style": // a teacher's ink: the selection, or what they drew last
 		return b.style(c)
+	case "spin", "turn45", "turn180", "flipx", "flipy", "grow", "shrink", "unturn":
+		return b.turn(c)
 	case "down":
 		b.down(c)
 	case "move":
@@ -774,4 +776,28 @@ func (b *Board) style(c Cmd) string {
 		return ""
 	}
 	return "style"
+}
+
+// turn moves the user's selection (or the shape they drew last): rotates,
+// flips or scales it about its centre.
+func (b *Board) turn(c Cmd) string {
+	u := b.userFor(c.UID)
+	if u == nil {
+		return ""
+	}
+	n := 0
+	for i := range b.Shapes {
+		if (u.Sel[i] || int32(i) == u.Selected) && b.Shapes[i].Kind != None {
+			b.Shapes[i].Turn = b.Shapes[i].Turn.apply(c.Op)
+			n++
+		}
+	}
+	if n == 0 && u.Last >= 0 && b.Shapes[u.Last].Kind != None {
+		b.Shapes[u.Last].Turn = b.Shapes[u.Last].Turn.apply(c.Op)
+		n++
+	}
+	if n == 0 {
+		return ""
+	}
+	return "turn"
 }

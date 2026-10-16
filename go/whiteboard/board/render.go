@@ -42,7 +42,7 @@ func (w *writer) attr(name string, v int32) {
 
 // ink is a shape's group: its hue shift, and a teacher's ink over it (an
 // absolute hue, a strength, a semantic class), as the engine reads them.
-func (w *writer) ink(h uint8, k Ink) {
+func (w *writer) ink(h uint8, k Ink, t Turn) {
 	if k.Sem > 0 && int(k.Sem) < len(Semantics) {
 		w.s(` class="`)
 		w.s(Semantics[k.Sem])
@@ -57,6 +57,25 @@ func (w *writer) ink(h uint8, k Ink) {
 	if k.Fg != 0 {
 		w.s(`;--fg:`)
 		w.s(strconv.FormatFloat(float64(k.Fg)/10, 'f', -1, 64))
+	}
+	if t != (Turn{}) { // the CSS animates the change (.shapes > g)
+		sx, sy := 1.0, 1.0
+		if t.Scale != 0 {
+			sx, sy = float64(t.Scale)/100, float64(t.Scale)/100
+		}
+		if t.FX {
+			sx = -sx
+		}
+		if t.FY {
+			sy = -sy
+		}
+		w.s(`;transform:rotate(`)
+		w.i(t.Rot)
+		w.s(`deg) scale(`)
+		w.s(strconv.FormatFloat(sx, 'f', -1, 64))
+		w.s(`,`)
+		w.s(strconv.FormatFloat(sy, 'f', -1, 64))
+		w.s(`)`)
 	}
 	w.s(`"`)
 }
@@ -414,7 +433,7 @@ func (b *Board) drawShapes(w *writer, v *User) {
 			continue
 		}
 		w.s("<g")
-		w.ink(b.shapeHue(s), s.Ink)
+		w.ink(b.shapeHue(s), s.Ink, s.Turn)
 		if v != nil && v.Sel[i] {
 			w.s(" data-ui-selected")
 		}

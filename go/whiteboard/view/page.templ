@@ -190,6 +190,49 @@ templ toolRail(name string, student bool) {
 				@Icon("eraser")
 			</button>
 		</div>
+		<!-- motion: the selection spun, turned, flipped, scaled (stored on
+		     the shapes, animated by a CSS transition on every page). Each
+		     icon moves as its button does, by a client signal of its own -->
+		<div class="button-group tools motion" role="toolbar" aria-label="Motion" data-signals__ifmissing="{_spins: 0, _t45: 0, _t180: false, _fx: false, _fy: false, _gs: 0}">
+			<button class="tool stack" data-on:click={ "$_spins++; " + post(name, "spin") } data-attr:disabled="$nsel < 1" aria-label="Spin 360" title="Spin 360°">
+				<span class="mo" data-attr:style="`transform: rotate(${$_spins * 360}deg); transition: transform 0.5s ease`">
+					@Icon("spin")
+				</span>
+			</button>
+			<button class="tool stack" data-on:click={ "$_t45++; " + post(name, "turn45") } data-attr:disabled="$nsel < 1" aria-label="Turn 45" title="Turn 45°">
+				<span class="mo" data-attr:style="`transform: rotate(${$_t45 * 45}deg); transition: transform 0.3s ease`">
+					@Icon("turn")
+				</span>
+			</button>
+			<button class="tool stack" data-on:click={ "$_t180 = !$_t180; " + post(name, "turn180") } data-attr:disabled="$nsel < 1" aria-label="Turn 180" title="Turn 180°">
+				<span class="mo" style="transition: transform 0.3s ease" data-style:transform="$_t180 ? 'rotate(180deg)' : ''">
+					@Icon("turn180")
+				</span>
+			</button>
+			<button class="tool stack" data-on:click={ "$_fx = !$_fx; " + post(name, "flipx") } data-attr:disabled="$nsel < 1" aria-label="Flip across" title="Flip across (mirror left and right)">
+				<span class="mo" style="transition: transform 0.3s ease" data-style:transform="$_fx ? 'scaleX(-1)' : ''">
+					@Icon("flipx")
+				</span>
+			</button>
+			<button class="tool stack" data-on:click={ "$_fy = !$_fy; " + post(name, "flipy") } data-attr:disabled="$nsel < 1" aria-label="Flip over" title="Flip over (mirror top and bottom)">
+				<span class="mo" style="transition: transform 0.3s ease" data-style:transform="$_fy ? 'scaleY(-1)' : ''">
+					@Icon("flipy")
+				</span>
+			</button>
+			<button class="tool stack" data-on:click={ "$_gs = 1; setTimeout(() => $_gs = 0, 200); " + post(name, "grow") } data-attr:disabled="$nsel < 1" aria-label="Grow" title="Grow">
+				<span class="mo" style="transition: transform 0.2s ease" data-style:transform="$_gs === 1 ? 'scale(1.3)' : ''">
+					@Icon("grow")
+				</span>
+			</button>
+			<button class="tool stack" data-on:click={ "$_gs = -1; setTimeout(() => $_gs = 0, 200); " + post(name, "shrink") } data-attr:disabled="$nsel < 1" aria-label="Shrink" title="Shrink">
+				<span class="mo" style="transition: transform 0.2s ease" data-style:transform="$_gs === -1 ? 'scale(0.7)' : ''">
+					@Icon("shrink")
+				</span>
+			</button>
+			<button class="tool stack" data-on:click={ "$_spins = 0; $_t45 = 0; $_t180 = false; $_fx = false; $_fy = false; " + post(name, "unturn") } data-attr:disabled="$nsel < 1" aria-label="As drawn" title="Back as drawn">
+				@Icon("restart")
+			</button>
+		</div>
 		<!-- the page: send the whiteboard to the book, or save the page back
 		     on it (the board's stream fills it) -->
 		<div id="page-save" class="button-group tools page-save"></div>

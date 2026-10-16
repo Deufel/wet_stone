@@ -81,6 +81,9 @@ const stepsSpec = `STEPS (coordinates are board units: the board is a letter pag
                                                            ~9 units a character): size the box to fit;
                                                            "lang": "math" typesets LaTeX ("text": "\\frac{a}{b}")
  {"do": "style", "hue": 210, "fg": 0.8, "sem": "inf"}       inks the selection (click a shape first)
+ {"do": "turn", "kind": "spin"}                            moves the selection (or what was just drawn):
+                                                           spin (360°, ends as it began), turn45, turn180,
+                                                           flipx, flipy, grow, shrink, unturn (as drawn)
  {"do": "say", "text": "…"}                               the presenter speaks: a caption over the board,
                                                            held as long as it takes to read (≤ 240 bytes)
  {"do": "notes", "n": 5}                                   shows the first n lines of the notes

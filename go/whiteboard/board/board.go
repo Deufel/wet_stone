@@ -65,6 +65,50 @@ type Shape struct {
 	Label          string
 	Points         []int32 // pen: x, y pairs in board units; X1..Y2 hold their extent
 	Ink            Ink     // a teacher's ink (hue, strength, meaning); zero: the board's own
+	Turn           Turn    // how it is turned: rotated, flipped, scaled; zero: as drawn
+}
+
+// Turn is a shape's motion state, drawn as a CSS transform about its centre
+// (with a transition, so a change animates on every page). Rot is degrees and
+// keeps counting (a spin is +360: it goes round, and ends where it began).
+type Turn struct {
+	Rot    int32 `json:",omitempty"`
+	FX, FY bool  `json:",omitempty"`
+	Scale  int16 `json:",omitempty"` // percent; 0 = 100
+}
+
+// Turns are the motion commands, by name.
+var Turns = map[string]bool{"spin": true, "turn45": true, "turn180": true, "flipx": true, "flipy": true, "grow": true, "shrink": true, "unturn": true}
+
+func (t Turn) apply(op string) Turn {
+	sc := int32(t.Scale)
+	if sc == 0 {
+		sc = 100
+	}
+	switch op {
+	case "spin":
+		t.Rot += 360
+	case "turn45":
+		t.Rot += 45
+	case "turn180":
+		t.Rot += 180
+	case "flipx":
+		t.FX = !t.FX
+	case "flipy":
+		t.FY = !t.FY
+	case "grow":
+		sc = min(sc*5/4, 400)
+	case "shrink":
+		sc = max(sc*4/5, 25)
+	case "unturn": // back as drawn, the short way round
+		t = Turn{Rot: (t.Rot + 180) / 360 * 360}
+		sc = 100
+	}
+	if sc == 100 {
+		sc = 0
+	}
+	t.Scale = int16(sc)
+	return t
 }
 
 // Ink is a shape's ink as the engine reads it (mike.css): an absolute hue

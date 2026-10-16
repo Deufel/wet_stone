@@ -75,6 +75,7 @@ type Step struct {
 	Label  string     `json:"label,omitempty"`
 	Text   string     `json:"text,omitempty"`
 	Lang   string     `json:"lang,omitempty"` // a code block's language
+	Kind   string     `json:"kind,omitempty"` // turn: spin, turn45, turn180, flipx, flipy, grow, shrink, unturn
 
 	// a teacher's ink, on any drawing step (or a "style" step, on the
 	// selection): an absolute hue (1..360), a strength (-1..1), a meaning
@@ -184,6 +185,10 @@ func (l *Lesson) check(steps []Step, at string) error {
 				return bad("lang: one of css, html, python, javascript, go, sqlite, odin, mojo, or math (LaTeX)")
 			}
 		case "group", "ungroup", "delete":
+		case "turn":
+			if !board.Turns[s.Kind] {
+				return bad("kind: spin, turn45, turn180, flipx, flipy, grow, shrink or unturn")
+			}
 		case "style":
 			if s.Hue == 0 && s.Fg == 0 && s.Sem == "" {
 				return bad("hue, fg or sem: the ink for the selection")
@@ -324,6 +329,12 @@ func (pl *player) run(steps []Step) {
 		switch s.Do {
 		case "style":
 			p.style()
+		case "turn":
+			if !p.fast {
+				p.pause(150 * time.Millisecond)
+			}
+			p.cmd(board.Cmd{Op: s.Kind})
+			p.pause(500 * time.Millisecond) // the motion plays
 		case "box":
 			p.box(s.At[0], s.At[1], s.At[2], s.At[3], s.Label)
 		case "code":

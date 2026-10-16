@@ -101,6 +101,8 @@ var boardName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,39}$`)
 var ops = map[string]bool{
 	"down": true, "move": true, "up": true, "delete": true, "clear": true, "link": true,
 	"label": true, "editsel": true, "nudge": true, "group": true, "ungroup": true, "locktoggle": true,
+	// motion: the selection turned, flipped, scaled
+	"spin": true, "turn45": true, "turn180": true, "flipx": true, "flipy": true, "grow": true, "shrink": true, "unturn": true,
 }
 
 var histOps = map[string]bool{"undo": true, "redo": true, "checkout": true, "switch": true, "delbranch": true, "mainbranch": true}

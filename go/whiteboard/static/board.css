@@ -847,3 +847,15 @@
 @layer block {
   :where(.todo-drawer.top) { block-size: fit-content; max-block-size: 75svh; }
 }
+
+/* motion: a shape turns about its own centre, and a change animates (the
+   board is drawn again with the new transform; the transition plays it) */
+@layer block {
+  :where(#board) :where(.shapes) > :where(g) { transform-box: fill-box; transform-origin: center; transition: transform 0.45s cubic-bezier(.3, .7, .3, 1); }
+  .print-board .shapes > g { transform-box: fill-box; transform-origin: center; }
+  :where(.motion) :where(.mo) { display: grid; place-items: center; }
+  :where(.motion) :where(.mo) > :where(svg) { inline-size: 1.1em; block-size: 1.1em; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(#board) :where(.shapes) > :where(g) { transition: none; }
+}
