@@ -72,6 +72,7 @@ templ Board(d BoardData) {
 		@navDrawer(d)
 		@TodoDrawer(d.Name)
 		@BudgetMenu(d.Name)
+		@sketchMenu(d.Name)
 		@panelMenus(d.Name)
 		@clearDialog(d.Name)
 		if d.User != nil && d.Meta.OwnerID == d.User.ID {
@@ -129,6 +130,9 @@ templ teachBar(name string, owner bool) {
 			<!-- a phone: no toolbar; the checklist (a top drawer), the history
 			     and full screen here -->
 			<span class="mobile row oneline">
+				<button class="icon" popovertarget="sketch-menu" aria-label="Ask Claude to draw" title="Ask Claude to draw (beta)">
+					@Icon("sparkles")
+				</button>
 				<button class="icon todo-open" popovertarget="todo-drawer" aria-label="Checklist" title="Checklist">
 					@Icon("list")
 				</button>
@@ -195,13 +199,6 @@ templ toolRail(name string, student bool) {
 				@Icon("sparkles")
 			</button>
 			<div id="sketch-stop" class="sketch-stop"></div>
-		</div>
-		<div id="sketch-menu" class="menu sketch-menu" popover data-signals__ifmissing="{_sketch: ''}">
-			<p class="meta">Claude draws it on this board, around what is there. <span class="tag">beta</span></p>
-			<div class="row oneline">
-				<input type="text" maxlength="800" placeholder="Sketch how a hash map finds a key" aria-label="What should Claude draw?" data-bind:_sketch data-on:keydown={ "evt.stopPropagation(); if (evt.key === 'Enter' && $_sketch.trim()) { " + sketchPost(name) + " }" }/>
-				<button class="suc" data-on:click={ "$_sketch.trim() && " + sketchPost(name) }>Draw</button>
-			</div>
 		</div>
 		<div class="button-group tools" role="toolbar" aria-label="Undo">
 			<button class="tool stack" data-on:click={ postKept(name, "undo") } aria-label="Undo" title="Undo (Ctrl Z)">
@@ -514,4 +511,16 @@ func visWord(v string) string {
 		return "private"
 	}
 	return "anyone with the link"
+}
+
+// sketchMenu asks Claude to draw: at page level, so a phone (no toolbar)
+// opens it too from its bar.
+templ sketchMenu(name string) {
+	<div id="sketch-menu" class="menu sketch-menu" popover data-signals__ifmissing="{_sketch: ''}">
+		<p class="meta">Claude draws it on this board, around what is there. <span class="tag">beta</span></p>
+		<div class="row oneline">
+			<input type="text" maxlength="800" placeholder="Sketch how a hash map finds a key" aria-label="What should Claude draw?" data-bind:_sketch data-on:keydown={ "evt.stopPropagation(); if (evt.key === 'Enter' && $_sketch.trim()) { " + sketchPost(name) + " }" }/>
+			<button class="suc" data-on:click={ "$_sketch.trim() && " + sketchPost(name) }>Draw</button>
+		</div>
+	</div>
 }
