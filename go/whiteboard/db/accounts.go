@@ -1,6 +1,7 @@
 package db
 
 import (
+	"whiteboard/board"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -197,8 +198,8 @@ func newBoard(ctx context.Context, tx *sql.Tx, ownerID int64, title, visibility 
 		return 0, "", err
 	}
 	var id, branch int64
-	if err := tx.QueryRowContext(ctx, `INSERT INTO boards (name, title, owner_id, visibility, created_ms) VALUES (?, ?, ?, ?, ?) RETURNING id`,
-		name, title, ownerID, visibility, time.Now().UnixMilli()).Scan(&id); err != nil {
+	if err := tx.QueryRowContext(ctx, `INSERT INTO boards (name, title, owner_id, visibility, created_ms, height) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+		name, title, ownerID, visibility, time.Now().UnixMilli(), board.Letter).Scan(&id); err != nil {
 		return 0, "", err
 	}
 	if err := tx.QueryRowContext(ctx, `INSERT INTO branches (board_id, name, is_main) VALUES (?, 'main', 1) RETURNING id`, id).Scan(&branch); err != nil {

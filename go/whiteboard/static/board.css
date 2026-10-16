@@ -526,7 +526,7 @@
     :where(html, body, .print-page) { background: white; margin: 0; padding: 0; color-scheme: light; }
     :where(.print-bar) { display: none; }
     :where(.sheet) { box-sizing: border-box; inline-size: 7.4in; max-inline-size: 7.4in; min-block-size: 0; margin: 0; padding: 0; box-shadow: none; break-after: page; display: block; }
-    :where(.print-board) { inline-size: 7.4in; max-inline-size: 7.4in; block-size: 7.4in; }
+    :where(.print-board) { inline-size: 7.4in; max-inline-size: 7.4in; block-size: auto; } /* its shape: its aspect-ratio */
     :where(.sheet-notes, .sheet-todo) { box-sizing: border-box; max-inline-size: 7.4in; }
     :where(.sheet):where(:last-of-type) { break-after: auto; }
     :where(.sheet) > * + * { margin-block-start: 0.3in; }
@@ -646,4 +646,53 @@
   :where(.sketch-stop):where(:empty) { display: none; }
   :where(.sketch-stop) > :where(button) { display: inline-flex; align-items: center; gap: 0.35em; padding: 0.2lh 0.7em; }
   :where(.sketch-stop) :where(svg) { inline-size: 0.85em; block-size: 0.85em; }
+}
+
+/* a book's page: a letter leaf, ink on paper (screen and print alike) */
+@layer block {
+  :where(.leaf) {
+    container-type: inline-size; aspect-ratio: 8.5 / 11; box-sizing: border-box;
+    background: white; color: black; color-scheme: light;
+    font-family: var(--font-sans, system-ui, sans-serif);
+  }
+  :where(.leaf) :where(*) { color: inherit; }
+  /* inside: the margins and the type in the page's own units (cqi: its width) */
+  :where(.leaf-in) { block-size: 100%; box-sizing: border-box; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding: 6cqi 6.5cqi 5cqi; }
+  :where(.leaf-head) > :where(span), :where(.leaf-foot) > :where(span) { font-size: inherit; }
+  :where(.leaf-head) { margin-block-end: 2.5cqi; display: flex; justify-content: space-between; align-items: baseline; gap: 2cqi; border-block-end: 0.15cqi solid black; padding-block-end: 1cqi; font-size: 2.4cqi; }
+  :where(.leaf-head) > :where(strong) { font-size: 3.4cqi; }
+  :where(.leaf-foot) { margin-block-start: 2cqi; display: flex; justify-content: space-between; gap: 2cqi; border-block-start: 0.1cqi solid #888; padding-block-start: 1cqi; font-size: 2cqi; color: #444; }
+  :where(.leaf-body) { min-block-size: 0; display: grid; }
+  
+  :where(.leaf-page) { --bg: -0.4; }
+  :where(.leaf-bar) { display: flex; align-items: center; gap: 0.8em; }
+  :where(.leaf-main) { display: grid; justify-items: center; padding: 1.2lh 1rem; }
+  :where(.leaf-main) > :where(.leaf) { inline-size: min(100%, 52rem, (100svh - 7lh) * 8.5 / 11); box-shadow: 0 0.3lh 1.4lh color-mix(in oklch, black 30%, transparent); }
+
+  /* the whiteboard's footer: its book's pages */
+  :where(.page-strip) { display: flex; align-items: center; gap: 0.8em; min-inline-size: 0; overflow-x: auto; padding: 0.2lh 0.6em; }
+  :where(.page-strip):where(:empty) { display: none; }
+  :where(.strip-book) { display: inline-flex; align-items: center; gap: 0.35em; white-space: nowrap; color: inherit; text-decoration: none; font-weight: 600; }
+  :where(.strip-pages) { display: flex; gap: 0.5em; list-style: none; margin: 0; padding: 0; }
+  :where(.strip-pages) :where(a) { display: grid; justify-items: center; gap: 0.1lh; color: inherit; text-decoration: none; }
+  :where(.strip-pages) :where(.mini) { display: block; block-size: 3.2lh; aspect-ratio: 8.5 / 11; background: white; border-radius: 2px; padding: 3px; box-sizing: border-box; box-shadow: 0 1px 3px color-mix(in oklch, black 35%, transparent); overflow: hidden; }
+  :where(.strip-pages) :where(.no) { --type: -1; --fg: -0.5; }
+  :where(.strip-pages) :where(a:hover) :where(.mini) { outline: 2px solid var(--focus, currentColor); }
+}
+
+/* a page prints as itself: the leaf, edge to edge, nothing else */
+@media print {
+  @page leaf { size: letter; margin: 0; }
+  .leaf-page { display: block !important; }
+  .leaf-page > .pg-header { display: none !important; }
+  .leaf-main { padding: 0 !important; display: block !important; }
+  .leaf-main > .leaf { page: leaf; inline-size: 8.5in !important; block-size: 11in; box-shadow: none !important; }
+}
+
+/* a page's drawing: the print board's ink, sized to its page */
+@layer print {
+  .print-board.leaf-drawing { inline-size: 100%; block-size: 100%; max-inline-size: none; aspect-ratio: auto; border: 0; margin: 0; }
+  .print-board .label > span { background: none; }
+  .print-board .label.code { display: block; text-align: start; padding: 10px 12px; }
+  .print-board .label.code > pre { margin: 0; padding: 0; background: none; border: 0; color: black; font-family: var(--font-mono, ui-monospace, monospace); font-size: 15px; line-height: 1.4; white-space: pre; text-align: start; }
 }

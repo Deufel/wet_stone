@@ -56,11 +56,15 @@ templ Board(d BoardData) {
 			     by container queries on the space they get -->
 			<main class="pg-main workspace-wrap">
 				<div class="workspace">
-					@boardCard(d.Name, boardHeight(d.Meta))
+					@boardCard(d.Name, boardHeight(d.Meta), d.User != nil && d.Meta.OwnerID == d.User.ID)
 					@TodoCard(d.Name)
 					@NotesCard(d.Name)
 				</div>
 			</main>
+			<!-- the book this is the whiteboard of: its pages -->
+			<footer class="pg-footer">
+				<div id="page-strip"></div>
+			</footer>
 		</div>
 		@navDrawer(d)
 		@TodoDrawer(d.Name)
@@ -94,7 +98,7 @@ templ Board(d BoardData) {
 
 // boardCard is the whiteboard with its controls on its own frame: the tools,
 // what to do with the selection, its label, the history and full screen.
-templ boardCard(name string, h int32) {
+templ boardCard(name string, h int32, owner bool) {
 	<section class="card board-card" data-class:full="$_full" data-init={ fullSync } aria-label="Whiteboard">
 		<div class="board-panel">
 			<!-- a phone: the tools and the selection's actions as two small menus -->
@@ -134,6 +138,13 @@ templ boardCard(name string, h int32) {
 				<button class="icon todo-open" popovertarget="todo-drawer" aria-label="Checklist" title="Checklist">
 					@Icon("list")
 				</button>
+				if owner {
+					<button class="send-page" data-on:click={ postKept(name, "sendpage") } title="Save the whole whiteboard as the book's next page, and turn to a clean one">
+						@Icon("book")
+						<span>Send to page</span>
+					</button>
+					@Saved("sheet")
+				}
 				<div id="sketch-stop"></div>
 				<button class="icon" popovertarget="sketch-menu" aria-label="Ask Claude to draw" title="Ask Claude to draw (beta)">
 					@Icon("sparkles")

@@ -36,11 +36,17 @@ type SavedGroup struct {
 func (b *Board) Snapshot() Snapshot {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
+	return b.snapshot(nil)
+}
+
+// snapshot is the drawing, or only the shapes in mask (and the link nodes
+// on their boxes) when mask is given. The lock is the caller's.
+func (b *Board) snapshot(mask *[ShapesMax]bool) Snapshot {
 	var snap Snapshot
 	var used [ShapesMax]bool
 	for i := range b.Shapes {
 		s := &b.Shapes[i]
-		if s.Kind == None {
+		if s.Kind == None || mask != nil && !mask[i] {
 			continue
 		}
 		snap.Shapes = append(snap.Shapes, SavedShape{
@@ -54,7 +60,7 @@ func (b *Board) Snapshot() Snapshot {
 		}
 	}
 	for j := range b.Joints {
-		if jt := &b.Joints[j]; jt.Active {
+		if jt := &b.Joints[j]; jt.Active && (mask == nil || jt.Box < 0 || mask[jt.Box]) {
 			snap.Joints = append(snap.Joints, SavedJoint{Idx: int32(j), Box: jt.Box, Anchor: jt.Anchor, X: jt.X, Y: jt.Y})
 		}
 	}

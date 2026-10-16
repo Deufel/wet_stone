@@ -129,6 +129,24 @@ var migrations = []string{
 	`
 	ALTER TABLE boards ADD COLUMN height INTEGER NOT NULL DEFAULT 1000;
 	`,
+
+	// 8: a book's whiteboard (where its teacher draws) and its sheets: pages
+	// sent from the whiteboard, each a frozen drawing (the shapes sent and
+	// their extent), in a chapter, in order
+	`
+	ALTER TABLE books ADD COLUMN board_id INTEGER REFERENCES boards(id);
+	CREATE UNIQUE INDEX IF NOT EXISTS books_board ON books (board_id) WHERE board_id IS NOT NULL;
+	CREATE TABLE IF NOT EXISTS book_sheets (
+		id         INTEGER PRIMARY KEY,
+		book_id    INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+		chapter_id INTEGER NOT NULL REFERENCES book_chapters(id) ON DELETE CASCADE,
+		position   INTEGER NOT NULL,
+		snapshot   TEXT NOT NULL,    -- board.Snapshot as JSON: only the shapes sent
+		x1 INTEGER NOT NULL, y1 INTEGER NOT NULL, x2 INTEGER NOT NULL, y2 INTEGER NOT NULL,
+		created_at INTEGER NOT NULL DEFAULT (unixepoch())
+	);
+	CREATE INDEX IF NOT EXISTS book_sheets_book ON book_sheets (book_id, position);
+	`,
 }
 
 func migrate(db *sql.DB) error {

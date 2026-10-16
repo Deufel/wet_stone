@@ -154,6 +154,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/b/{name}/answer", h.answer)
 	r.Post("/b/{name}/lesson/{op}", h.lessonControl)
 	r.Post("/b/{name}/help", h.help)
+	h.sheetRoutes(r)
 	r.Post("/b/{name}/sketch", h.sketch)
 	r.Post("/b/{name}/sketch/stop", h.sketchStop)
 	r.Post("/course/{kind}", h.course)
@@ -504,7 +505,7 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 		return true
 	}
 	var sentTodo int64
-	sentAsk, sentRun, sentSketch := int64(-1), int64(-1), int64(-1)
+	sentAsk, sentRun, sentSketch, sentSheets := int64(-1), int64(-1), int64(-1), int64(-1)
 	hasLesson := h.DB.HasLesson(r.Context(), meta0.ID)
 	push := func() bool {
 		ctx := r.Context()
@@ -519,6 +520,13 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 				return false
 			}
 			sentAsk = v
+		}
+		// the book's pages, along the foot of its whiteboard
+		if v := sheetVersion.Load(); v != sentSheets {
+			if sse.PatchElements(h.pageStrip(r, meta0.ID, n)) != nil {
+				return false
+			}
+			sentSheets = v
 		}
 		// Claude drawing here: its Stop button, while it does
 		if v := sketchVersion.Load(); v != sentSketch {

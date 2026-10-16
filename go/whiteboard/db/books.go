@@ -18,6 +18,8 @@ type Book struct {
 	OwnerID    int64
 	Visibility string // public or private (owner only)
 	Chapters   []Chapter
+	Board      string // its whiteboard (a book made since sheets), "" for a book of boards
+	Author     string // the owner's name
 }
 
 type Chapter struct {
@@ -93,8 +95,9 @@ func (d *DB) Book(ctx context.Context, name string) (*Book, error) {
 	ctx, cancel := reading(ctx)
 	defer cancel()
 	b := &Book{Name: name}
-	err := d.rd.QueryRowContext(ctx, `SELECT id, title, owner_id, visibility FROM books WHERE name = ?`, name).
-		Scan(&b.ID, &b.Title, &b.OwnerID, &b.Visibility)
+	err := d.rd.QueryRowContext(ctx, `SELECT b.id, b.title, b.owner_id, b.visibility, COALESCE(w.name, ''), COALESCE(u.name, '')
+		FROM books b LEFT JOIN boards w ON w.id = b.board_id LEFT JOIN users u ON u.id = b.owner_id WHERE b.name = ?`, name).
+		Scan(&b.ID, &b.Title, &b.OwnerID, &b.Visibility, &b.Board, &b.Author)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNoBook
 	}

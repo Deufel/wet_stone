@@ -1,0 +1,121 @@
+package view
+
+import (
+	"strconv"
+	"whiteboard/board"
+	"whiteboard/db"
+)
+
+// A book's pages: sheets sent from its whiteboard. A sheet is a letter page,
+// as it prints: the book's title and the chapter at its head, the drawing
+// (cropped to what was sent, scaled to fit), and the author, the date and
+// the page number at its foot. Ink on paper, on screen too.
+
+// sheetPaper is one page. Its type is in container units, so it reads the
+// same at any size, a thumbnail to the printed sheet.
+templ sheetPaper(b *db.Book, s db.Sheet) {
+	<article class="leaf" aria-label={ "Page " + strconv.Itoa(s.No) }>
+		<div class="leaf-in">
+		<header class="leaf-head">
+			<strong>{ b.Title }</strong>
+			<span>{ chapterLine(s) }</span>
+		</header>
+		<div class="leaf-body">
+			@templ.Raw(board.Drawing(s.Drawing, s.Box, "print-board leaf-drawing"))
+		</div>
+		<footer class="leaf-foot">
+			<span>{ b.Author }</span>
+			<span>{ s.Made }</span>
+			<span>{ "p. " + strconv.Itoa(s.No) }</span>
+		</footer>
+		</div>
+	</article>
+}
+
+// PageStrip is the whiteboard's footer: the book's pages, small, each the
+// way to it. A morph target on the board's stream, empty with no book.
+templ PageStrip(name string, b *db.Book, sheets []db.Sheet) {
+	<div id="page-strip" class="page-strip">
+		if b != nil {
+			<a class="strip-book" href={ templ.SafeURL("/book/" + b.Name) } title="The book's contents">
+				@Icon("book")
+				<span>{ b.Title }</span>
+			</a>
+			<ol class="strip-pages">
+				for _, s := range sheets {
+					<li>
+						<a href={ templ.SafeURL("/book/" + b.Name + "/page/" + strconv.Itoa(s.No)) } title={ "Page " + strconv.Itoa(s.No) + " · " + s.ChapterTitle }>
+							<span class="mini">
+								@templ.Raw(board.Drawing(s.Drawing, s.Box, "print-board leaf-drawing"))
+							</span>
+							<span class="no">{ strconv.Itoa(s.No) }</span>
+						</a>
+					</li>
+				}
+			</ol>
+			if len(sheets) == 0 {
+				<span class="meta">No pages yet: draw, then send the whiteboard to a page.</span>
+			}
+		}
+	</div>
+}
+
+// SheetView is a page on its own: the page, the way to the pages beside it,
+// and printing it (only the page prints, letter, edge to edge).
+templ SheetView(u *db.User, b *db.Book, sheets []db.Sheet, no int) {
+	@Doc(b.Title+" · p. "+strconv.Itoa(no)+" · draw", nil) {
+		<div class="page leaf-page">
+			<header class="pg-header app-header leaf-bar">
+				<a class="button-like" href={ templ.SafeURL(sheetBack(b)) }>
+					@Icon("back")
+					{ sheetBackLabel(b) }
+				</a>
+				<span class="meta">{ "Page " + strconv.Itoa(no) + " of " + strconv.Itoa(len(sheets)) }</span>
+				<div class="row end">
+					if no > 1 {
+						<a class="icon-link" href={ templ.SafeURL("/book/" + b.Name + "/page/" + strconv.Itoa(no-1)) } aria-label="Previous page" title="Previous page">←</a>
+					}
+					if no < len(sheets) {
+						<a class="icon-link" href={ templ.SafeURL("/book/" + b.Name + "/page/" + strconv.Itoa(no+1)) } aria-label="Next page" title="Next page">→</a>
+					}
+					<button data-on:click="window.print()">
+						@Icon("printer")
+						Print
+					</button>
+					if u != nil && u.ID == b.OwnerID {
+						<button class="icon dgr sec" data-on:click={ "@post('/book/" + b.Name + "/sheet/" + strconv.FormatInt(sheets[no-1].ID, 10) + "/remove'); setTimeout(() => location.assign('" + sheetBack(b) + "'), 400)" } aria-label="Take this page out" title="Take this page out of the book">
+							@Icon("trash")
+						</button>
+					}
+				</div>
+			</header>
+			<main class="pg-main scroll-y leaf-main">
+				@sheetPaper(b, sheets[no-1])
+			</main>
+		</div>
+		<script src="/static/highlight.js"></script>
+	}
+}
+
+// chapterLine names the chapter, its title too unless it is just "Chapter n".
+func chapterLine(s db.Sheet) string {
+	n := "Chapter " + strconv.Itoa(s.ChapterNo)
+	if s.ChapterTitle == "" || s.ChapterTitle == n {
+		return n
+	}
+	return n + " · " + s.ChapterTitle
+}
+
+func sheetBack(b *db.Book) string {
+	if b.Board != "" {
+		return "/b/" + b.Board
+	}
+	return "/book/" + b.Name
+}
+
+func sheetBackLabel(b *db.Book) string {
+	if b.Board != "" {
+		return "The whiteboard"
+	}
+	return "The book"
+}
