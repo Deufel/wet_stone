@@ -67,7 +67,7 @@ templ LessonBar(name string, st LessonState) {
 						</select>
 					</label>
 				}
-				<button data-on:click="$_voice = !$_voice; $_voice || speechSynthesis.cancel()" data-attr:aria-pressed="$_voice">
+				<button data-on:click={ "$_voice = !$_voice; $_voice ? " + speechUnlock + " : speechSynthesis.cancel()" } data-attr:aria-pressed="$_voice">
 					<span data-show="$_voice">
 						@Icon("volume")
 					</span>

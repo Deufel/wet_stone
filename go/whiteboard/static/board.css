@@ -1117,3 +1117,15 @@
   /* a short screen: the rail scrolls rather than lose its foot */
   :where(.tool-rail) { overflow-y: auto; overflow-x: hidden; scrollbar-width: none; overscroll-behavior: contain; }
 }
+
+/* text blocks (```title, ```heading, ```text): words on the paper, at the
+   paper title's face; no chip, no frame (but while selected) */
+@layer block {
+  :where(#board, .print-board) .label.textblock {
+    display: block; text-align: start; padding: 2px 10px; background: none; white-space: pre-wrap; overflow-wrap: anywhere;
+    font-family: var(--font-ui, system-ui, sans-serif); color: currentColor; overflow: hidden; pointer-events: none;
+  }
+  :where(#board, .print-board) .label.textblock.title { font-size: 32px; font-weight: 650; line-height: 1.2; letter-spacing: -0.01em; }
+  :where(#board, .print-board) .label.textblock.heading { font-size: 24px; font-weight: 620; line-height: 1.25; }
+  :where(#board, .print-board) .label.textblock.text { font-size: 18px; font-weight: 400; line-height: 1.45; }
+}

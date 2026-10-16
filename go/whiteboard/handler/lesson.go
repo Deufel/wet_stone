@@ -189,6 +189,16 @@ func (l *Lesson) check(steps []Step, at string) error {
 			if s.Lang != "" && s.Lang != "math" && !view.NoteLang(s.Lang) {
 				return bad("lang: one of css, html, python, javascript, go, sqlite, odin, mojo, or math (LaTeX)")
 			}
+		case "text":
+			if !in(s.At, 4) {
+				return bad("at: [x1, y1, x2, y2] on the board")
+			}
+			if strings.TrimSpace(s.Text) == "" || len(s.Text)+12 > board.CodeMax {
+				return bad(fmt.Sprintf("text: the words, at most %d bytes", board.CodeMax-20))
+			}
+			if s.Kind != "" && s.Kind != "title" && s.Kind != "heading" && s.Kind != "text" {
+				return bad("kind: title, heading or text")
+			}
 		case "group", "ungroup", "delete":
 		case "select":
 			if len(s.IDs)+len(s.Refs) == 0 {
@@ -394,6 +404,12 @@ func (pl *player) run(steps []Step) {
 			p.box(s.At[0], s.At[1], s.At[2], s.At[3], s.Label)
 		case "code":
 			p.box(s.At[0], s.At[1], s.At[2], s.At[3], "```"+s.Lang+"\n"+s.Text)
+		case "text":
+			kind := s.Kind
+			if kind == "" {
+				kind = "text"
+			}
+			p.box(s.At[0], s.At[1], s.At[2], s.At[3], "```"+kind+"\n"+s.Text)
 		case "arrow":
 			p.stroke(3, s.From[0], s.From[1], s.To[0], s.To[1])
 		case "line":

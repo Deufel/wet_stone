@@ -149,6 +149,14 @@ const stepsSpec = `STEPS (coordinates are board units: the board is a letter pag
   "text": "s := []int{1, 2}\ns = append(s, 3)"}          highlighted (monospace, 15 units a line,
                                                            ~9 units a character): size the box to fit;
                                                            "lang": "math" typesets LaTeX ("text": "\\frac{a}{b}")
+ {"do": "text", "at": [x1, y1, x2, y2], "kind": "heading", words on the paper, no frame, left-aligned, wrapping
+  "text": "Why slices grow"}                              in the box: kind "title" (32 units a line, ~17 a
+                                                           character), "heading" (24 units, ~13 a character)
+                                                           or "text" (a paragraph: 18 units, ~9.5 a character,
+                                                           lines 26 apart). Height: title ≥ 50, heading ≥ 40,
+                                                           text 26 × lines + 12 (too little and it shrinks
+                                                           to fit). Headings over a figure, a
+                                                           sentence of explanation beside it, a summary
  {"do": "style", "hue": 210, "fg": 0.8, "sem": "inf"}       inks the selection (click a shape first)
  {"do": "turn", "kind": "cw45"}                            turns the selection (or what was just drawn)
                                                            about its centre: cw45, ccw45, cw30, ccw30
@@ -167,11 +175,11 @@ amber, "dgr" red: a meaning, its own hue). Use it to mean something: one hue
 per idea, "sem": "dgr" for a mistake, "suc" for the right answer, quiet ink for
 context; most shapes need none.
 
-LAYOUT. Labels are 26 units high and about 14 units wide per character; a box
+LAYOUT. The page's top band (y 0–90) holds its title: start drawing at y 100. Labels are 26 units high and about 14 units wide per character; a box
 needs width ≥ 14 × characters + 40 and height 70–90. Keep labels under 28
 characters. Points snap to a 20-unit grid, and a corner that lands near
 another shape's corner snaps onto it: use multiples of 20, leave 40+ units
-between shapes, and keep x inside 40–960 (60–940 is safest) and y inside 40–1250.
+between shapes, and keep x inside 40–960 (60–940 is safest) and y inside 100–1250.
 Plan the page in rows (y 100–240, 280–420, 480–640, 700–860, 920–1080, 1120–1240) and remember
 what you placed where: clicks, erases and drags must land on real shapes.
 `
@@ -193,7 +201,7 @@ pen cannot write letters). Narrate with "say" as you go: short, plain
 sentences, one thought each. Point with "laser". 12–30 steps.
 
 Reply with ONE JSON object and nothing else: {"steps": [STEP, …]}
-Allowed steps: box, arrow, line, pen, ring, underline, penarrow, laser, say,
+Allowed steps: box, text, arrow, line, pen, ring, underline, penarrow, laser, say,
 pause, click, label, drag, delete, erase. (No ask.)
 
 ` + stepsSpec)

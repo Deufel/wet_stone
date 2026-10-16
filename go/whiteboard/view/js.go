@@ -280,3 +280,8 @@ func paperTitleEdit(name string) templ.Attributes {
 		"data-on:change": "const t = el.value.trim(); if (t && t !== el.defaultValue) { $title = t; " + post(name, "share/title") + " } else { el.value = el.defaultValue }",
 	}
 }
+
+// speechUnlock: iOS Safari speaks only once a gesture has spoken first, and a
+// lesson's narration arrives on the stream, not from a tap. The first touch
+// on the page says nothing, quietly, and from then on the page may speak.
+const speechUnlock = "window.speechSynthesis && speechSynthesis.speak(Object.assign(new SpeechSynthesisUtterance(' '), {volume: 0}))"

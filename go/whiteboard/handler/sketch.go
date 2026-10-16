@@ -201,6 +201,9 @@ func describeBoard(snap board.Snapshot, height int32) string {
 		switch {
 		case board.IsArt(s.Label):
 			sb.WriteString(" a free drawing (svg)")
+		case board.IsText(s.Label):
+			kind, words := board.CodeOf(s.Label)
+			fmt.Fprintf(&sb, " %s %q", kind, short(words, 160))
 		case strings.HasPrefix(s.Label, "```math"):
 			_, tex := board.CodeOf(s.Label)
 			fmt.Fprintf(&sb, " math %q", short(tex, 120))
