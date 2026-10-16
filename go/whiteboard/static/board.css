@@ -639,7 +639,8 @@
 /* a code block: a box whose label is fenced (```go …); highlighted by the page */
 @layer block {
   :where(#board) .label.code { display: block; text-align: start; padding: 10px 12px; overflow: hidden; pointer-events: none; --bg: -0.8; background-color: var(--_bg); border-radius: 6px; } /* a code surface, as the notes */
-  :where(#board) .label.code > pre { margin: 0; padding: 0; background: none; border: 0; font-family: var(--font-mono, ui-monospace, monospace); font-size: 15px; line-height: 1.4; white-space: pre; tab-size: 4; }
+  :where(#board) .label.code > pre > code { display: block; inline-size: max-content; }
+  :where(#board) .label.code > pre { block-size: 100%; overflow: hidden; margin: 0; padding: 0; background: none; border: 0; font-family: var(--font-mono, ui-monospace, monospace); font-size: 15px; line-height: 1.4; white-space: pre; tab-size: 4; }
   :where(.print-board) :where(.label.code) { display: block; text-align: start; padding: 8px 10px; }
   :where(.print-board) :where(.label.code) > :where(pre) { margin: 0; font-family: ui-monospace, monospace; font-size: 13px; white-space: pre; }
   :where(.label-edit.code) { display: block; font-family: var(--font-mono, ui-monospace, monospace); font-size: 1.5cqi; line-height: 1.4; white-space: pre; text-align: start; align-content: start; overflow: auto; }

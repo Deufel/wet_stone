@@ -1,6 +1,7 @@
 package board
 
 import (
+	"fmt"
 	"hash/fnv"
 	"html"
 	"strconv"
@@ -44,12 +45,13 @@ func CodeOf(label string) (lang, code string) {
 }
 
 // code draws a code label: a <pre><code> the page's highlighter colours. Its
-// id changes with the code, so the element is new when the code is, and its
-// data-init highlights it once, as it lands.
+// id changes with the code and the box, so the element is new when either is,
+// and its data-init highlights and fits it once, as it lands.
 func (w *writer) code(s *Shape, box [4]int32) {
 	lang, code := CodeOf(s.Label)
 	h := fnv.New32a()
 	h.Write([]byte(s.Label))
+	fmt.Fprint(h, box[2], box[3]) // a new size fits again
 	if lang == "math" {
 		w.math(code, box, strconv.FormatUint(uint64(h.Sum32()), 36))
 		return
@@ -67,7 +69,9 @@ func (w *writer) code(s *Shape, box [4]int32) {
 	w.s(strconv.FormatUint(uint64(h.Sum32()), 36))
 	w.s(`" class="`)
 	w.s(lang)
-	w.s(`" data-init="window.highlightAll &amp;&amp; highlightAll()">`)
+	// data-ignore-morph: the highlighter's spans would morph back to plain
+	// text; shrunk until its longest line and its lines fit the box
+	w.s(`" data-ignore-morph data-init="window.highlightAll &amp;&amp; highlightAll(); const p = el.parentElement, fit = () => { const k = Math.min(1, p.clientWidth / el.scrollWidth, p.clientHeight / el.scrollHeight); if (k &lt; 1) { el.style.fontSize = Math.max(5, parseFloat(getComputedStyle(el).fontSize) * k * 0.97) + 'px' } }; fit(); document.fonts.ready.then(fit)">`)
 	w.s(html.EscapeString(code))
 	w.s("</code></pre></div></foreignObject>")
 }
