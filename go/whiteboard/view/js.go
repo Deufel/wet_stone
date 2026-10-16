@@ -100,8 +100,6 @@ func onUp(name string) string {
 	return "$_drag = false; " + pointer + postKept(name, "up")
 }
 
-
-
 // The label editor. It opens when the server bumps $edit (sending the
 // shape's label box, $lbox, and its text, $label) and only then: el._seen
 // keeps a change of $label from reopening it.
