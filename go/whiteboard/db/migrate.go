@@ -123,6 +123,12 @@ var migrations = []string{
 	`
 	ALTER TABLE user_keys ADD COLUMN workspace TEXT NOT NULL DEFAULT '';
 	`,
+
+	// 7: a board's height in units: 1000 square (every board before), 1294 a
+	// letter page (a book's whiteboard)
+	`
+	ALTER TABLE boards ADD COLUMN height INTEGER NOT NULL DEFAULT 1000;
+	`,
 }
 
 func migrate(db *sql.DB) error {

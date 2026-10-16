@@ -168,7 +168,9 @@ func (b *Board) render(v *User, uid uint32) string {
 		selected, count = v.Selected, b.selCount(v)
 	}
 
-	w.s(`<svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">`)
+	w.s(`<svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 `)
+	w.i(b.Height)
+	w.s(`">`)
 
 	b.drawShapes(w, v)
 
@@ -240,7 +242,7 @@ func (b *Board) render(v *User, uid uint32) string {
 			w.attr("x1", v.GuideVX)
 			w.attr("y1", 0)
 			w.attr("x2", v.GuideVX)
-			w.attr("y2", H)
+			w.attr("y2", b.Height)
 			w.s("/>")
 		}
 		if v.GuideHY >= 0 {
@@ -462,7 +464,9 @@ func (b *Board) Print() string {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	w := &writer{buf: make([]byte, 0, 16<<10)}
-	w.s(`<svg class="print-board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">`)
+	w.s(`<svg class="print-board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 `)
+	w.i(b.Height)
+	w.s(`">`)
 	b.drawShapes(w, nil)
 	w.s(`</svg>`)
 	return string(w.buf)

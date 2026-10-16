@@ -46,6 +46,7 @@ type Meta struct {
 	Title      string
 	Visibility string
 	OwnerID    int64 // 0 = nobody (the global board, or one from before accounts)
+	Height     int32 // in board units: 1000 square, 1294 letter
 	Access     []string
 }
 
@@ -139,8 +140,8 @@ func (d *DB) Meta(ctx context.Context, name string) (Meta, error) {
 	defer cancel()
 	m := Meta{Name: name}
 	var owner sql.NullInt64
-	err := d.rd.QueryRowContext(ctx, `SELECT id, title, visibility, owner_id FROM boards WHERE name = ?`, name).
-		Scan(&m.ID, &m.Title, &m.Visibility, &owner)
+	err := d.rd.QueryRowContext(ctx, `SELECT id, title, visibility, owner_id, height FROM boards WHERE name = ?`, name).
+		Scan(&m.ID, &m.Title, &m.Visibility, &owner, &m.Height)
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrNoBoard
 	}

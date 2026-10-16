@@ -29,7 +29,7 @@ templ Board(d BoardData) {
 		<!-- the board's wiring sits on .page, in a fixed order: the signals are
 		     declared before data-init reads them (a map of body attributes has no
 		     order, and $uid once lost that race) -->
-		<div class="page board-page" data-signals={ pageSignals(d.Inst) } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
+		<div class="page board-page" data-signals={ pageSignals(d.Inst, boardHeight(d.Meta)) } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
 			<header class="pg-header app-header">
 				<button class="brand" popovertarget="nav-drawer" aria-label="Menu" title="Your boards">
 					@Mark()
@@ -56,7 +56,7 @@ templ Board(d BoardData) {
 			     by container queries on the space they get -->
 			<main class="pg-main workspace-wrap">
 				<div class="workspace">
-					@boardCard(d.Name)
+					@boardCard(d.Name, boardHeight(d.Meta))
 					@TodoCard(d.Name)
 					@NotesCard(d.Name)
 				</div>
@@ -94,7 +94,7 @@ templ Board(d BoardData) {
 
 // boardCard is the whiteboard with its controls on its own frame: the tools,
 // what to do with the selection, its label, the history and full screen.
-templ boardCard(name string) {
+templ boardCard(name string, h int32) {
 	<section class="card board-card" data-class:full="$_full" data-init={ fullSync } aria-label="Whiteboard">
 		<div class="board-panel">
 			<!-- a phone: the tools and the selection's actions as two small menus -->
@@ -181,7 +181,7 @@ templ boardCard(name string) {
 				@railTool(4, "laser", "Laser", "5")
 				@railTool(5, "pen", "Pen", "P")
 			</div>
-		<div class="stage-box">
+		<div class="stage-box" style={ "--ar: " + aspect(h) }>
 			<div class="stage-frame">
 				<div
 					id="stage"
@@ -193,8 +193,8 @@ templ boardCard(name string) {
 					data-on:dblclick={ onDblclick(name) }
 					data-on:contextmenu={ onContext(name) }
 				>
-					@grid()
-					<svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"></svg>
+					@grid(h)
+					<svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox={ "0 0 1000 " + strconv.Itoa(int(h)) }></svg>
 				<!-- the label editor: opened over a shape's label box (a double-click,
 				     a click on its label, Enter), typed in place, sent on leaving it;
 				     the server draws the label back into the shape -->
@@ -414,16 +414,27 @@ templ keysDialog() {
 
 // The grid is static: never morphed, never re-sent. Each pattern is offset by
 // half a tile so its mark lands on the snap lattice (multiples of 20 and 100).
-templ grid() {
-	<svg class="grid" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" aria-hidden="true">
+templ grid(h int32) {
+	<svg class="grid" xmlns="http://www.w3.org/2000/svg" viewBox={ "0 0 1000 " + strconv.Itoa(int(h)) } aria-hidden="true">
 		<defs>
 			<pattern id="minor" width="20" height="20" x="-10" y="-10" patternUnits="userSpaceOnUse"><path class="plus" d="M7 10h6M10 7v6"></path></pattern>
 			<pattern id="major" width="100" height="100" x="-50" y="-50" patternUnits="userSpaceOnUse"><path class="major" d="M50 0v100M0 50h100"></path></pattern>
 		</defs>
-		<rect x="-30" y="-30" width="1060" height="1060" fill="url(#major)"></rect>
-		<rect x="-30" y="-30" width="1060" height="1060" fill="url(#minor)"></rect>
+		<rect x="-30" y="-30" width="1060" height={ strconv.Itoa(int(h) + 60) } fill="url(#major)"></rect>
+		<rect x="-30" y="-30" width="1060" height={ strconv.Itoa(int(h) + 60) } fill="url(#minor)"></rect>
 	</svg>
 }
+
+// boardHeight is the board's height in units: 1000 square, or a letter page.
+func boardHeight(m *hub.Meta) int32 {
+	if m == nil || m.Height <= 0 {
+		return 1000
+	}
+	return m.Height
+}
+
+// aspect is the board's height over its width, for the paper's frame (CSS).
+func aspect(h int32) string { return strconv.FormatFloat(float64(h)/1000, 'f', 4, 64) }
 
 // withCurrent keeps the board on screen in the strip even when it was just
 // closed from another device: you are still looking at it.

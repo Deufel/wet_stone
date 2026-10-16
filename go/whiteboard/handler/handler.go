@@ -610,7 +610,7 @@ func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) command(w http.ResponseWriter, r *http.Request) {
-	n, _, _, ok := h.open(w, r, false)
+	n, _, meta, ok := h.open(w, r, false)
 	if !ok {
 		return
 	}
@@ -642,12 +642,12 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request) {
 	}
 	c := board.Cmd{
 		Op: op, UID: s.UID, Tool: s.Tool, Seq: s.Seq, DSeq: s.DSeq,
-		X: clamp(s.X, 0, board.W), Y: clamp(s.Y, 0, board.H),
+		X: clamp(s.X, 0, board.W), Y: clamp(s.Y, 0, height(meta)),
 		NX: int8(clamp(s.Ndx, -1, 1)), NY: int8(clamp(s.Ndy, -1, 1)),
 	}
 	switch op {
 	case "link":
-		c.X, c.Y = clamp(s.Lx, 0, board.W), clamp(s.Ly, 0, board.H) // the double-click's own coordinate
+		c.X, c.Y = clamp(s.Lx, 0, board.W), clamp(s.Ly, 0, height(meta)) // the double-click's own coordinate
 	case "label":
 		c.Shape, c.Label = s.Sel, cleanLabel(s.Label)
 	}
@@ -946,3 +946,11 @@ func cleanText(s string, max int) string {
 }
 
 func clamp(v, lo, hi int32) int32 { return min(max(v, lo), hi) }
+
+// height is a board's height in units (square, or a letter page).
+func height(m *hub.Meta) int32 {
+	if m == nil || m.Height <= 0 {
+		return board.H
+	}
+	return m.Height
+}

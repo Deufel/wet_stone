@@ -17,7 +17,8 @@ import (
 
 const (
 	W           = 1000
-	H           = 1000
+	H           = 1000 // a square board's height (the boards before letter)
+	Letter      = 1294 // a letter page's height: 1000 × 11 / 8.5
 	Grid        = 20
 	SnapAnchor  = 14 // px: snap a dragged point to another shape's anchor
 	SnapAxis    = 10 // px: snap a dragged point to its own shape's other end
@@ -185,10 +186,14 @@ type Board struct {
 	Lasers   [LaserMax]LaserSeg
 	nextHue  uint8
 	laserID  uint32
+
+	// Height is the board's in units: H (square) or Letter (a book's
+	// whiteboard, shaped as the page it becomes). Set once, as it loads.
+	Height int32
 }
 
 func New() *Board {
-	b := &Board{}
+	b := &Board{Height: H}
 	for i := range b.Shapes {
 		b.Shapes[i].Joint = [2]int32{-1, -1}
 		b.Shapes[i].Corner = [4]int32{-1, -1, -1, -1}

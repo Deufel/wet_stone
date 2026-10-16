@@ -206,6 +206,9 @@ func (h *Hub) load(ctx context.Context, name string) (*live, error) {
 	}
 	l := &live{name: name, b: board.New(), wake: make(chan struct{}, 1)}
 	l.meta.Store(&Meta{Meta: meta, Version: 1})
+	if meta.Height > 0 {
+		l.b.Height = meta.Height
+	}
 	l.b.Restore(snap)
 	k := &keeper{h: h, l: l, pos: pos}
 	k.saved, _ = json.Marshal(snap)

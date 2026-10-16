@@ -133,7 +133,10 @@
   :where(.stage-box) { container-type: size; min-block-size: 0; display: grid; place-items: center; }
   :where(.stage-frame) {
     --pad: 0.4rem; box-sizing: border-box;
-    inline-size: min(100cqi, 100cqb); block-size: min(100cqi, 100cqb);
+    /* the paper's shape (--ar: height / width; 1 square, 1.294 letter): the
+       largest that fits, its padding outside the paper so the paper keeps it */
+    inline-size: calc(min(100cqi - 2 * var(--pad), (100cqb - 2 * var(--pad)) / var(--ar, 1)) + 2 * var(--pad));
+    block-size: calc(min((100cqi - 2 * var(--pad)) * var(--ar, 1), 100cqb - 2 * var(--pad)) + 2 * var(--pad));
     padding: var(--pad); border-radius: var(--cfg-radius, .5rem); overflow: hidden;
     --fg: 0.75; --lift: 0.06; background-color: var(--_bg);
     border: 1px solid color-mix(in oklch, currentColor 22%, transparent);

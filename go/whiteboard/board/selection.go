@@ -369,7 +369,7 @@ func (b *Board) clampToBoard(mask *[ShapesMax]bool, dx, dy int32) (int32, int32)
 	if !ok {
 		return dx, dy
 	}
-	return clamp32(dx, -x1, W-x2), clamp32(dy, -y1, H-y2)
+	return clamp32(dx, -x1, W-x2), clamp32(dy, -y1, b.Height-y2)
 }
 
 // Arrow keys: the selection moves one grid step. Groups move as units; other

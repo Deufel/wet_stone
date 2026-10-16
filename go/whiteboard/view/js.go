@@ -26,7 +26,7 @@ func postKept(name, op string) string {
 // it ($seq); a down also marks its stroke ($dseq = its own seq), which every
 // move and up after it carries, so the server can put a stroke's commands back
 // in order when they arrive out of it.
-const pointer = "const r = stage.getBoundingClientRect(); $x = Math.round((evt.clientX - r.left) * 1000 / r.width); $y = Math.round((evt.clientY - r.top) * 1000 / r.height); $seq = $seq + 1; "
+const pointer = "const r = stage.getBoundingClientRect(); $x = Math.round((evt.clientX - r.left) * 1000 / r.width); $y = Math.round((evt.clientY - r.top) * $_bh / r.height); $seq = $seq + 1; "
 
 // streamGet opens a page's view channel and keeps it open. Datastar's default
 // ('auto') never retries a stream that ends cleanly (a deploy, a proxy closing
@@ -103,7 +103,7 @@ func onUp(name string) string {
 // The label editor. It opens when the server bumps $edit (sending the
 // shape's label box, $lbox, and its text, $label) and only then: el._seen
 // keeps a change of $label from reopening it.
-const labelBoxStyle = "{left: $lbox[0] / 10 + '%', top: $lbox[1] / 10 + '%', width: $lbox[2] / 10 + '%', height: $lbox[3] / 10 + '%'}"
+const labelBoxStyle = "{left: $lbox[0] / 10 + '%', top: $lbox[1] * 100 / $_bh + '%', width: $lbox[2] / 10 + '%', height: $lbox[3] * 100 / $_bh + '%'}"
 
 const labelOpen = "if ($edit > 0 && $edit !== el._seen) { el._seen = $edit; $_ledit = true; el.textContent = $label; el.classList.toggle('code', $label.startsWith('```')); " +
 	"requestAnimationFrame(() => { el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r) }) }"
@@ -122,7 +122,7 @@ func labelCommit(name string) string {
 }
 
 func onDblclick(name string) string {
-	return "const r = stage.getBoundingClientRect(); $lx = Math.round((evt.clientX - r.left) * 1000 / r.width); $ly = Math.round((evt.clientY - r.top) * 1000 / r.height); " +
+	return "const r = stage.getBoundingClientRect(); $lx = Math.round((evt.clientX - r.left) * 1000 / r.width); $ly = Math.round((evt.clientY - r.top) * $_bh / r.height); " +
 		postKept(name, "link")
 }
 
@@ -195,7 +195,9 @@ const aliveCheck = "if (el.beatAt) { if (document.hidden) { el.beatAt = Date.now
 func newBoard(vis string) string { return "@post('/new/" + vis + "')" }
 
 // pageSignals: the board page's signals, with the server process it landed on.
-func pageSignals(inst string) string { return "{inst: " + jsString(inst) + ", " + signals[1:] }
+func pageSignals(inst string, height int32) string {
+	return "{inst: " + jsString(inst) + ", _bh: " + strconv.Itoa(int(height)) + ", " + signals[1:]
+}
 
 const signals = "{" + savedSignal + ", uid: 0, x: 0, y: 0, lx: 0, ly: 0, tool: 0, sel: -1, label: '', note: '', shapes: 0, users: 0, ndx: 0, ndy: 0, seq: 0, dseq: 0, lbox: [0, 0, 0, 0], _ledit: false, _drag: false, _ans: '', _beat: 0, _full: false, _todo: '', _notes: {text: '', lang: '', v: 0}, nsel: 0, grouped: false, edit: 0, hrev: 0, hbranch: 0, invite: '', who: '', title: '', _voice: true}"
 
