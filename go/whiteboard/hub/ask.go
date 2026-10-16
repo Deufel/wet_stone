@@ -20,8 +20,10 @@ type Ask struct {
 	Correct  bool
 	Help     bool // "I don't get it" is offered (the viewer has a key to ask with)
 
-	// Say: no question, the presenter speaking (a caption over the board)
+	// Say: no question, the presenter speaking (a caption, as a toast); Who
+	// is the presenter ("Claude", or the lesson)
 	Say string
+	Who string
 
 	// a book page's lesson, done: the card stays with the way on
 	Done      bool

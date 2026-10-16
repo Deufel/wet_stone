@@ -77,6 +77,8 @@ type Step struct {
 	Lang   string     `json:"lang,omitempty"`  // a code block's language
 	Kind   string     `json:"kind,omitempty"`  // turn: cw45, ccw45, cw30, ccw30; connect: arrow (default) or line
 	IDs    []int32    `json:"ids,omitempty"`   // select, move, connect: shapes by id (the board's #n)
+	As     string     `json:"as,omitempty"`    // a drawing step's name for what it draws
+	Refs   []string   `json:"refs,omitempty"`  // select, move, connect: shapes this script drew, by their "as"
 	Delta  []int32    `json:"delta,omitempty"` // move: [dx, dy] in board units
 	Svg    string     `json:"svg,omitempty"`   // svg: a free drawing (an <svg> document, viewBox set)
 
@@ -189,16 +191,16 @@ func (l *Lesson) check(steps []Step, at string) error {
 			}
 		case "group", "ungroup", "delete":
 		case "select":
-			if len(s.IDs) == 0 {
-				return bad("ids: the shapes to select, by id")
+			if len(s.IDs)+len(s.Refs) == 0 {
+				return bad("ids (the board's #n) or refs (names given with \"as\"): the shapes to select")
 			}
 		case "move":
 			if len(s.Delta) != 2 || abs(s.Delta[0]) > board.W || abs(s.Delta[1]) > board.Letter {
 				return bad("delta: [dx, dy] in board units")
 			}
 		case "connect":
-			if len(s.IDs) != 2 || (s.Kind != "" && s.Kind != "arrow" && s.Kind != "line") {
-				return bad("ids: [from, to], two shapes by id; kind arrow or line")
+			if len(s.IDs)+len(s.Refs) != 2 || (s.Kind != "" && s.Kind != "arrow" && s.Kind != "line") {
+				return bad("two shapes, from then to: ids [a, b], refs [\"a\", \"b\"], or one of each (ids first); kind arrow or line")
 			}
 			if len(s.Label) > board.LabelMax {
 				return bad(fmt.Sprintf("label: at most %d bytes", board.LabelMax))
@@ -307,7 +309,7 @@ func (h *Handler) play(ctx context.Context, l *Lesson, name string, user db.User
 		h.Hub.Publish(name)
 	}()
 	p := &presenter{h: h, ctx: ctx, name: name, b: b, uid: demoUID, x: 500, y: 950, pace: l.Pace, run: run, fast: from > 0}
-	pl := &player{h: h, p: p, l: l, user: user, id: meta.ID, notesID: -1}
+	pl := &player{h: h, p: p, l: l, user: user, id: meta.ID, notesID: -1, named: map[string]int32{}}
 
 	p.pause(1200 * time.Millisecond) // the page lands and its stream opens
 	// a lesson's checklist is its own business: the viewer's checklist and
@@ -340,8 +342,20 @@ type player struct {
 	p       *presenter
 	l       *Lesson
 	user    db.User
-	id      int64 // the board
-	notesID int32 // the code block the lesson's notes show in, -1 before the first
+	id      int64            // the board
+	notesID int32            // the code block the lesson's notes show in, -1 before the first
+	named   map[string]int32 // what the script drew, by the names it gave ("as")
+}
+
+// shapes are a step's shapes: its ids, then its refs by name.
+func (pl *player) shapes(s Step) []int32 {
+	out := append([]int32(nil), s.IDs...)
+	for _, r := range s.Refs {
+		if id, ok := pl.named[r]; ok {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 func (pl *player) run(steps []Step) {
@@ -355,15 +369,17 @@ func (pl *player) run(steps []Step) {
 		case "style":
 			p.style()
 		case "select":
-			p.cmd(board.Cmd{Op: "pick", IDs: s.IDs})
+			p.cmd(board.Cmd{Op: "pick", IDs: pl.shapes(s)})
 		case "move":
-			if len(s.IDs) > 0 {
-				p.cmd(board.Cmd{Op: "pick", IDs: s.IDs})
+			if ids := pl.shapes(s); len(ids) > 0 {
+				p.cmd(board.Cmd{Op: "pick", IDs: ids})
 			}
 			p.pause(200 * time.Millisecond)
 			p.cmd(board.Cmd{Op: "shift", X: s.Delta[0], Y: s.Delta[1]})
 		case "connect":
-			p.connect(s.IDs[0], s.IDs[1], s.Kind == "line", s.Label)
+			if ids := pl.shapes(s); len(ids) == 2 {
+				p.connect(ids[0], ids[1], s.Kind == "line", s.Label)
+			}
 		case "svg":
 			if clean, err := board.CleanSVG(s.Svg); err == nil {
 				p.box(s.At[0], s.At[1], s.At[2], s.At[3], "```svg\n"+clean)
@@ -417,6 +433,15 @@ func (pl *player) run(steps []Step) {
 			pl.run(pl.ask(s))
 		}
 		p.ink = board.Ink{}
+		if s.As != "" { // the name it gave what it drew
+			id := p.b.SelectedBy(p.uid)
+			if id < 0 {
+				id = p.b.LastBy(p.uid)
+			}
+			if id >= 0 {
+				pl.named[s.As] = id
+			}
+		}
 		p.pause(250 * time.Millisecond) // a beat between steps
 	}
 }
@@ -544,7 +569,11 @@ func (p *presenter) say(text string) {
 	if p.err != nil || p.fast {
 		return
 	}
-	p.h.Hub.Settle(p.name, &hub.Ask{Say: text})
+	who := "Lesson"
+	if p.uid == sketchUID {
+		who = "Claude"
+	}
+	p.h.Hub.Settle(p.name, &hub.Ask{Say: text, Who: who})
 	p.pause(time.Duration(1500+70*len(text)) * time.Millisecond) // read, or spoken
 
 }

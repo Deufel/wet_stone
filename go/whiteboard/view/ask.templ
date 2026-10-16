@@ -59,13 +59,18 @@ templ AskCard(name string, u *db.User, q *hub.Ask) {
 			</div>
 		}
 	</div>
-	<!-- the presenter speaking: a caption in the teaching bar, above the
-	     board, never over what is drawn -->
-	<p id="lesson-say" class="lesson-say" aria-live="polite">
+	<!-- the presenter speaking: a caption, as a toast (the hud's corner) -->
+	<div id="lesson-say" class="lesson-say">
 		if q != nil && q.Say != "" {
-			{ q.Say }
+			<toast-card class="toast card glass" data-ui-state="unread" role="status">
+				<header>
+					@Icon("sparkles")
+					<strong>{ sayWho(q) }</strong>
+				</header>
+				<p class="say-text">{ q.Say }</p>
+			</toast-card>
 		}
-	</p>
+	</div>
 }
 
 func answerPost(name, text string) string {
@@ -86,4 +91,11 @@ func spoken(q *hub.Ask) string {
 		return q.Question + " " + strings.Join(q.Options, ", or ") + "?"
 	}
 	return q.Question
+}
+
+func sayWho(q *hub.Ask) string {
+	if q.Who != "" {
+		return q.Who
+	}
+	return "Lesson"
 }

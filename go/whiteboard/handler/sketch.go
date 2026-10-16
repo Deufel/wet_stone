@@ -128,7 +128,7 @@ func (h *Handler) sketchOn(ctx context.Context, name string, key apiKey, ask str
 		return
 	}
 	h.Hub.Settle(name, nil)
-	pl := &player{h: h, p: p, l: &Lesson{Title: "sketch"}, notesID: -1}
+	pl := &player{h: h, p: p, l: &Lesson{Title: "sketch"}, notesID: -1, named: map[string]int32{}}
 	pl.run(steps)
 	p.pause(500 * time.Millisecond)
 	p.click(980, 980)
@@ -292,12 +292,16 @@ character, and wraps inside the box. A box whose label starts with a fence is a 
 selects its whole group. A shape you have just drawn is the one "style" and "turn" act on if
 nothing is selected.
 
-WORKING WITH WHAT IS THERE (ids are the board's #n):
- {"do": "select", "ids": [3, 5]}                          selects shapes (then label, style, turn,
+NAMES. The ids of shapes you create are not known in advance: name what you draw with "as" on its
+step ({"do": "box", …, "as": "store"}) and refer to it later with "refs": ["store"]. Use "ids" only
+for shapes already on the board (#n in the list above).
+
+WORKING WITH SHAPES (by "ids" [#n] or "refs" [names]):
+ {"do": "select", "refs": ["api"]}                        selects shapes (then label, style, turn,
                                                            delete, group act on them)
  {"do": "move", "ids": [3], "delta": [0, 120]}             moves shapes by dx, dy (connectors follow)
- {"do": "connect", "ids": [3, 5], "label": "calls"}       an arrow from #3 to #5, side to side, linked
-                                                           (kind "line" for no head); ink it inline
+ {"do": "connect", "refs": ["api", "db"], "label": "calls"}  an arrow from one to the other, side to side,
+                                                           linked (kind "line" for no head); ink inline
  {"do": "laser", "at": [cx, cy], "r": 80}                  point at something while you "say" it
  {"do": "turn", "kind": "cw45"}                            animates a turn (cw45, ccw45, cw30, ccw30)
  {"do": "svg", "at": [x1, y1, x2, y2], "svg": "<svg viewBox='0 0 100 60'>…</svg>"}

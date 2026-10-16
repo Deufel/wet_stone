@@ -69,6 +69,13 @@ templ Board(d BoardData) {
 				<div id="page-strip"></div>
 			</footer>
 		</div>
+		<!-- the teacher's voice (a lesson's or Claude's): captions as toasts,
+		     a question and its answers, in the bottom-right corner -->
+		<div class="hud teach-hud">
+			<div class="br column">
+				@AskCard(d.Name, nil, nil)
+			</div>
+		</div>
 		@navDrawer(d)
 		@TodoDrawer(d.Name)
 		@BudgetMenu(d.Name)
@@ -122,10 +129,6 @@ templ teachBar(name string, owner bool) {
 				@Icon("more")
 			</button>
 		</div>
-		<div id="lesson-bar"></div>
-		<!-- the teacher's voice (a lesson's or Claude's): its captions, its
-		     questions and their answers, here and never over the drawing -->
-		@AskCard(name, nil, nil)
 		<div class="row oneline ends">
 			@Saved("sheet")
 			@Saved("sketch")
@@ -265,6 +268,8 @@ templ turnTool(name string, deg int) {
 // boardCard is the whiteboard: the paper, and a lesson's question over it.
 templ boardCard(name string, h int32) {
 	<section class="card board-card" data-init={ fullSync } aria-label="Whiteboard">
+		<!-- the lesson's player, over the paper's top-right corner -->
+		<div id="lesson-bar" class="lesson-fabs"></div>
 		<div class="stage-box">
 			<div class="stage-frame">
 				<div

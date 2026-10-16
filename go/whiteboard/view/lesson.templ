@@ -26,51 +26,63 @@ func lessonPost(name, op string) string {
 	return "@post('/b/" + name + "/lesson/" + op + "', {payload: {inst: $inst}, requestCancellation: 'disabled'})"
 }
 
-// LessonBar: the page's lesson, as a player: back to the start, back a
-// thought, play or pause, and a scrubber (step k of n). Narration (the
-// browser's own voice reading the captions and questions) is this viewer's
-// choice ($_voice). A morph target on the board's stream.
+// LessonBar is the lesson's player, over the whiteboard's top-right corner:
+// play or pause as a fab (its owner's), and a "…" fab opening the finer
+// controls (from the start, back, speed, narration, the scrubber) in a
+// popover. A morph target on the board's stream; empty with no lesson.
 templ LessonBar(name string, st LessonState) {
-	<div id="lesson-bar" class="lesson-bar">
+	<div id="lesson-bar" class="lesson-fabs">
 		if st.Has {
-			<div class="button-group" role="group" aria-label="Lesson">
+			if st.Owner {
+				if st.Running && !st.Paused {
+					<button class="fab-2 lesson-play" data-on:click={ "speechSynthesis.cancel(); " + lessonPost(name, "pause") } aria-label="Pause" title="Pause">
+						@Icon("pause")
+					</button>
+				} else {
+					<button class="fab-2 lesson-play" data-on:click={ lessonPost(name, "play") } aria-label="Play" title={ playTitle(st) }>
+						@Icon("play")
+					</button>
+				}
+			}
+			<button class="fab-1 lesson-more" popovertarget="lesson-menu" aria-label="Lesson controls" title="Lesson controls">
+				@Icon("more")
+			</button>
+			<div id="lesson-menu" class="menu lesson-menu" popover>
 				if st.Owner {
-					<button class="icon" data-on:click={ "speechSynthesis.cancel(); " + lessonPost(name, "restart") } aria-label="From the start" title="From the start">
+					<button data-on:click={ "speechSynthesis.cancel(); " + lessonPost(name, "restart") }>
 						@Icon("restart")
+						From the start
 					</button>
-					<button class="icon" data-on:click={ "speechSynthesis.cancel(); " + lessonPost(name, "back") } aria-label="Back" title="Back a step">
+					<button data-on:click={ "speechSynthesis.cancel(); " + lessonPost(name, "back") }>
 						@Icon("back")
+						Back a step
 					</button>
-					if st.Running && !st.Paused {
-						<button class="icon" data-on:click={ "speechSynthesis.cancel(); " + lessonPost(name, "pause") } aria-label="Pause" title="Pause">
-							@Icon("pause")
-						</button>
-					} else {
-						<button class="icon" data-on:click={ lessonPost(name, "play") } aria-label="Play" title={ playTitle(st) }>
-							@Icon("play")
-						</button>
-					}
+					<label class="row oneline speed-row">
+						<span>Speed</span>
+						<select class="speed" aria-label="Speed" data-on:change={ "@post('/b/" + name + "/lesson/speed', {payload: {n: +el.value, inst: $inst}, requestCancellation: 'disabled'})" }>
+							for _, sp := range speeds {
+								<option value={ strconv.Itoa(sp) } selected?={ sp == st.Speed || (st.Speed == 0 && sp == 100) }>{ speedWord(sp) }</option>
+							}
+						</select>
+					</label>
 				}
-				if st.Owner {
-					<select class="speed" aria-label="Speed" title="Speed" data-on:change={ "@post('/b/" + name + "/lesson/speed', {payload: {n: +el.value, inst: $inst}, requestCancellation: 'disabled'})" }>
-						for _, sp := range speeds {
-							<option value={ strconv.Itoa(sp) } selected?={ sp == st.Speed || (st.Speed == 0 && sp == 100) }>{ speedWord(sp) }</option>
-						}
-					</select>
-				}
-				<button class="icon" data-on:click="$_voice = !$_voice; $_voice || speechSynthesis.cancel()" data-attr:aria-pressed="$_voice" aria-label="Narration" title="Narration: read the captions aloud">
+				<button data-on:click="$_voice = !$_voice; $_voice || speechSynthesis.cancel()" data-attr:aria-pressed="$_voice">
 					<span data-show="$_voice">
 						@Icon("volume")
 					</span>
 					<span data-show="!$_voice">
 						@Icon("mute")
 					</span>
+					Narration
 				</button>
+				if st.Of > 0 {
+					<label class="scrub-row">
+						<span class="meta">{ "Step " + strconv.Itoa(st.Step) + " of " + strconv.Itoa(st.Of) }</span>
+						<input class="scrub" type="range" min="0" max={ strconv.Itoa(st.Of) } value={ strconv.Itoa(st.Step) } disabled?={ !st.Owner } aria-label="Lesson position" data-on:change={ "speechSynthesis.cancel(); @post('/b/" + name + "/lesson/seek', {payload: {n: +el.value, inst: $inst}, requestCancellation: 'disabled'})" }/>
+					</label>
+				}
+				@Saved("lesson")
 			</div>
-			if st.Of > 0 {
-				<input class="scrub" type="range" min="0" max={ strconv.Itoa(st.Of) } value={ strconv.Itoa(st.Step) } disabled?={ !st.Owner } aria-label="Lesson position" title={ "Step " + strconv.Itoa(st.Step) + " of " + strconv.Itoa(st.Of) } data-on:change={ "speechSynthesis.cancel(); @post('/b/" + name + "/lesson/seek', {payload: {n: +el.value, inst: $inst}, requestCancellation: 'disabled'})" }/>
-			}
-			@Saved("lesson")
 		}
 	</div>
 }

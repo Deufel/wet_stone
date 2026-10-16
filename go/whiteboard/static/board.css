@@ -912,7 +912,7 @@
 /* the teaching bar on a wider screen: only while a lesson plays, or it is
    saying something; else it takes no room */
 @media (width >= 576px) {
-  .board-page > .teach-bar:has(> #lesson-bar:empty):has(> #lesson-say:empty):has(> #lesson-ask:empty):not(.acking) { display: none; }
+  .board-page > .teach-bar:not(.acking) { display: none; }
 }
 @layer block {
   :where(.free-draw) { gap: 0.4em; --type: -1; cursor: pointer; }
@@ -933,16 +933,32 @@
 }
 
 @layer block {
-  .teach-bar > .lesson-say { margin: 0; flex: 1 1 20rem; min-inline-size: 0; --fg: -1; font-weight: 500; line-height: 1.35; white-space: normal; overflow: visible; text-overflow: clip; }
   :where(.lesson-say):where(:empty) { display: none; }
 }
 
-/* the teacher's voice, in the teaching bar: a question (or the end of a
-   page) is a compact panel in the bar's flow, not a card over the board */
+/* the teacher's voice in the hud's bottom-right corner: captions as toasts,
+   the question under them (mike.css's toast and card) */
 @layer block {
-  .teach-bar > .lesson-ask { position: static; inset: auto; display: contents; padding: 0; }
-  .teach-bar > .lesson-ask:empty { display: none; }
-  .teach-bar .ask-card { pointer-events: auto; inline-size: auto; flex: 1 1 26rem; max-inline-size: 48rem; box-shadow: none; padding: 0.2lh 0.6em; gap: 0.15lh; grid-auto-flow: row; }
-  .teach-bar .ask-card > .q { --type: 0; }
-  .teach-bar .ask-card.done { flex: 0 1 auto; grid-auto-flow: column; }
+  .teach-hud > .br { gap: 0.25lh; padding: 0.75lh; max-inline-size: min(26rem, calc(100vw - 1.5rem)); }
+  .teach-hud .lesson-say:empty, .teach-hud .lesson-ask:empty { display: none; }
+  .teach-hud .lesson-ask { position: static; inset: auto; display: block; padding: 0; pointer-events: auto; }
+  .teach-hud .toast { inline-size: min(24rem, calc(100vw - 1.5rem)); }
+  .teach-hud .toast > .say-text { margin: 0; --type: 0; line-height: 1.35; }
+  .teach-hud .ask-card { inline-size: min(24rem, calc(100vw - 1.5rem)); }
+}
+
+/* the lesson's player: fabs over the paper's top-right corner, the finer
+   controls in their popover */
+@layer block {
+  .board-card > .lesson-fabs { position: absolute; inset-block-start: 0.6lh; inset-inline-end: 0.6lh; z-index: 5; display: flex; align-items: center; gap: 0.25em; }
+  .board-card > .lesson-fabs:empty { display: none; }
+  .lesson-fabs > :where(.fab-1, .fab-2) { margin: 0; display: grid; place-items: center; inline-size: 2.4lh; block-size: 2.4lh; padding: 0; }
+  .lesson-fabs > .fab-1 { inline-size: 1.8lh; block-size: 1.8lh; }
+  :where([popovertarget="lesson-menu"]) { anchor-name: --lesson-more; }
+  :where(#lesson-menu) { position-anchor: --lesson-more; left: auto; right: anchor(right); min-inline-size: 15rem; }
+  :where(.lesson-menu) > :where(button) { display: flex; align-items: center; gap: 0.5em; }
+  :where(.lesson-menu) > :where(button[aria-pressed="true"]) { --lift: 0.12; background-color: var(--_bg); }
+  :where(.lesson-menu) :where(.speed-row) { justify-content: space-between; padding: 0.15lh 0.5em; gap: 0.5em; }
+  :where(.lesson-menu) :where(.scrub-row) { display: grid; gap: 0.1lh; padding: 0.2lh 0.5em; }
+  :where(.lesson-menu) :where(.scrub) { inline-size: 100%; }
 }

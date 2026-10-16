@@ -761,6 +761,16 @@ func (b *Board) SelectedBy(uid uint32) int32 {
 	return -1
 }
 
+// LastBy is the shape that viewer drew last, or -1.
+func (b *Board) LastBy(uid uint32) int32 {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if u := b.viewer(uid); u != nil && u.Last >= 0 && b.Shapes[u.Last].Kind != None {
+		return u.Last
+	}
+	return -1
+}
+
 // style inks the user's selection, or with none the shape they drew last.
 func (b *Board) style(c Cmd) string {
 	u := b.userFor(c.UID)
