@@ -730,3 +730,14 @@
   :where(.board-page.full) :where(.workspace) > :where(.todo-card, .notes-card) { display: none; }
   :where(.board-page) > :where(.pg-footer):has(> :where(#page-strip:empty)) { display: none; }
 }
+
+/* a math block (```math: LaTeX, typeset by Temml as MathML), on the board
+   and on a page (the print layer, where a page's labels are sized) */
+@layer block {
+  :where(#board) .label.math { display: grid; place-items: center; padding: 8px; overflow: hidden; font-size: 40px; }
+  :where(#board) .label.math > .tex { font-size: inherit; white-space: pre-wrap; }
+}
+@layer print {
+  .print-board .label.math { display: grid; place-items: center; padding: 8px; overflow: hidden; font-size: 40px; }
+  .print-board .label.math > .tex { font-size: inherit; white-space: pre-wrap; }
+}

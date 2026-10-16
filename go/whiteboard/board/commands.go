@@ -214,7 +214,7 @@ func (b *Board) down(c Cmd) {
 		u.Drag = Drag{Kind: DragLaser, Shape: -1}
 		u.laserN, u.laserSeg = 0, 0
 		b.laserPoint(u, c.X, c.Y)
-	case 1, 2, 3:
+	case 1, 2, 3, 6: // 6: the code tool, a box that opens as a code block
 		gx, gy := snapGrid(c.X), snapGrid(c.Y)
 		kind := Box
 		if c.Tool == 2 {
@@ -237,7 +237,7 @@ func (b *Board) down(c Cmd) {
 		u.Sel = [ShapesMax]bool{}
 		u.Sel[index] = true
 		u.Selected = index
-		u.Drag = Drag{Kind: DragHandle, Shape: index, HX: 1, HY: 1, Fresh: true}
+		u.Drag = Drag{Kind: DragHandle, Shape: index, HX: 1, HY: 1, Fresh: true, Code: c.Tool == 6}
 	default:
 		if b.arrowFromPort(u, c.X, c.Y) {
 			return
@@ -465,6 +465,14 @@ func (b *Board) up(c Cmd) (change string) {
 			s.Y1, s.Y2 = s.Y2, s.Y1
 			s.Corner[0], s.Corner[2] = s.Corner[2], s.Corner[0]
 			s.Corner[1], s.Corner[3] = s.Corner[3], s.Corner[1]
+		}
+		if drag.Code && drag.Fresh && (s.X2-s.X1 < 8 || s.Y2-s.Y1 < 8) {
+			// a click with the code tool: a block of a useful size, here
+			s.X2, s.Y2 = min(s.X1+CodeW, W), min(s.Y1+CodeH, b.Height)
+		}
+		if drag.Code && drag.Fresh && s.Label == "" {
+			s.Label = "```" // its editor opens on the fence: the language, Enter, the code
+			u.EditSeq++
 		}
 		if s.X2-s.X1 < 8 || s.Y2-s.Y1 < 8 {
 			b.shapeRemove(index) // a click, not a box

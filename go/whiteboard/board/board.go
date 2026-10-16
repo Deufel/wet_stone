@@ -135,6 +135,7 @@ type Drag struct {
 	Moved  bool  // Group: the pointer has really moved
 	Label  bool  // the press was on the shape's label text: let go here, it is a click that edits it
 	PX, PY int32 // where the press was
+	Code   bool  // the code tool's box: let go, it opens as a code block
 }
 
 // One smoothed piece of a laser stroke: a quadratic from a through control c

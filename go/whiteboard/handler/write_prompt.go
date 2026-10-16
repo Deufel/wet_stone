@@ -78,7 +78,8 @@ const stepsSpec = `STEPS (coordinates are board units: the board is 1000 × 1000
  {"do": "penarrow", "from": [x, y], "to": [x, y]}         an arrow drawn by hand (pen)
  {"do": "code", "at": [x1, y1, x2, y2], "lang": "go",     a code block on the board, typed in and
   "text": "s := []int{1, 2}\ns = append(s, 3)"}          highlighted (monospace, 15 units a line,
-                                                           ~9 units a character): size the box to fit
+                                                           ~9 units a character): size the box to fit;
+                                                           "lang": "math" typesets LaTeX ("text": "\\frac{a}{b}")
  {"do": "say", "text": "…"}                               the presenter speaks: a caption over the board,
                                                            held as long as it takes to read (≤ 240 bytes)
  {"do": "notes", "n": 5}                                   shows the first n lines of the notes

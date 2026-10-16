@@ -441,7 +441,7 @@ func SheetView(u *db.User, b *db.Book, sheets []db.Sheet, no int) templ.Componen
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</main></div><script src=\"/static/highlight.js\"></script>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</main></div><script src=\"/static/highlight.js\"></script> <script src=\"https://cdn.jsdelivr.net/npm/temml@0.14.0/dist/temml.min.js\"></script>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -525,7 +525,7 @@ func SheetsPrint(b *db.Book, sheets []db.Sheet) templ.Component {
 			var templ_7745c5c3_Var24 templ.SafeURL
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/book/" + b.Name))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 134, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 135, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
@@ -546,7 +546,7 @@ func SheetsPrint(b *db.Book, sheets []db.Sheet) templ.Component {
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(len(sheets)) + " pages")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 138, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/sheet.templ`, Line: 139, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
@@ -570,7 +570,7 @@ func SheetsPrint(b *db.Book, sheets []db.Sheet) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "</main></div><script src=\"/static/highlight.js\"></script>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "</main></div><script src=\"/static/highlight.js\"></script> <script src=\"https://cdn.jsdelivr.net/npm/temml@0.14.0/dist/temml.min.js\"></script>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -98,6 +98,7 @@ templ Board(d BoardData) {
 		@WriteDialog()
 		@newMenu()
 		<script src="/static/highlight.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/temml@0.14.0/dist/temml.min.js"></script>
 	}
 }
 
@@ -172,6 +173,7 @@ templ toolRail(name string) {
 			@railTool(3, "arrow", "Arrow", "A")
 			@railTool(4, "laser", "Laser", "5")
 			@railTool(5, "pen", "Pen", "P")
+			@railTool(6, "code", "Code or math (```go, ```math)", "C")
 		</div>
 		<div class="button-group tools" role="toolbar" aria-label="The selection">
 			<button class="tool stack" data-on:click={ post(name, "group") } data-attr:disabled="$nsel < 2" aria-label="Group" title="Group">
@@ -282,7 +284,7 @@ type tool struct {
 	icon, label string
 }
 
-var tools = []tool{{0, "select", "Select"}, {1, "box", "Box"}, {2, "line", "Line"}, {3, "arrow", "Arrow"}, {4, "laser", "Laser"}, {5, "pen", "Pen"}}
+var tools = []tool{{0, "select", "Select"}, {1, "box", "Box"}, {2, "line", "Line"}, {3, "arrow", "Arrow"}, {4, "laser", "Laser"}, {5, "pen", "Pen"}, {6, "code", "Code"}}
 
 // clearDialog: clearing the board asks first (the history still keeps it).
 templ clearDialog(name string) {

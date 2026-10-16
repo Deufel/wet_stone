@@ -169,8 +169,8 @@ func (l *Lesson) check(steps []Step, at string) error {
 			if strings.TrimSpace(s.Text) == "" || len(s.Text)+len(s.Lang)+4 > board.CodeMax {
 				return bad(fmt.Sprintf("text: the code, at most %d bytes", board.CodeMax-20))
 			}
-			if s.Lang != "" && !view.NoteLang(s.Lang) {
-				return bad("lang: one of css, html, python, javascript, go, sqlite, odin, mojo")
+			if s.Lang != "" && s.Lang != "math" && !view.NoteLang(s.Lang) {
+				return bad("lang: one of css, html, python, javascript, go, sqlite, odin, mojo, or math (LaTeX)")
 			}
 		case "group", "ungroup", "delete":
 		case "nudge":

@@ -152,7 +152,8 @@ func onKey(name string) string {
 		"else if (k === 'l') { $tool = 2 }",
 		"else if (k === 'a') { $tool = 3 }",
 		"else if (k === 'p') { $tool = 5 }",
-		"else if (k >= '1' && k <= '6') { $tool = Number(k) - 1 }",
+		"else if (k === 'c') { $tool = 6 }",
+		"else if (k >= '1' && k <= '7') { $tool = Number(k) - 1 }",
 	}, " ")
 }
 
