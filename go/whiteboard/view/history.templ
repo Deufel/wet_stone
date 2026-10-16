@@ -50,40 +50,54 @@ templ History(name string, h *hub.History) {
 			}
 		</section>
 		if h.Detached() {
-			<p class="hint">You are looking at an older moment. Your next change starts a new branch here.</p>
+			<p class="hint">You are looking back. Your next change starts a new branch here; the greyed lines are this line's later moments.</p>
 		}
 		if len(h.Lineage) == 0 {
 			<p class="hint">Nothing drawn yet. Every change you make is kept here.</p>
+		} else {
+			<div class="log-bar">
+				<button class="sec" data-on:click={ "@post('/b/" + name + "/history/replay', {payload: {inst: $inst}, requestCancellation: 'disabled'})" } title="Play this line from its first moment, in the player: pause, speed, scrub">
+					@Icon("play")
+					Replay
+				</button>
+				@Saved("replay")
+			</div>
 		}
-		<ol class="timeline" aria-label="Revisions, newest first">
+		<!-- the line, as git log oneline: newest first, one row a moment;
+		     any row is the way back (or on) to it -->
+		<ol class="oneline-log" aria-label="Revisions, newest first">
 			for _, r := range h.Lineage {
-				<li data-ui-current?={ r.Current }>
-					<button class="rev" data-on:click={ histPost(name, "hrev", r.ID, "checkout") } aria-current?={ r.Current } title="Go back to this moment">
-						if r.Thumb != "" {
-							<span class="thumb">
-								<svg viewBox="0 0 1000 1000" aria-hidden="true">
-									@Raw(r.Thumb)
-								</svg>
-							</span>
+				<li data-ui-current?={ r.Current } data-ui-ahead?={ r.Ahead }>
+					<button class="rev" data-on:click={ histPost(name, "hrev", r.ID, "checkout") } aria-current?={ r.Current } title="Go to this moment">
+						<code class="sha">{ shortID(r.ID) }</code>
+						if r.Current {
+							<span class="tag head">HEAD</span>
+						}
+						for _, n := range r.Heads {
+							<span class="tag">{ n }</span>
+						}
+						for _, n := range r.Forks {
+							<span class="fork">{ "⑂ " + n }</span>
 						}
 						<span class="what">{ r.Op }</span>
 						<span class="delta num">{ deltaText(r.Delta) }</span>
 						<time datetime={ r.At.Format(time.RFC3339) }>{ when(r.At) }</time>
 					</button>
-					if len(r.Heads) > 0 || len(r.Forks) > 0 {
-						<span class="marks">
-							for _, n := range r.Heads {
-								<span class="tag">{ n }</span>
-							}
-							for _, n := range r.Forks {
-								<span class="fork">{ "⑂ " + n }</span>
-							}
-						</span>
-					}
 				</li>
 			}
 		</ol>
 	</div>
+}
+
+// shortID is a revision's short name, as git's: seven hex digits (a mix of
+// its id, so neighbours do not read alike).
+func shortID(id int64) string {
+	x := uint32(id) * 2654435761
+	s := strconv.FormatUint(uint64(x), 16)
+	for len(s) < 8 {
+		s = "0" + s
+	}
+	return s[:7]
 }
 
 // sparkPoints scales counts onto a 200×24 box: x evenly spread, y from the

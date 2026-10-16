@@ -155,6 +155,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/b/{name}/notes", h.notes)
 	r.Post("/b/{name}/answer", h.answer)
 	r.Post("/b/{name}/lesson/{op}", h.lessonControl)
+	r.Post("/b/{name}/history/replay", h.replay)
 	r.Post("/b/{name}/help", h.help)
 	h.sheetRoutes(r)
 	r.Post("/b/{name}/marks/clear", h.clearMarks)

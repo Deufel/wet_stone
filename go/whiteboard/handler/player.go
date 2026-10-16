@@ -37,9 +37,10 @@ type lessonRun struct {
 	resume   chan struct{} // closed on resume
 	step, of int
 	finished bool
-	marks    []int   // where "back" goes: the steps that begin a thought
-	speed    float64 // 0.5 to 2: pauses are their length over this
-	sheet    int64   // the page it presents (its drawing kept when done), or 0
+	marks    []int          // where "back" goes: the steps that begin a thought
+	speed    float64        // 0.5 to 2: pauses are their length over this
+	sheet    int64          // the page it presents (its drawing kept when done), or 0
+	seek     func(from int) // plays it again from a step: the same timeline, wherever it came from
 }
 
 // over is a pause at the run's speed.
@@ -126,6 +127,7 @@ func (h *Handler) startRun(l *Lesson, name string, boardID int64, user db.User, 
 	h.stopRun(name)
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &lessonRun{cancel: cancel, done: make(chan struct{}), of: len(l.Steps), marks: marks(l.Steps), speed: speed, sheet: sheet}
+	r.seek = func(from int) { h.startRun(l, name, boardID, user, from, sheet) }
 	h.runs.Store(name, r)
 	runVersion.Add(1)
 	if err := h.Hub.Apply(ctx, name, board.Cmd{Op: "clear", UID: demoUID}); err != nil {
@@ -193,6 +195,9 @@ func (h *Handler) lessonScript(ctx context.Context, boardID int64) (string, int6
 // lessonState is what the board's bar shows this viewer.
 func (h *Handler) lessonState(name string, u *db.User, ownerID int64, has bool) view.LessonState {
 	st := view.LessonState{Has: has, Owner: u != nil && u.ID == ownerID, Version: runVersion.Load()}
+	if _, ok := h.runs.Load(name); ok {
+		st.Has = true // a replay plays on a board with no lesson too
+	}
 	if v, ok := h.runs.Load(name); ok {
 		r := v.(*lessonRun)
 		r.mu.Lock()
@@ -218,12 +223,6 @@ func (h *Handler) lessonControl(w http.ResponseWriter, r *http.Request) {
 		ack.Bad(datastar.NewSSE(w, r), "lesson", "Only the page's owner plays it")
 		return
 	}
-	script, sheet := h.lessonScript(r.Context(), meta.ID)
-	var l Lesson
-	if err := json.Unmarshal([]byte(script), &l); err != nil || l.Validate() != nil {
-		ack.Bad(datastar.NewSSE(w, r), "lesson", "No lesson on this board")
-		return
-	}
 	var run *lessonRun
 	if v, ok := h.runs.Load(n); ok {
 		run = v.(*lessonRun)
@@ -234,7 +233,41 @@ func (h *Handler) lessonControl(w http.ResponseWriter, r *http.Request) {
 		step, finished = run.step, run.finished
 		run.mu.Unlock()
 	}
-	switch op := chi.URLParam(r, "op"); op {
+	op := chi.URLParam(r, "op")
+	// a timeline on the board (a lesson, a replay of its history) moves by
+	// its own seek; with none, the board's lesson begins
+	if run != nil && run.seek != nil && op != "pause" && op != "speed" {
+		switch op {
+		case "play":
+			if finished {
+				run.seek(0)
+			} else {
+				run.play()
+			}
+		case "restart":
+			run.seek(0)
+		case "back":
+			to := 0
+			for _, m := range run.marks {
+				if m < step-1 {
+					to = m
+				}
+			}
+			run.seek(to)
+		case "seek":
+			run.seek(min(max(p.N, 0), run.of))
+		}
+		h.Hub.Publish(n)
+		datastar.NewSSE(w, r)
+		return
+	}
+	script, sheet := h.lessonScript(r.Context(), meta.ID)
+	var l Lesson
+	if err := json.Unmarshal([]byte(script), &l); err != nil || l.Validate() != nil {
+		ack.Bad(datastar.NewSSE(w, r), "lesson", "No lesson on this board")
+		return
+	}
+	switch op {
 	case "play":
 		if run != nil && !finished {
 			run.play()
@@ -273,4 +306,86 @@ func (h *Handler) lessonControl(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) hasLesson(ctx context.Context, boardID int64) bool {
 	s, _ := h.lessonScript(ctx, boardID)
 	return s != ""
+}
+
+// ─── Replaying the history ──────────────────────────────────────────────────
+//
+// The board's history is a timeline too, of saved moments: being at moment k
+// is one checkout (each revision is the whole drawing), so a replay seeks as
+// cheaply as it plays. It runs in the same player as a lesson: play, pause,
+// speed, back, scrub. It ends on the moment it started from.
+//
+//	POST /b/{name}/history/replay   the line the board is on, from its first moment
+
+func (h *Handler) replay(w http.ResponseWriter, r *http.Request) {
+	n, u, meta, ok := h.open(w, r, false)
+	if !ok {
+		return
+	}
+	var p payload
+	_ = datastar.ReadSignals(r, &p)
+	if h.moved(w, r, p.Inst) {
+		return
+	}
+	if h.student(meta, u) {
+		ack.Bad(datastar.NewSSE(w, r), "replay", "Only the teacher replays this whiteboard")
+		return
+	}
+	hist := h.Hub.History(n)
+	if hist == nil || len(hist.Lineage) < 2 {
+		ack.Bad(datastar.NewSSE(w, r), "replay", "Nothing to replay yet")
+		return
+	}
+	revs := make([]int64, 0, len(hist.Lineage))
+	for i := len(hist.Lineage) - 1; i >= 0; i-- { // oldest first
+		revs = append(revs, hist.Lineage[i].ID)
+	}
+	h.startReplay(n, revs, 0, hist.Pos.Rev)
+	ack.Saved(datastar.NewSSE(w, r), "replay", "Replaying")
+}
+
+// replayBeat is how long each moment shows, at speed 1.
+const replayBeat = 700 * time.Millisecond
+
+// startReplay plays the moments revs from index from; back is the moment the
+// board was on, where an ended replay leaves it.
+func (h *Handler) startReplay(name string, revs []int64, from int, back int64) {
+	speed := 1.0
+	if v, ok := h.runs.Load(name); ok {
+		old := v.(*lessonRun)
+		old.mu.Lock()
+		speed = old.speed
+		old.mu.Unlock()
+	}
+	h.stopRun(name)
+	ctx, cancel := context.WithCancel(context.Background())
+	all := make([]int, len(revs))
+	for i := range all {
+		all[i] = i
+	}
+	r := &lessonRun{cancel: cancel, done: make(chan struct{}), of: len(revs), marks: all, speed: speed}
+	r.seek = func(f int) { h.startReplay(name, revs, f, back) }
+	h.runs.Store(name, r)
+	runVersion.Add(1)
+	go func() {
+		defer close(r.done)
+		defer cancel()
+		for i := min(from, len(revs)-1); i < len(revs); i++ {
+			if r.hold(ctx) != nil {
+				return
+			}
+			r.set(func() { r.step = i })
+			if err := h.Hub.Hist(ctx, name, hub.HistOp{Kind: "checkout", ID: revs[i]}); err != nil {
+				return
+			}
+			select {
+			case <-time.After(r.over(replayBeat)):
+			case <-ctx.Done():
+				return
+			}
+		}
+		_ = h.Hub.Hist(ctx, name, hub.HistOp{Kind: "checkout", ID: back}) // where it was
+		r.set(func() { r.finished, r.step = true, r.of })
+		h.Hub.Publish(name)
+	}()
 }

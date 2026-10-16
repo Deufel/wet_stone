@@ -771,3 +771,25 @@
   :where(.strip-pages) :where(.has-lesson) > :where(svg) { inline-size: 0.65em; block-size: 0.65em; }
   :where(.lesson-bar) > :where(.button-group) > :where(.speed) { inline-size: auto; padding: 0.15lh 0.4em; min-block-size: 0; }
 }
+
+/* the history, as git log --oneline: one row a moment, the head marked,
+   the line's later moments greyed; any row jumps there */
+@layer block {
+  :where(.log-bar) { display: flex; align-items: center; gap: 0.5em; margin-block: 0.3lh; }
+  :where(.log-bar) > :where(button) { display: inline-flex; align-items: center; gap: 0.35em; padding: 0.2lh 0.7em; }
+  :where(.log-bar) :where(svg) { inline-size: 0.9em; block-size: 0.9em; }
+  :where(.oneline-log) { list-style: none; margin: 0; padding: 0; font-family: var(--font-mono, ui-monospace, monospace); --type: -1; overflow-y: auto; max-block-size: 70svh; }
+  :where(.oneline-log) > :where(li) > :where(.rev) {
+    display: flex; align-items: baseline; gap: 0.5em; inline-size: 100%; text-align: start; padding: 0.12lh 0.4em;
+    border: 0; border-radius: 4px; background: none; box-shadow: none; min-block-size: 0; color: inherit; white-space: nowrap; overflow: hidden;
+  }
+  :where(.oneline-log) > :where(li) > :where(.rev):where(:hover) { --lift: 0.08; background-color: var(--_bg); }
+  :where(.oneline-log) :where(.sha) { --hue-lock: var(--hue-wrn); --fg: 0.75; }
+  :where(.oneline-log) :where(.what) { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  :where(.oneline-log) :where(.delta, time) { --fg: -0.5; }
+  :where(.oneline-log) :where(.tag) { --type: -2; padding: 0 0.35em; }
+  :where(.oneline-log) :where(.tag.head) { --hue-lock: var(--hue-inf); --fg: 0.8; font-weight: 700; }
+  :where(.oneline-log) :where(.fork) { --fg: -0.4; --type: -2; }
+  :where(.oneline-log) > :where(li[data-ui-current]) > :where(.rev) { --lift: 0.12; background-color: var(--_bg); font-weight: 600; }
+  :where(.oneline-log) > :where(li[data-ui-ahead]) { opacity: 0.5; }
+}

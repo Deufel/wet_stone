@@ -1,6 +1,10 @@
 package hub
 
-import "whiteboard/db"
+import (
+	"sort"
+
+	"whiteboard/db"
+)
 
 const (
 	lineageMax = 300 // revisions shown in the panel
@@ -21,6 +25,7 @@ type History struct {
 type RevView struct {
 	db.Rev
 	Current bool
+	Ahead   bool     // past where the board is (undone, or looked back from): the line goes on
 	Heads   []string // branches whose head is this revision
 	Forks   []string // branches that leave the lineage here
 	Delta   int      // shapes added (+) or removed (−) by this revision
@@ -48,15 +53,37 @@ func buildHistory(version int, pos db.Pos, revs []db.Rev, branches []db.Branch) 
 		h.known[r.ID] = true
 	}
 
-	// the lineage: checked out revision back to the first
+	// the line: from the head of the branch the board is on (or, looked
+	// back from, the branch whose line it is on), back to the first; the
+	// revisions past the board's are its future, like git's log past HEAD
+	top := pos.Rev
+	if pos.Rev != 0 {
+		order := append([]db.Branch(nil), branches...)
+		sort.SliceStable(order, func(i, j int) bool {
+			return order[i].ID == pos.Branch && order[j].ID != pos.Branch || order[i].Main && !order[j].Main && order[j].ID != pos.Branch
+		})
+	find:
+		for _, b := range order {
+			for r, n := b.Head, 0; r != 0 && n < lineageMax; r, n = byID[r].Parent, n+1 {
+				if r == pos.Rev {
+					top = b.Head
+					break find
+				}
+			}
+		}
+	}
 	onLine := map[int64]int{} // revision -> index in Lineage
-	for r := pos.Rev; r != 0 && len(h.Lineage) < lineageMax; r = byID[r].Parent {
+	ahead := top != pos.Rev
+	for r := top; r != 0 && len(h.Lineage) < lineageMax; r = byID[r].Parent {
 		rev, ok := byID[r]
 		if !ok {
 			break
 		}
 		onLine[r] = len(h.Lineage)
-		h.Lineage = append(h.Lineage, RevView{Rev: rev, Current: r == pos.Rev})
+		if r == pos.Rev {
+			ahead = false
+		}
+		h.Lineage = append(h.Lineage, RevView{Rev: rev, Current: r == pos.Rev, Ahead: ahead})
 	}
 
 	for i := range h.Lineage {
