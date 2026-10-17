@@ -376,6 +376,17 @@ func (h *Handler) open(w http.ResponseWriter, r *http.Request, page bool) (strin
 		return "", nil, nil, false
 	}
 	u := auth.User(r.Context())
+	if n == db.DemoName {
+		// the demo: its page, its stream and its strokes only, for anyone; a
+		// guest has no account (ID -1: no one's, and owner of nothing)
+		if !demoRoute(r) {
+			http.Error(w, "the demo only draws", http.StatusForbidden)
+			return "", nil, nil, false
+		}
+		if u == nil {
+			u = &db.User{ID: -1, Name: "Guest"}
+		}
+	}
 	if u == nil {
 		if page {
 			http.Redirect(w, r, auth.SignInURL(r.URL.Path), http.StatusSeeOther)
@@ -407,6 +418,47 @@ func (h *Handler) open(w http.ResponseWriter, r *http.Request, page bool) (strin
 	return n, u, meta, true
 }
 
+// demoRoute: the routes the demo board answers: the page, its stream, and a
+// stroke's down, moves and up.
+func demoRoute(r *http.Request) bool {
+	base := "/b/" + db.DemoName
+	switch r.Method {
+	case http.MethodGet:
+		return r.URL.Path == base || r.URL.Path == base+"/stream"
+	case http.MethodPost:
+		return r.URL.Path == base+"/down" || r.URL.Path == base+"/move" || r.URL.Path == base+"/up"
+	}
+	return false
+}
+
+// RunDemo clears the demo board on every minute of the clock (the page
+// counts down to it) and keeps its history short. It runs until ctx ends.
+func (h *Handler) RunDemo(ctx context.Context) {
+	for {
+		next := time.Now().Truncate(time.Minute).Add(time.Minute)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Until(next)):
+		}
+		b, _, err := h.Hub.Board(ctx, db.DemoName)
+		if err != nil {
+			slog.Error("demo", "err", err)
+			continue
+		}
+		if _, _, drawn := b.Page(); drawn {
+			if err := h.Hub.Apply(ctx, db.DemoName, board.Cmd{Op: "clear"}); err != nil {
+				slog.Error("demo clear", "err", err)
+			}
+		}
+		if meta, err := h.Hub.Meta(ctx, db.DemoName); err == nil {
+			if err := h.DB.PruneRevisions(ctx, meta.ID, 50); err != nil {
+				slog.Error("demo prune", "err", err)
+			}
+		}
+	}
+}
+
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request, page bool) {
 	if !page {
 		http.NotFound(w, r)
@@ -428,7 +480,7 @@ func (h *Handler) page(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "board unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	if n != db.GlobalName {
+	if n != db.GlobalName && n != db.DemoName {
 		if added, _ := h.DB.OpenTab(r.Context(), u.ID, meta.ID); added {
 			h.Hub.PublishUser(u.ID) // your other devices gain the tab
 		}
@@ -439,7 +491,7 @@ func (h *Handler) page(w http.ResponseWriter, r *http.Request) {
 		slog.Error("tabs", "err", err)
 	}
 	html(w)
-	if err := view.Board(view.BoardData{Student: h.student(meta, u), Lesson: h.DB.HasLesson(r.Context(), meta.ID), Inst: h.Instance, Name: n, Link: h.Auth.BaseURL + "/b/" + n, User: u, Meta: meta, Hist: hist, Tabs: tabs}).Render(r.Context(), w); err != nil {
+	if err := view.Board(view.BoardData{Demo: n == db.DemoName, Student: h.student(meta, u), Lesson: h.DB.HasLesson(r.Context(), meta.ID), Inst: h.Instance, Name: n, Link: h.Auth.BaseURL + "/b/" + n, User: u, Meta: meta, Hist: hist, Tabs: tabs}).Render(r.Context(), w); err != nil {
 		slog.Error("page", "err", err)
 	}
 }
@@ -704,6 +756,10 @@ func (h *Handler) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.moved(w, r, s.Inst) {
+		return
+	}
+	if n == db.DemoName && !(op == "down" && (s.Tool == 4 || s.Tool == 5) || op == "move" || op == "up") {
+		datastar.NewSSE(w, r) // the demo: the pen and the laser, nothing else
 		return
 	}
 	if h.student(meta, u) { // a book's whiteboard, not theirs: their own pencil

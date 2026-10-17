@@ -96,6 +96,10 @@ func (d *DB) Ping(ctx context.Context) error { return d.sql.PingContext(ctx) }
 // GlobalName is the one board that makes itself: everyone's shared board.
 const GlobalName = "main"
 
+// DemoName is the other: the demo anyone may draw on, signed in or not, with
+// a pen and the laser only; it clears itself every minute.
+const DemoName = "demo"
+
 // Ensure returns the board's position. Only the global board is created on
 // first use; any other unknown name is ErrNoBoard (boards are made by CreateBoard).
 func (d *DB) Ensure(ctx context.Context, name string) (Pos, error) {
@@ -109,16 +113,20 @@ func (d *DB) Ensure(ctx context.Context, name string) (Pos, error) {
 	if !errors.Is(err, sql.ErrNoRows) {
 		return p, err
 	}
-	if name != GlobalName {
+	if name != GlobalName && name != DemoName {
 		return p, ErrNoBoard
+	}
+	title, vis, height := "Global board", "global", 1000
+	if name == DemoName {
+		title, vis, height = "Try draw", "public", 1294
 	}
 	tx, err := d.sql.BeginTx(ctx, nil)
 	if err != nil {
 		return p, err
 	}
 	defer tx.Rollback()
-	if err := tx.QueryRowContext(ctx, `INSERT INTO boards (name, title, visibility, created_ms) VALUES (?, 'Global board', 'global', ?) RETURNING id`,
-		name, time.Now().UnixMilli()).Scan(&p.Board); err != nil {
+	if err := tx.QueryRowContext(ctx, `INSERT INTO boards (name, title, visibility, created_ms, height) VALUES (?, ?, ?, ?, ?) RETURNING id`,
+		name, title, vis, time.Now().UnixMilli(), height).Scan(&p.Board); err != nil {
 		return p, err
 	}
 	if err := tx.QueryRowContext(ctx, `INSERT INTO branches (board_id, name, is_main) VALUES (?, 'main', 1) RETURNING id`, p.Board).Scan(&p.Branch); err != nil {
@@ -378,4 +386,26 @@ func freeBranchName(ctx context.Context, tx *sql.Tx, boardID int64) (string, err
 			return name, nil
 		}
 	}
+}
+
+// PruneRevisions keeps a board's history short: its latest keep revisions,
+// its branch heads and the one on screen; the rest go, and a revision whose
+// parent went becomes a root. (The demo board's, which draws all day.)
+func (d *DB) PruneRevisions(ctx context.Context, boardID int64, keep int) error {
+	tx, err := d.sql.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM revisions WHERE board_id = ?
+		AND id NOT IN (SELECT id FROM revisions WHERE board_id = ? ORDER BY id DESC LIMIT ?)
+		AND id NOT IN (SELECT head FROM branches WHERE board_id = ? AND head IS NOT NULL)
+		AND id NOT IN (SELECT rev_id FROM boards WHERE id = ? AND rev_id IS NOT NULL)`, boardID, boardID, keep, boardID, boardID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE revisions SET parent_id = NULL WHERE board_id = ? AND parent_id IS NOT NULL
+		AND parent_id NOT IN (SELECT id FROM revisions WHERE board_id = ?)`, boardID, boardID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

@@ -18,6 +18,8 @@ type BoardData struct {
 	Lesson bool
 	// Student: a book's whiteboard that is not theirs: a pencil of their own
 	Student bool
+	// Demo: the demo board, for anyone: a pen and the laser, cleared each minute
+	Demo bool
 }
 
 // Board is the land: the whole document, rendered once. Everything after comes
@@ -26,6 +28,71 @@ type BoardData struct {
 // title (#board-title) and the share panel (#share-body) when they change. The
 // page draws nothing itself; it carries the pointer and keys up as commands.
 templ Board(d BoardData) {
+	if d.Demo {
+		@DemoBoard(d)
+	} else {
+		@boardPage(d)
+	}
+}
+
+// DemoBoard is the demo: anyone, signed in or not, draws with a pen and
+// points with the laser on one shared page that clears every minute (the
+// paper counts down). Nothing else: no notes, no checklist, no history.
+templ DemoBoard(d BoardData) {
+	@Doc("Try draw", nil) {
+		<div class="page board-page demo" data-signals={ pageSignals(d.Inst, boardHeight(d.Meta)) } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ "$tool = 5; " + onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
+			<nav class="pg-subheader teach-bar demo-bar mobile" aria-label="Demo">
+				@demoTools()
+				<div class="row oneline ends">
+					@demoWho(d.User)
+				</div>
+			</nav>
+			<nav class="pg-toolbar tool-rail tablet desktop" aria-label="Tools">
+				<div class="button-group tools" role="toolbar" aria-label="Tools">
+					@railTool(5, "pen", "Pen", "P")
+					@railTool(4, "laser", "Laser", "5")
+				</div>
+				<div class="rail-foot">
+					@demoWho(d.User)
+				</div>
+			</nav>
+			<main class="pg-main workspace-wrap">
+				<div class="workspace demo-workspace" style={ "--ar: " + aspect(boardHeight(d.Meta)) }>
+					@boardCard(d, boardHeight(d.Meta))
+				</div>
+			</main>
+		</div>
+		if d.User != nil && d.User.ID > 0 {
+			@meMenu(d.User, false)
+		}
+	}
+}
+
+// demoTools: the demo's two tools, for a phone's bar.
+templ demoTools() {
+	<div class="row oneline demo-tools">
+		<button class="icon" data-on:click={ pick(5) } data-attr:aria-pressed={ pressed(5) } aria-label="Pen" title="Pen">
+			@Icon("pen")
+		</button>
+		<button class="icon" data-on:click={ pick(4) } data-attr:aria-pressed={ pressed(4) } aria-label="Laser" title="Laser">
+			@Icon("laser")
+		</button>
+	</div>
+}
+
+// demoWho: a guest's way in (to their own boards), or who they are.
+templ demoWho(u *db.User) {
+	if u != nil && u.ID > 0 {
+		<a class="demo-home" href="/" title="Your library">
+			@Icon("home")
+		</a>
+		@avatarButton(u)
+	} else {
+		<a class="demo-signin" href="/" title="Sign in for boards of your own">Sign in</a>
+	}
+}
+
+templ boardPage(d BoardData) {
 	@Doc(d.Meta.Title+" · draw", nil) {
 		<!-- the board's wiring sits on .page, in a fixed order: the signals are
 		     declared before data-init reads them (a map of body attributes has no
@@ -534,6 +601,10 @@ templ boardTitle(name string, u *db.User, m *hub.Meta) {
 						</span>
 					}
 					<span class="presence" title="People on this board"><span data-text="$users"></span> here</span>
+					if m.Name == db.DemoName {
+						<!-- the demo clears on every minute of the clock -->
+						<span class="demo-clock" data-signals__ifmissing="{_left: 60}" data-on-interval__duration.1s="$_left = 60 - Math.floor(Date.now() / 1000) % 60" data-text="'clears in ' + $_left + 's'"></span>
+					}
 					@Saved("title")
 				</div>
 			</div>

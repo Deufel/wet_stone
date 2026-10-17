@@ -102,7 +102,8 @@ func main() {
 	// (a deploy happened) reloads instead of talking past the server
 	var inst [6]byte
 	_, _ = rand.Read(inst[:])
-	(&handler.Handler{Hub: h, Bus: b, DB: d, Auth: a, Compress: *compress, Instance: hex.EncodeToString(inst[:])}).Routes(r)
+	hd := &handler.Handler{Hub: h, Bus: b, DB: d, Auth: a, Compress: *compress, Instance: hex.EncodeToString(inst[:])}
+	hd.Routes(r)
 
 	// Streams are lifelong, so shutdown cancels every request context (which
 	// ends each stream's loop) instead of waiting for them to finish.
@@ -113,6 +114,7 @@ func main() {
 		BaseContext: func(_ net.Listener) context.Context { return baseCtx },
 	}
 
+	go hd.RunDemo(baseCtx)
 	debugListen()
 	go func() {
 		slog.Info("whiteboard", "url", "http://"+*addr)
