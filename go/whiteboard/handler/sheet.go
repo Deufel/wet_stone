@@ -190,6 +190,11 @@ func (h *Handler) sheetOp(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	path := r.URL.Path
 	editing, _ := h.DB.Editing(ctx, book.ID)
+	if (strings.HasSuffix(path, "/copy") || strings.HasSuffix(path, "/delete")) && h.DB.SheetHasLesson(ctx, book.ID, id) {
+		// a lesson page is as written: a copy or a gap would break its lesson
+		ack.Bad(datastar.NewSSE(w, r), "sheet", "A lesson page stays as written: not copied or deleted")
+		return
+	}
 	msg := ""
 	switch {
 	case strings.HasSuffix(path, "/copy"):

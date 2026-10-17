@@ -710,14 +710,27 @@
   /* the pages sit under the notes, a card of their own */
   :where(.workspace) > :where(.page-strip) { border: 1px solid var(--border); border-radius: var(--cfg-radius); --lift: 0.04; background-color: var(--_bg); padding: 0.25lh 0.5em; }
   /* the teacher's page: drag it to move it; copy and delete on hover */
-  :where(.strip-item) { position: relative; cursor: grab; }
+  :where(.strip-item) { position: relative; }
   :where(.strip-item.dragging) { opacity: 0.4; }
   :where(.strip-item.drop-over) :where(.mini) { outline: 2px dashed var(--focus, currentColor); outline-offset: 2px; }
-  :where(.strip-acts) { position: absolute; inset-block-start: 2px; inset-inline-end: 2px; display: flex; flex-direction: column; gap: 2px; opacity: 0; pointer-events: none; transition: opacity calc(var(--cfg-motion) * 0.12s); }
-  :where(.strip-item):where(:hover, :focus-within) > :where(.strip-acts) { opacity: 1; pointer-events: auto; }
-  :where(.strip-acts) > :where(button) { inline-size: 1.35em; block-size: 1.35em; min-block-size: 0; padding: 0; display: grid; place-items: center; border-radius: 4px; --lift: 0.1; background-color: var(--_bg); --type: -2; }
-  :where(.strip-acts) > :where(button) > :where(svg) { inline-size: 0.8em; block-size: 0.8em; }
-  @media (hover: none) { :where(.strip-item[data-ui-editing]) > :where(.strip-acts) { opacity: 1; pointer-events: auto; } }
+  /* a page's ⋯: with a mouse (fine), it waits for the pointer and the page
+     drags; to a finger (coarse), it is always there, and the menu moves it */
+  :where(.strip-more) { position: absolute; inset-block-start: 2px; inset-inline-end: 2px; inline-size: 1.35em; block-size: 1.35em; min-block-size: 0; padding: 0; display: grid; place-items: center; border-radius: 4px; --lift: 0.1; background-color: var(--_bg); --type: -2; opacity: 0; transition: opacity calc(var(--cfg-motion) * 0.12s); }
+  :where(.strip-more) > :where(svg) { inline-size: 0.85em; block-size: 0.85em; }
+  :where(.strip-item):where(:hover, :focus-within) > :where(.strip-more) { opacity: 1; }
+  @media (pointer: coarse) {
+    :where(.strip-more) { opacity: 0.9; inline-size: 1.7em; block-size: 1.7em; }
+    :where(.strip-item) { cursor: pointer; }
+  }
+  @media (pointer: fine) { :where(.strip-item) { cursor: grab; } }
+  /* the page menu, over the page that opened it */
+  :where(#page-menu) { inset: auto; position-area: top span-right; position-try-fallbacks: flip-block, flip-inline; margin: 0 0 6px; }
+  :where(.page-menu:popover-open) { display: grid; gap: 0.05lh; padding: 0.3lh; min-inline-size: 13rem; max-inline-size: 18rem; }
+  :where(.page-menu) > :where(.meta) { margin: 0 0.4em 0.1lh; --type: -1; --fg: -0.5; }
+  :where(.page-menu) > :where(.hint) { margin-block-start: 0.15lh; --type: -2; }
+  :where(.page-menu) > :where(button) { display: flex; align-items: center; gap: 0.5em; justify-content: flex-start; padding: 0.25lh 0.6em; min-block-size: 0; background: none; border: 0; box-shadow: none; border-radius: calc(var(--cfg-radius) * 0.7); }
+  :where(.page-menu) > :where(button):where(:hover:not([disabled])) { --lift: 0.08; background-color: var(--_bg); }
+  :where(.page-menu) > :where(button) > :where(svg) { inline-size: 1em; block-size: 1em; }
 }
 
 /* a page prints as itself: the leaf, edge to edge, nothing else */

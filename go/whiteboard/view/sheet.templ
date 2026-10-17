@@ -40,7 +40,8 @@ templ PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing 
 						<li
 							class="strip-item"
 							data-ui-editing?={ s.No == editing }
-							draggable="true"
+							data-ui-lesson?={ s.Lesson != "" }
+							data-attr:draggable="matchMedia('(pointer: fine)').matches ? 'true' : 'false'"
 							data-on:dragstart={ "$_pdrag = " + id64(s.ID) + "; evt.dataTransfer.effectAllowed = 'move'; evt.dataTransfer.setData('text/plain', '" + id64(s.ID) + "')" }
 							data-on:dragover="$_pdrag && evt.preventDefault()"
 							data-on:dragenter={ "$_pover = " + id64(s.ID) }
@@ -49,17 +50,19 @@ templ PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing 
 							data-class:drop-over={ "$_pdrag && $_pdrag != " + id64(s.ID) + " && $_pover == " + id64(s.ID) }
 							data-class:dragging={ "$_pdrag == " + id64(s.ID) }
 						>
-							<button class="strip-page" draggable="false" data-on:click={ "@post('/b/" + name + "/editpage/" + strconv.Itoa(s.No) + "', {payload: {inst: $inst}})" } title={ "Page " + strconv.Itoa(s.No) + ": put it back on the whiteboard to change it (drag to move it)" }>
+							<button class="strip-page" draggable="false" data-on:click={ "@post('/b/" + name + "/editpage/" + strconv.Itoa(s.No) + "', {payload: {inst: $inst}})" } title={ "Page " + strconv.Itoa(s.No) + ": put it on the whiteboard" }>
 								@stripPage(b, s)
 							</button>
-							<span class="strip-acts">
-								<button class="icon" data-on:click={ "@post('/b/" + name + "/sheet/" + id64(s.ID) + "/copy', {requestCancellation: 'disabled'})" } aria-label={ "Copy page " + strconv.Itoa(s.No) } title="A copy, after it">
-									@Icon("copy")
-								</button>
-								<button class="icon dgr" data-on:click={ "$_delpage = " + strconv.Itoa(s.No) + "; $_delsheet = " + id64(s.ID) + "; document.getElementById('delete-page-confirm').showModal()" } aria-label={ "Delete page " + strconv.Itoa(s.No) } title="Delete it">
-									@Icon("trash")
-								</button>
-							</span>
+							<!-- its menu: open, move, copy, delete (a lesson page: open and
+							     move only); on hover with a mouse, always there to a finger -->
+							<button
+								class="strip-more"
+								data-on:click={ "$_pm = " + pageMenuSignal(sheets, i) + "; document.getElementById('page-menu').showPopover({source: el})" }
+								aria-label={ "Page " + strconv.Itoa(s.No) + ": more" }
+								title="Open, move, copy, delete"
+							>
+								@Icon("more")
+							</button>
 						</li>
 					} else {
 						<li>
@@ -89,9 +92,11 @@ templ PageStrip(name string, b *db.Book, sheets []db.Sheet, owner bool, editing 
 			<button class="tool stack sec" data-on:click={ postKept(name, "newpage") } aria-label="New page" title={ "Leave page " + strconv.Itoa(editing) + " as it was and start a clean page" }>
 				@Icon("plus")
 			</button>
-			<button class="tool stack sec dgr" data-on:click={ "$_delpage = " + strconv.Itoa(editing) + "; $_delsheet = " + id64(editingID(sheets, editing)) + "; document.getElementById('delete-page-confirm').showModal()" } aria-label={ "Delete page " + strconv.Itoa(editing) } title={ "Delete page " + strconv.Itoa(editing) + " from the book" }>
-				@Icon("trash")
-			</button>
+			if !editingLesson(sheets, editing) {
+				<button class="tool stack sec dgr" data-on:click={ "$_delpage = " + strconv.Itoa(editing) + "; $_delsheet = " + id64(editingID(sheets, editing)) + "; document.getElementById('delete-page-confirm').showModal()" } aria-label={ "Delete page " + strconv.Itoa(editing) } title={ "Delete page " + strconv.Itoa(editing) + " from the book" }>
+					@Icon("trash")
+				</button>
+			}
 		} else if owner {
 			<button class="tool stack pri" data-on:click={ postKept(name, "sendpage") } aria-label="Send to page" title="Send the whole whiteboard to the book's next page, and turn to a clean one">
 				@Icon("page-in")
@@ -255,4 +260,53 @@ templ deletePageDialog(name string) {
 			</button>
 		</div>
 	</dialog>
+}
+
+// pageMenu is a page's menu in the strip, one for the page, filled from the
+// page whose ⋯ opened it ($_pm). Outside the strip's morph target, so an
+// update never closes it under the teacher's hand.
+templ pageMenu(name string) {
+	<div id="page-menu" class="menu page-menu" popover data-signals__ifmissing="{_pm: {id: 0, no: 0, lesson: false, prev: 0, next: 0}}">
+		<p class="meta"><span data-text="'Page ' + $_pm.no"></span><span data-show="$_pm.lesson"> · a lesson</span></p>
+		<button data-on:click={ "@post('/b/" + name + "/editpage/' + $_pm.no, {payload: {inst: $inst}}); el.closest('[popover]').hidePopover()" }>
+			@Icon("page-in")
+			Put it on the whiteboard
+		</button>
+		<button data-attr:disabled="!$_pm.prev" data-on:click={ "@post('/b/" + name + "/sheet/' + $_pm.id + '/move/' + $_pm.prev, {requestCancellation: 'disabled'}); el.closest('[popover]').hidePopover()" }>
+			@Icon("chevron-left")
+			Move earlier
+		</button>
+		<button data-attr:disabled="!$_pm.next" data-on:click={ "@post('/b/" + name + "/sheet/' + $_pm.id + '/move/' + $_pm.next, {requestCancellation: 'disabled'}); el.closest('[popover]').hidePopover()" }>
+			@Icon("chevron-right")
+			Move later
+		</button>
+		<button data-attr:disabled="$_pm.lesson" data-on:click={ "@post('/b/" + name + "/sheet/' + $_pm.id + '/copy', {requestCancellation: 'disabled'}); el.closest('[popover]').hidePopover()" }>
+			@Icon("copy")
+			Copy it, after it
+		</button>
+		<button class="dgr" data-attr:disabled="$_pm.lesson" data-on:click="$_delpage = $_pm.no; $_delsheet = $_pm.id; el.closest('[popover]').hidePopover(); document.getElementById('delete-page-confirm').showModal()">
+			@Icon("trash")
+			Delete it
+		</button>
+		<p class="meta hint" data-show="$_pm.lesson">A lesson page stays as written: it moves, but is not copied or deleted.</p>
+	</div>
+}
+
+// pageMenuSignal: what the menu needs of page i: its id and number, whether
+// it is a lesson, and its neighbours' ids (0: none) to move onto.
+func pageMenuSignal(sheets []db.Sheet, i int) string {
+	var prev, next int64
+	if i > 0 {
+		prev = sheets[i-1].ID
+	}
+	if i+1 < len(sheets) {
+		next = sheets[i+1].ID
+	}
+	s := sheets[i]
+	return "{id: " + id64(s.ID) + ", no: " + strconv.Itoa(s.No) + ", lesson: " + boolJS(s.Lesson != "") + ", prev: " + id64(prev) + ", next: " + id64(next) + "}"
+}
+
+// editingLesson: is the page on the whiteboard a lesson page?
+func editingLesson(sheets []db.Sheet, no int) bool {
+	return no > 0 && no <= len(sheets) && sheets[no-1].Lesson != ""
 }

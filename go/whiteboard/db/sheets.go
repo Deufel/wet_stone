@@ -283,3 +283,13 @@ func (d *DB) MoveSheet(ctx context.Context, bookID, sheetID, targetID int64) err
 	}
 	return tx.Commit()
 }
+
+// SheetHasLesson: does the page carry a lesson? (A lesson page is as written:
+// it is not copied or deleted.)
+func (d *DB) SheetHasLesson(ctx context.Context, bookID, sheetID int64) bool {
+	ctx, cancel := reading(ctx)
+	defer cancel()
+	var n int
+	_ = d.rd.QueryRowContext(ctx, `SELECT count(*) FROM book_sheets WHERE id = ? AND book_id = ? AND lesson != ''`, sheetID, bookID).Scan(&n)
+	return n > 0
+}

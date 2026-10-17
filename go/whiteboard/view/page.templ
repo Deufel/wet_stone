@@ -64,6 +64,7 @@ templ Board(d BoardData) {
 		@clearDialog(d.Name)
 		if d.User != nil && d.Meta.OwnerID == d.User.ID {
 			@deletePageDialog(d.Name)
+			@pageMenu(d.Name)
 		}
 		<aside id="history-drawer" class="drawer right history-drawer" popover="manual" aria-label="History">
 			<header class="drawer-head">
