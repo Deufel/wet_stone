@@ -26,6 +26,7 @@ var icons = map[string]string{
 	"type":          `<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>`,
 	"chevron-left":  `<path d="m15 18-6-6 6-6"/>`,
 	"chevron-right": `<path d="m9 18 6-6-6-6"/>`,
+	"whiteboard":    `<rect x="2" y="3" width="20" height="13" rx="1.5"/><path d="M6 12l3-3 3 2 5-5"/><path d="M8 21l4-5 4 5"/>`,
 	"home":          `<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`,
 	"select":        `<path d="M12.586 12.586 19 19"/><path d="M3.688 3.037a.497.497 0 0 0-.651.651l6.5 15.999a.501.501 0 0 0 .947-.062l1.569-6.083a2 2 0 0 1 1.448-1.479l6.124-1.579a.5.5 0 0 0 .063-.947z"/>`,
 	"box":           `<rect width="18" height="18" x="3" y="3" rx="2"/>`,

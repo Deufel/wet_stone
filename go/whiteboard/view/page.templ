@@ -40,25 +40,27 @@ templ Board(d BoardData) {
 // paper counts down). Nothing else: no notes, no checklist, no history.
 templ DemoBoard(d BoardData) {
 	@Doc("Try draw", nil) {
-		<div class="page board-page demo" data-signals={ pageSignals(d.Inst, boardHeight(d.Meta)) } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ "$tool = 5; " + onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
-			<nav class="pg-subheader teach-bar demo-bar mobile" aria-label="Demo">
-				@demoTools()
-				<div class="row oneline ends">
-					@demoWho(d.User)
-				</div>
-			</nav>
-			<nav class="pg-toolbar tool-rail tablet desktop" aria-label="Tools">
-				<div class="button-group tools" role="toolbar" aria-label="Tools">
-					@railTool(5, "pen", "Pen", "P")
-					@railTool(4, "laser", "Laser", "5")
-				</div>
-				<div class="rail-foot">
-					@demoWho(d.User)
-				</div>
-			</nav>
+		<!-- full screen from the start: the paper and nothing else; its two
+		     tools float at the foot, the way out and the window's full screen
+		     at the top right -->
+		<div class="page board-page demo full" data-signals={ pageSignals(d.Inst, boardHeight(d.Meta)) } data-effect={ aliveBeat } data-on-interval__duration.1s={ aliveCheck } data-init={ "$tool = 5; " + onInit(d.Name) } data-on:keydown__window={ onKey(d.Name) }>
 			<main class="pg-main workspace-wrap">
 				<div class="workspace demo-workspace" style={ "--ar: " + aspect(boardHeight(d.Meta)) }>
 					@boardCard(d, boardHeight(d.Meta))
+					<div class="demo-fab demo-tools" role="toolbar" aria-label="Tools">
+						<button class="icon" data-on:click={ pick(5) } data-attr:aria-pressed={ pressed(5) } aria-label="Pen" title="Pen (P)">
+							@Icon("pen")
+						</button>
+						<button class="icon" data-on:click={ pick(4) } data-attr:aria-pressed={ pressed(4) } aria-label="Laser" title="Laser (5)">
+							@Icon("laser")
+						</button>
+					</div>
+					<div class="demo-fab demo-corner">
+						<button class="icon" data-on:click="document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.().catch(() => {})" aria-label="Full screen" title="Full screen">
+							@Icon("maximize")
+						</button>
+						@demoWho(d.User)
+					</div>
 				</div>
 			</main>
 		</div>
@@ -66,18 +68,6 @@ templ DemoBoard(d BoardData) {
 			@meMenu(d.User, false)
 		}
 	}
-}
-
-// demoTools: the demo's two tools, for a phone's bar.
-templ demoTools() {
-	<div class="row oneline demo-tools">
-		<button class="icon" data-on:click={ pick(5) } data-attr:aria-pressed={ pressed(5) } aria-label="Pen" title="Pen">
-			@Icon("pen")
-		</button>
-		<button class="icon" data-on:click={ pick(4) } data-attr:aria-pressed={ pressed(4) } aria-label="Laser" title="Laser">
-			@Icon("laser")
-		</button>
-	</div>
 }
 
 // demoWho: a guest's way in (to their own boards), or who they are.
